@@ -166,18 +166,19 @@ describe("D1Client", () => {
   });
 
   describe("batch()", () => {
-    it("should send batch of queries", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            success: true,
-            result: [
-              { results: [{ id: 1 }], meta: { changes: 0, duration: 0.01 } },
-              { results: [], meta: { changes: 1, duration: 0.02 } },
-            ],
-          }),
-      });
+    it("should send individual queries for each statement", async () => {
+      mockFetch
+        .mockResolvedValueOnce(
+          mockD1Response([{ id: 1 }])
+        )
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              success: true,
+              result: [{ results: [], meta: { changes: 1, duration: 0.02 } }],
+            }),
+        });
 
       const results = await client.batch([
         { sql: "SELECT * FROM users WHERE id = ?", params: [1] },
@@ -191,29 +192,25 @@ describe("D1Client", () => {
       expect(results[0]!.results).toEqual([{ id: 1 }]);
       expect(results[1]!.meta.changes).toBe(1);
 
-      // Check the request body format
-      const body = JSON.parse(mockFetch.mock.calls[0]![1].body);
-      expect(body).toHaveLength(2);
-      expect(body[0]).toEqual({
+      // Each statement is sent as a separate request
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      const body0 = JSON.parse(mockFetch.mock.calls[0]![1].body);
+      expect(body0).toEqual({
         sql: "SELECT * FROM users WHERE id = ?",
         params: [1],
       });
+      const body1 = JSON.parse(mockFetch.mock.calls[1]![1].body);
+      expect(body1).toEqual({
+        sql: "INSERT INTO logs (msg) VALUES (?)",
+        params: ["hello"],
+      });
     });
 
-    it("should use /query endpoint for batch (array body)", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            success: true,
-            result: [],
-          }),
-      });
+    it("should return empty array for empty batch", async () => {
+      const results = await client.batch([]);
 
-      await client.batch([]);
-
-      const [url] = mockFetch.mock.calls[0]!;
-      expect(url).toContain("/query");
+      expect(results).toHaveLength(0);
+      expect(mockFetch).not.toHaveBeenCalled();
     });
   });
 
