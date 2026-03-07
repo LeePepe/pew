@@ -72,27 +72,25 @@ All development follows **TDD** — write tests first, then implement.
 - [x] `package.json` (`@nocoo/zebra`, public, bin entry)
 - [x] `tsconfig.json` (extends root, references core)
 - [x] `src/bin.ts` — entry point
-- [x] `src/cli.ts` — citty main command with subcommands
-- [x] `src/commands/init.ts` — stub
-- [x] `src/commands/sync.ts` — stub
-- [x] `src/commands/status.ts` — stub
-- [x] `src/commands/login.ts` — stub
+- [x] `src/cli.ts` — citty main command with 4 subcommands (init, sync, status, login)
 - [x] `src/__tests__/cli.test.ts` — CLI smoke tests (TDD: write first)
 
 ### 1.4 Web Package (`packages/web`)
 - [x] `package.json` (`@zebra/web`, private, Next.js 16)
-- [x] `tsconfig.json` (extends root, Next.js settings)
-- [x] `next.config.ts`
+- [x] `tsconfig.json` (Next.js strict settings)
+- [x] `next.config.ts` (standalone output, turbopack root)
+- [x] `postcss.config.mjs` (Tailwind v4 PostCSS plugin)
 - [x] `src/app/layout.tsx` — root layout
 - [x] `src/app/page.tsx` — landing page
-- [x] `src/app/globals.css` — Tailwind v4 setup
-- [x] `src/__tests__/page.test.tsx` — page render test (TDD: write first)
+- [x] `src/app/globals.css` — Tailwind v4 import
 
 ### 1.5 Testing Infrastructure
-- [x] `vitest.config.ts` — root config, 90% coverage thresholds
-- [x] `.husky/pre-commit` — runs L1 (vitest) + L2 (tsc --noEmit), checks coverage
-- [x] `.husky/pre-push` — runs L3 (API E2E)
-- [x] `scripts/check-coverage.ts` — coverage threshold enforcement script
+- [x] `vitest.config.ts` — root config, 90% coverage thresholds (V8 provider)
+- [x] `.husky/pre-commit` — runs L1 (vitest) + L2 (tsc --noEmit)
+- [x] `.husky/pre-push` — runs L3 (API E2E via scripts/run-e2e.ts)
+- [x] `scripts/e2e-utils.ts` — shared port/cleanup utilities
+- [x] `scripts/run-e2e.ts` — L3 API E2E runner (port 17029)
+- [x] `scripts/run-e2e-ui.ts` — L4 Playwright BDD runner (port 27029)
 
 ---
 
