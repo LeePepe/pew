@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { POST } from "@/app/api/ingest/route";
+import { POST, buildMultiRowUpsert } from "@/app/api/ingest/route";
 import * as d1Module from "@/lib/d1";
 
 // Mock getD1Client
@@ -81,7 +81,7 @@ describe("POST /api/ingest", () => {
         userId: "u1",
         email: "test@example.com",
       });
-      mockClient.batch.mockResolvedValueOnce([]);
+      mockClient.execute.mockResolvedValueOnce({ changes: 1, duration: 5 });
 
       const res = await POST(makeRequest([VALID_RECORD]));
 
@@ -93,27 +93,28 @@ describe("POST /api/ingest", () => {
         userId: "u2",
         email: "apikey@example.com",
       });
-      mockClient.batch.mockResolvedValueOnce([]);
+      mockClient.execute.mockResolvedValueOnce({ changes: 1, duration: 5 });
 
       const res = await POST(makeRequest([VALID_RECORD], "zk_abc123"));
 
       expect(res.status).toBe(200);
-      const statements = mockClient.batch.mock.calls[0]![0];
-      expect(statements[0].params).toContain("u2");
+      // Verify execute was called with params containing the user_id
+      const [, params] = mockClient.execute.mock.calls[0]!;
+      expect(params).toContain("u2");
     });
 
-    it("should use userId from resolveUser in upsert statements", async () => {
+    it("should use userId from resolveUser in upsert statement", async () => {
       vi.mocked(resolveUser).mockResolvedValueOnce({
         userId: "u1",
         email: "test@example.com",
       });
-      mockClient.batch.mockResolvedValueOnce([]);
+      mockClient.execute.mockResolvedValueOnce({ changes: 1, duration: 5 });
 
       const res = await POST(makeRequest([VALID_RECORD], "zk_some_key"));
 
       expect(res.status).toBe(200);
-      const statements = mockClient.batch.mock.calls[0]![0];
-      expect(statements[0].params).toContain("u1");
+      const [, params] = mockClient.execute.mock.calls[0]!;
+      expect(params).toContain("u1");
     });
   });
 
@@ -174,15 +175,15 @@ describe("POST /api/ingest", () => {
       expect(res.status).toBe(400);
     });
 
-    it("should reject oversized batches (> 1000 records)", async () => {
-      const records = Array.from({ length: 1001 }, () => ({
+    it("should reject oversized batches (> 100 records)", async () => {
+      const records = Array.from({ length: 101 }, () => ({
         ...VALID_RECORD,
       }));
       const res = await POST(makeRequest(records));
 
       expect(res.status).toBe(400);
       const body = await res.json();
-      expect(body.error).toContain("1000");
+      expect(body.error).toContain("100");
     });
   });
 
@@ -194,24 +195,27 @@ describe("POST /api/ingest", () => {
       });
     });
 
-    it("should upsert records into D1", async () => {
-      mockClient.batch.mockResolvedValueOnce([]);
+    it("should call execute with a single multi-row INSERT", async () => {
+      mockClient.execute.mockResolvedValueOnce({ changes: 1, duration: 5 });
 
       const res = await POST(makeRequest([VALID_RECORD]));
 
       expect(res.status).toBe(200);
-      expect(mockClient.batch).toHaveBeenCalledOnce();
+      expect(mockClient.execute).toHaveBeenCalledOnce();
+      expect(mockClient.batch).not.toHaveBeenCalled();
 
-      const statements = mockClient.batch.mock.calls[0]![0];
-      expect(statements).toHaveLength(1);
-      expect(statements[0].sql).toContain("INSERT");
-      expect(statements[0].sql).toContain("ON CONFLICT");
-      expect(statements[0].params).toContain("u1"); // user_id
-      expect(statements[0].params).toContain("claude-code"); // source
+      const [sql, params] = mockClient.execute.mock.calls[0]!;
+      expect(sql).toContain("INSERT INTO usage_records");
+      expect(sql).toContain("ON CONFLICT");
+      // Overwrite semantics — NOT additive
+      expect(sql).toContain("input_tokens = excluded.input_tokens");
+      expect(sql).not.toContain("input_tokens + excluded.input_tokens");
+      expect(params).toContain("u1"); // user_id
+      expect(params).toContain("claude-code"); // source
     });
 
-    it("should handle multiple records in batch", async () => {
-      mockClient.batch.mockResolvedValueOnce([]);
+    it("should build multi-row VALUES for multiple records", async () => {
+      mockClient.execute.mockResolvedValueOnce({ changes: 3, duration: 10 });
 
       const records = [
         VALID_RECORD,
@@ -221,12 +225,17 @@ describe("POST /api/ingest", () => {
       const res = await POST(makeRequest(records));
 
       expect(res.status).toBe(200);
-      const statements = mockClient.batch.mock.calls[0]![0];
-      expect(statements).toHaveLength(3);
+
+      const [sql, params] = mockClient.execute.mock.calls[0]!;
+      // 3 records × 9 columns = 27 params
+      expect(params).toHaveLength(27);
+      // SQL should have 3 value tuples
+      const valueMatches = sql.match(/\([\s,?]+\)/g);
+      expect(valueMatches).toHaveLength(3);
     });
 
     it("should return ingested count in response", async () => {
-      mockClient.batch.mockResolvedValueOnce([]);
+      mockClient.execute.mockResolvedValueOnce({ changes: 2, duration: 5 });
 
       const res = await POST(makeRequest([VALID_RECORD, VALID_RECORD]));
 
@@ -236,7 +245,7 @@ describe("POST /api/ingest", () => {
     });
 
     it("should return 500 on D1 failure", async () => {
-      mockClient.batch.mockRejectedValueOnce(new Error("D1 unavailable"));
+      mockClient.execute.mockRejectedValueOnce(new Error("D1 unavailable"));
 
       const res = await POST(makeRequest([VALID_RECORD]));
 
@@ -244,5 +253,98 @@ describe("POST /api/ingest", () => {
       const body = await res.json();
       expect(body.error).toContain("ingest");
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Unit tests for buildMultiRowUpsert
+// ---------------------------------------------------------------------------
+
+describe("buildMultiRowUpsert", () => {
+  it("should build correct SQL for a single record", () => {
+    const { sql, params } = buildMultiRowUpsert("u1", [
+      {
+        source: "claude-code",
+        model: "sonnet",
+        hour_start: "2026-03-07T10:00:00.000Z",
+        input_tokens: 100,
+        cached_input_tokens: 20,
+        output_tokens: 50,
+        reasoning_output_tokens: 0,
+        total_tokens: 150,
+      },
+    ]);
+
+    expect(sql).toContain("INSERT INTO usage_records");
+    expect(sql).toContain("VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    expect(sql).toContain("ON CONFLICT");
+    // Overwrite semantics
+    expect(sql).toContain("input_tokens = excluded.input_tokens");
+    expect(sql).not.toContain("input_tokens + excluded.input_tokens");
+    expect(params).toEqual([
+      "u1", "claude-code", "sonnet", "2026-03-07T10:00:00.000Z",
+      100, 20, 50, 0, 150,
+    ]);
+  });
+
+  it("should build correct SQL for multiple records", () => {
+    const { sql, params } = buildMultiRowUpsert("u1", [
+      {
+        source: "claude-code",
+        model: "sonnet",
+        hour_start: "2026-03-07T10:00:00.000Z",
+        input_tokens: 100,
+        cached_input_tokens: 0,
+        output_tokens: 50,
+        reasoning_output_tokens: 0,
+        total_tokens: 150,
+      },
+      {
+        source: "gemini-cli",
+        model: "gemini-2.5-pro",
+        hour_start: "2026-03-07T11:00:00.000Z",
+        input_tokens: 200,
+        cached_input_tokens: 10,
+        output_tokens: 100,
+        reasoning_output_tokens: 0,
+        total_tokens: 300,
+      },
+    ]);
+
+    // 2 rows × 9 columns = 18 params
+    expect(params).toHaveLength(18);
+    // SQL should contain two value tuples
+    const valueSection = sql.split("VALUES")[1]!.split("ON CONFLICT")[0]!;
+    const tupleCount = (valueSection.match(/\(/g) ?? []).length;
+    expect(tupleCount).toBe(2);
+    // Both user_ids should be "u1"
+    expect(params[0]).toBe("u1");
+    expect(params[9]).toBe("u1");
+    // Second record source
+    expect(params[10]).toBe("gemini-cli");
+  });
+
+  it("should use overwrite (not additive) on conflict", () => {
+    const { sql } = buildMultiRowUpsert("u1", [
+      {
+        source: "claude-code",
+        model: "sonnet",
+        hour_start: "2026-03-07T10:00:00.000Z",
+        input_tokens: 100,
+        cached_input_tokens: 0,
+        output_tokens: 50,
+        reasoning_output_tokens: 0,
+        total_tokens: 150,
+      },
+    ]);
+
+    // Each token field should be overwritten, not accumulated
+    expect(sql).toContain("input_tokens = excluded.input_tokens");
+    expect(sql).toContain("cached_input_tokens = excluded.cached_input_tokens");
+    expect(sql).toContain("output_tokens = excluded.output_tokens");
+    expect(sql).toContain("reasoning_output_tokens = excluded.reasoning_output_tokens");
+    expect(sql).toContain("total_tokens = excluded.total_tokens");
+    // Must NOT contain additive pattern
+    expect(sql).not.toMatch(/input_tokens\s*=\s*input_tokens\s*\+/);
   });
 });

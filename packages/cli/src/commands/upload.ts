@@ -4,7 +4,7 @@
  * Flow:
  * 1. Load API key from config
  * 2. Read un-uploaded records from queue (using saved offset)
- * 3. Split into batches of ≤1000 (API limit)
+ * 3. Split into batches of ≤100 (safe for D1 multi-row INSERT)
  * 4. POST each batch to /api/ingest with Bearer token
  * 5. Persist offset after each successful batch (for resume on failure)
  * 6. Retry on 5xx with exponential backoff
@@ -27,7 +27,7 @@ export interface UploadOptions {
   dev?: boolean;
   /** Injected fetch (for testing) */
   fetch: typeof globalThis.fetch;
-  /** Max records per API request (default: 1000) */
+  /** Max records per API request (default: 100) */
   batchSize?: number;
   /** Max retries per batch on 5xx (default: 2) */
   maxRetries?: number;
@@ -56,7 +56,7 @@ export interface UploadResult {
 // Constants
 // ---------------------------------------------------------------------------
 
-const DEFAULT_BATCH_SIZE = 1000;
+const DEFAULT_BATCH_SIZE = 100;
 const DEFAULT_MAX_RETRIES = 2;
 const DEFAULT_RETRY_DELAY_MS = 1000;
 

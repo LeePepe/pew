@@ -211,15 +211,15 @@ describe("executeUpload", () => {
     expect(calls2).toHaveLength(0);
   });
 
-  // ----- Multi-batch (>1000 records) -----
+  // ----- Multi-batch (>100 records) -----
 
-  it("should split into multiple batches for >1000 records", async () => {
+  it("should split into multiple batches for >100 records", async () => {
     const config = new ConfigManager(dir);
     await config.save({ token: "zk_big_batch" });
 
     const queue = new LocalQueue(dir);
     const records: QueueRecord[] = [];
-    for (let i = 0; i < 1500; i++) {
+    for (let i = 0; i < 150; i++) {
       records.push(
         makeRecord({
           model: `model-${i}`,
@@ -230,8 +230,8 @@ describe("executeUpload", () => {
     await queue.appendBatch(records);
 
     const { fetchFn, calls } = createMockFetch([
-      { status: 200, body: { ingested: 1000 } },
-      { status: 200, body: { ingested: 500 } },
+      { status: 200, body: { ingested: 100 } },
+      { status: 200, body: { ingested: 50 } },
     ]);
 
     const result = await executeUpload({
@@ -241,14 +241,14 @@ describe("executeUpload", () => {
     });
 
     expect(result.success).toBe(true);
-    expect(result.uploaded).toBe(1500);
+    expect(result.uploaded).toBe(150);
     expect(result.batches).toBe(2);
     expect(calls).toHaveLength(2);
 
     const body1 = JSON.parse(calls[0].init.body as string);
     const body2 = JSON.parse(calls[1].init.body as string);
-    expect(body1).toHaveLength(1000);
-    expect(body2).toHaveLength(500);
+    expect(body1).toHaveLength(100);
+    expect(body2).toHaveLength(50);
   });
 
   // ----- API error (4xx) — should stop and report -----
@@ -397,9 +397,9 @@ describe("executeUpload", () => {
     await config.save({ token: "zk_partial" });
 
     const queue = new LocalQueue(dir);
-    // 1500 records → 2 batches
+    // 150 records → 2 batches (100 + 50)
     const records: QueueRecord[] = [];
-    for (let i = 0; i < 1500; i++) {
+    for (let i = 0; i < 150; i++) {
       records.push(
         makeRecord({
           model: `model-${i}`,
@@ -411,7 +411,7 @@ describe("executeUpload", () => {
 
     // First batch succeeds, second fails
     const { fetchFn } = createMockFetch([
-      { status: 200, body: { ingested: 1000 } },
+      { status: 200, body: { ingested: 100 } },
       { status: 500, body: { error: "Server Error" } },
       { status: 500, body: { error: "Server Error" } },
       { status: 500, body: { error: "Server Error" } },
@@ -427,11 +427,11 @@ describe("executeUpload", () => {
 
     // Should report partial success
     expect(result.success).toBe(false);
-    expect(result.uploaded).toBe(1000);
+    expect(result.uploaded).toBe(100);
 
-    // On re-upload, only the remaining 500 should be sent
+    // On re-upload, only the remaining 50 should be sent
     const { fetchFn: fetchFn2, calls: calls2 } = createMockFetch([
-      { status: 200, body: { ingested: 500 } },
+      { status: 200, body: { ingested: 50 } },
     ]);
 
     const result2 = await executeUpload({
@@ -441,8 +441,8 @@ describe("executeUpload", () => {
     });
 
     expect(result2.success).toBe(true);
-    expect(result2.uploaded).toBe(500);
+    expect(result2.uploaded).toBe(50);
     const body2 = JSON.parse(calls2[0].init.body as string);
-    expect(body2).toHaveLength(500);
+    expect(body2).toHaveLength(50);
   });
 });

@@ -3,13 +3,16 @@
  *
  * Authentication: resolveUser (session, Bearer api_key, or E2E bypass).
  * Body: QueueRecord[] array.
- * Upserts by (user_id, source, model, hour_start) — on conflict, adds tokens.
+ * Upserts by (user_id, source, model, hour_start) — on conflict, overwrites
+ * token counts (idempotent: re-sending the same batch produces same result).
+ *
+ * Performance: builds a single multi-row INSERT ... VALUES (...), (...)
+ * so one API batch = one HTTP call to D1 (not N calls).
  */
 
 import { NextResponse } from "next/server";
 import { resolveUser } from "@/lib/auth-helpers";
 import { getD1Client } from "@/lib/d1";
-import type { D1BatchStatement } from "@/lib/d1";
 
 // ---------------------------------------------------------------------------
 // Validation
@@ -74,6 +77,55 @@ function validateRecord(r: unknown, index: number): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// SQL builder — multi-row INSERT with overwrite upsert
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a single multi-row INSERT ... ON CONFLICT DO UPDATE SET statement.
+ *
+ * Each row has 9 columns; placeholders are (?, ?, ..., ?).
+ * On conflict, token counts are **overwritten** (not accumulated) so that
+ * re-sending the same batch is idempotent.
+ */
+export function buildMultiRowUpsert(
+  userId: string,
+  records: IngestRecord[]
+): { sql: string; params: unknown[] } {
+  const COLS_PER_ROW = 9;
+  const placeholderRow = `(${Array(COLS_PER_ROW).fill("?").join(", ")})`;
+  const allPlaceholders = records.map(() => placeholderRow).join(",\n             ");
+
+  const sql = `INSERT INTO usage_records
+            (user_id, source, model, hour_start,
+             input_tokens, cached_input_tokens, output_tokens,
+             reasoning_output_tokens, total_tokens)
+            VALUES ${allPlaceholders}
+            ON CONFLICT (user_id, source, model, hour_start) DO UPDATE SET
+              input_tokens = excluded.input_tokens,
+              cached_input_tokens = excluded.cached_input_tokens,
+              output_tokens = excluded.output_tokens,
+              reasoning_output_tokens = excluded.reasoning_output_tokens,
+              total_tokens = excluded.total_tokens`;
+
+  const params: unknown[] = [];
+  for (const r of records) {
+    params.push(
+      userId,
+      r.source,
+      r.model,
+      r.hour_start,
+      r.input_tokens,
+      r.cached_input_tokens,
+      r.output_tokens,
+      r.reasoning_output_tokens,
+      r.total_tokens
+    );
+  }
+
+  return { sql, params };
+}
+
+// ---------------------------------------------------------------------------
 // Route handler
 // ---------------------------------------------------------------------------
 
@@ -114,9 +166,9 @@ export async function POST(request: Request) {
     );
   }
 
-  if (records.length > 1000) {
+  if (records.length > 100) {
     return NextResponse.json(
-      { error: "Batch too large: max 1000 records per request" },
+      { error: "Batch too large: max 100 records per request" },
       { status: 400 }
     );
   }
@@ -128,36 +180,14 @@ export async function POST(request: Request) {
     }
   }
 
-  // 4. Upsert into D1
-  const statements: D1BatchStatement[] = (records as IngestRecord[]).map(
-    (r) => ({
-      sql: `INSERT INTO usage_records
-            (user_id, source, model, hour_start,
-             input_tokens, cached_input_tokens, output_tokens,
-             reasoning_output_tokens, total_tokens)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (user_id, source, model, hour_start) DO UPDATE SET
-              input_tokens = input_tokens + excluded.input_tokens,
-              cached_input_tokens = cached_input_tokens + excluded.cached_input_tokens,
-              output_tokens = output_tokens + excluded.output_tokens,
-              reasoning_output_tokens = reasoning_output_tokens + excluded.reasoning_output_tokens,
-              total_tokens = total_tokens + excluded.total_tokens`,
-      params: [
-        userId,
-        r.source,
-        r.model,
-        r.hour_start,
-        r.input_tokens,
-        r.cached_input_tokens,
-        r.output_tokens,
-        r.reasoning_output_tokens,
-        r.total_tokens,
-      ],
-    })
+  // 4. Upsert into D1 — single multi-row INSERT (one HTTP call)
+  const { sql, params } = buildMultiRowUpsert(
+    userId,
+    records as IngestRecord[]
   );
 
   try {
-    await client.batch(statements);
+    await client.execute(sql, params);
   } catch (err) {
     console.error("Failed to ingest records:", err);
     return NextResponse.json(
