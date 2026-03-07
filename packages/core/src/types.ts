@@ -71,16 +71,69 @@ export interface HourBucket {
 // Sync cursor (incremental parsing)
 // ---------------------------------------------------------------------------
 
-/** Tracks parsing position for incremental file processing */
-export interface SyncCursor {
-  /** Absolute path to the data file */
-  filePath: string;
-  /** Byte offset where we last stopped reading */
-  byteOffset: number;
+/** Base fields shared by all per-file cursors */
+export interface FileCursorBase {
   /** File inode for detecting file rotation/replacement */
   inode: number;
-  /** File mtime in epoch milliseconds for detecting changes */
-  mtime: number;
+  /** ISO 8601 timestamp of last update */
+  updatedAt: string;
+}
+
+/** Cursor for byte-offset-based JSONL files (Claude, Codex, OpenClaw) */
+export interface ByteOffsetCursor extends FileCursorBase {
+  /** Byte offset where we last stopped reading */
+  offset: number;
+}
+
+/** Cursor for Gemini (array-index-based JSON files) */
+export interface GeminiCursor extends FileCursorBase {
+  /** Index of last processed message in the messages array */
+  lastIndex: number;
+  /** Last seen cumulative token totals (for diff computation) */
+  lastTotals: TokenDelta | null;
+  /** Last seen model identifier */
+  lastModel: string | null;
+}
+
+/** Cursor for OpenCode (individual message files with change detection) */
+export interface OpenCodeCursor extends FileCursorBase {
+  /** File size in bytes (for unchanged detection) */
+  size: number;
+  /** File mtime in ms (for unchanged detection) */
+  mtimeMs: number;
+  /** Last seen cumulative token totals (for diff computation) */
+  lastTotals: TokenDelta | null;
+  /** Composite key "sessionId|messageId" */
+  messageKey: string | null;
+}
+
+/** Union of all cursor types, keyed by absolute file path */
+export type FileCursor = ByteOffsetCursor | GeminiCursor | OpenCodeCursor;
+
+/** Top-level cursor store persisted to disk */
+export interface CursorState {
+  version: 1;
+  /** Per-file cursors, keyed by absolute file path */
+  files: Record<string, FileCursor>;
+  /** ISO 8601 timestamp of last cursor update */
+  updatedAt: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Queue record (JSONL format for local queue)
+// ---------------------------------------------------------------------------
+
+/** A single row in the local queue.jsonl file */
+export interface QueueRecord {
+  source: Source;
+  model: string;
+  /** ISO 8601 half-hour boundary (e.g. "2026-03-07T10:30:00.000Z") */
+  hour_start: string;
+  input_tokens: number;
+  cached_input_tokens: number;
+  output_tokens: number;
+  reasoning_output_tokens: number;
+  total_tokens: number;
 }
 
 // ---------------------------------------------------------------------------
