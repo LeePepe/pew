@@ -1,8 +1,9 @@
-import { readdir, stat } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
 /**
  * Recursively collect files matching a predicate under a directory.
+ * Uses withFileTypes to avoid separate stat() calls per entry.
  * Returns absolute paths sorted alphabetically.
  */
 async function collectFiles(
@@ -12,20 +13,18 @@ async function collectFiles(
   const results: string[] = [];
 
   async function walk(currentDir: string): Promise<void> {
-    let entries: string[];
+    let entries: import("node:fs").Dirent[];
     try {
-      entries = await readdir(currentDir);
+      entries = await readdir(currentDir, { withFileTypes: true });
     } catch {
       return;
     }
 
     for (const entry of entries) {
-      const fullPath = join(currentDir, entry);
-      const st = await stat(fullPath).catch(() => null);
-      if (!st) continue;
-      if (st.isDirectory()) {
+      const fullPath = join(currentDir, entry.name);
+      if (entry.isDirectory()) {
         await walk(fullPath);
-      } else if (st.isFile() && predicate(entry)) {
+      } else if (entry.isFile() && predicate(entry.name)) {
         results.push(fullPath);
       }
     }
