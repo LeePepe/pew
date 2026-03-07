@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
     root: path.join(__dirname, "../.."),
   },
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  allowedDevOrigins: ["zebra.dev.hexly.ai"],
 };
 
 export default nextConfig;
