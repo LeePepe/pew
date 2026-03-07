@@ -31,6 +31,8 @@ export interface LoginOptions {
   configDir: string;
   /** Base URL of the Zebra SaaS */
   apiUrl: string;
+  /** Whether dev mode is active (uses config.dev.json) */
+  dev?: boolean;
   /** Timeout in milliseconds (default: 120000) */
   timeoutMs?: number;
   /** Force re-login even if already authenticated */
@@ -54,12 +56,13 @@ export async function executeLogin(options: LoginOptions): Promise<LoginResult> 
   const {
     configDir,
     apiUrl,
+    dev = false,
     timeoutMs = 120_000,
     force = false,
     openBrowser,
   } = options;
 
-  const configManager = new ConfigManager(configDir);
+  const configManager = new ConfigManager(configDir, dev);
 
   // 1. Check existing login
   if (!force) {

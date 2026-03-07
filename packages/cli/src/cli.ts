@@ -4,8 +4,16 @@ import pc from "picocolors";
 import { resolveDefaultPaths } from "./utils/paths.js";
 import { executeSync } from "./commands/sync.js";
 import { executeStatus } from "./commands/status.js";
-import { executeLogin } from "./commands/login.js";
+import { executeLogin, resolveHost } from "./commands/login.js";
 import { executeUpload } from "./commands/upload.js";
+
+// ---------------------------------------------------------------------------
+// Dev mode detection (otter pattern)
+// ---------------------------------------------------------------------------
+
+function isDevMode(): boolean {
+  return process.argv.includes("--dev");
+}
 
 const initCommand = defineCommand({
   meta: {
@@ -29,10 +37,10 @@ const syncCommand = defineCommand({
       description: "Upload to dashboard after syncing (default: true if logged in)",
       default: true,
     },
-    api: {
-      type: "string",
-      description: "Override the Zebra API URL",
-      default: "https://zebra.nocoo.dev",
+    dev: {
+      type: "boolean",
+      description: "Use the dev host (zebra.dev.hexly.ai)",
+      default: false,
     },
   },
   async run({ args }) {
@@ -81,7 +89,8 @@ const syncCommand = defineCommand({
 
     // Auto-upload if logged in
     if (args.upload) {
-      await runUpload(paths.stateDir, args.api);
+      const dev = isDevMode();
+      await runUpload(paths.stateDir, resolveHost(dev), dev);
     }
   },
 });
@@ -128,21 +137,24 @@ const loginCommand = defineCommand({
       description: "Force re-login even if already authenticated",
       default: false,
     },
-    api: {
-      type: "string",
-      description: "Override the Zebra API URL",
-      default: "https://zebra.nocoo.dev",
+    dev: {
+      type: "boolean",
+      description: "Use the dev host (zebra.dev.hexly.ai)",
+      default: false,
     },
   },
   async run({ args }) {
     const paths = resolveDefaultPaths();
+    const dev = isDevMode();
+    const host = resolveHost(dev);
     const { exec } = await import("node:child_process");
 
     consola.start("Opening browser for authentication...\n");
 
     const result = await executeLogin({
       configDir: paths.stateDir,
-      apiUrl: args.api,
+      apiUrl: host,
+      dev,
       force: args.force,
       openBrowser: async (url) => {
         const cmd =
@@ -167,7 +179,7 @@ const loginCommand = defineCommand({
         `Logged in as ${pc.bold(result.email ?? "unknown")}`,
       );
       consola.info(
-        `Token saved to ${pc.dim(paths.stateDir + "/config.json")}`,
+        `Token saved to ${pc.dim(paths.stateDir + (dev ? "/config.dev.json" : "/config.json"))}`,
       );
     } else {
       consola.error(`Login failed: ${result.error}`);
@@ -180,13 +192,14 @@ const loginCommand = defineCommand({
 // Shared upload helper (used by both `sync --upload` and standalone `upload`)
 // ---------------------------------------------------------------------------
 
-async function runUpload(stateDir: string, apiUrl: string): Promise<void> {
+async function runUpload(stateDir: string, apiUrl: string, dev: boolean): Promise<void> {
   consola.log("");
   consola.start("Uploading to dashboard...");
 
   const uploadResult = await executeUpload({
     stateDir,
     apiUrl,
+    dev,
     fetch: globalThis.fetch,
     onProgress(event) {
       if (event.phase === "uploading") {
@@ -233,15 +246,16 @@ const uploadCommand = defineCommand({
     description: "Upload pending queue records to the Zebra dashboard",
   },
   args: {
-    api: {
-      type: "string",
-      description: "Override the Zebra API URL",
-      default: "https://zebra.nocoo.dev",
+    dev: {
+      type: "boolean",
+      description: "Use the dev host (zebra.dev.hexly.ai)",
+      default: false,
     },
   },
-  async run({ args }) {
+  async run() {
     const paths = resolveDefaultPaths();
-    await runUpload(paths.stateDir, args.api);
+    const dev = isDevMode();
+    await runUpload(paths.stateDir, resolveHost(dev), dev);
   },
 });
 

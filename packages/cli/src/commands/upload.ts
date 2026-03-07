@@ -23,6 +23,8 @@ export interface UploadOptions {
   stateDir: string;
   /** Base URL of the Zebra SaaS */
   apiUrl: string;
+  /** Whether dev mode is active (uses config.dev.json) */
+  dev?: boolean;
   /** Injected fetch (for testing) */
   fetch: typeof globalThis.fetch;
   /** Max records per API request (default: 1000) */
@@ -66,6 +68,7 @@ export async function executeUpload(opts: UploadOptions): Promise<UploadResult> 
   const {
     stateDir,
     apiUrl,
+    dev = false,
     fetch: fetchFn,
     batchSize = DEFAULT_BATCH_SIZE,
     maxRetries = DEFAULT_MAX_RETRIES,
@@ -74,7 +77,7 @@ export async function executeUpload(opts: UploadOptions): Promise<UploadResult> 
   } = opts;
 
   // 1. Load API key
-  const configManager = new ConfigManager(stateDir);
+  const configManager = new ConfigManager(stateDir, dev);
   const config = await configManager.load();
 
   if (!config.token) {
