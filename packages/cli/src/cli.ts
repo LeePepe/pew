@@ -4,6 +4,7 @@ import pc from "picocolors";
 import { resolveDefaultPaths } from "./utils/paths.js";
 import { executeSync } from "./commands/sync.js";
 import { executeStatus } from "./commands/status.js";
+import { executeLogin } from "./commands/login.js";
 
 const initCommand = defineCommand({
   meta: {
@@ -103,9 +104,57 @@ const loginCommand = defineCommand({
     name: "login",
     description: "Connect your CLI to the Zebra dashboard via browser OAuth",
   },
-  async run() {
-    // TODO: Phase 3 — browser-based OAuth flow, save token
-    consola.info("zebra login — not yet implemented");
+  args: {
+    force: {
+      type: "boolean",
+      description: "Force re-login even if already authenticated",
+      default: false,
+    },
+    api: {
+      type: "string",
+      description: "Override the Zebra API URL",
+      default: "https://zebra.nocoo.dev",
+    },
+  },
+  async run({ args }) {
+    const paths = resolveDefaultPaths();
+    const { exec } = await import("node:child_process");
+
+    consola.start("Opening browser for authentication...\n");
+
+    const result = await executeLogin({
+      configDir: paths.stateDir,
+      apiUrl: args.api,
+      force: args.force,
+      openBrowser: async (url) => {
+        const cmd =
+          process.platform === "darwin"
+            ? "open"
+            : process.platform === "win32"
+              ? "start"
+              : "xdg-open";
+        exec(`${cmd} "${url}"`);
+      },
+    });
+
+    if (result.alreadyLoggedIn) {
+      consola.info(
+        `Already logged in. Use ${pc.cyan("zebra login --force")} to re-authenticate.`,
+      );
+      return;
+    }
+
+    if (result.success) {
+      consola.success(
+        `Logged in as ${pc.bold(result.email ?? "unknown")}`,
+      );
+      consola.info(
+        `Token saved to ${pc.dim(paths.stateDir + "/config.json")}`,
+      );
+    } else {
+      consola.error(`Login failed: ${result.error}`);
+      process.exitCode = 1;
+    }
   },
 });
 
