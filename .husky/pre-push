@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-# L3: API E2E Tests (port 17029)
+# L3: API E2E Tests (port 17030)
 bun run test:e2e 2>&1
 E2E_EXIT=$?
 

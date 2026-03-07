@@ -30,7 +30,7 @@ function createMockClient() {
 }
 
 function makeRequest(params: Record<string, string> = {}): Request {
-  const url = new URL("http://localhost:7029/api/usage");
+  const url = new URL("http://localhost:7030/api/usage");
   for (const [k, v] of Object.entries(params)) {
     url.searchParams.set(k, v);
   }

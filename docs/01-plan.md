@@ -39,15 +39,15 @@ All development follows **TDD** — write tests first, then implement.
 |-------|------|------|------|------|
 | L1 | Unit Tests | pre-commit (Husky) | Vitest | — |
 | L2 | Lint / Type Check | pre-commit (Husky) | `tsc --noEmit` strict | — |
-| L3 | API E2E | pre-push (Husky) | Vitest + fetch | 17029 |
-| L4 | BDD E2E | on-demand | Playwright | 27029 |
+| L3 | API E2E | pre-push (Husky) | Vitest + fetch | 17030 |
+| L4 | BDD E2E | on-demand | Playwright | 27030 |
 
 ### Rules
 
 - **L1**: 90%+ coverage enforced by pre-commit hook script. Fail = block commit.
 - **L2**: Zero tolerance for errors/warnings. Strict mode mandatory.
-- **L3**: 100% REST API coverage. `E2E_SKIP_AUTH=1` to bypass auth. Dev port 7029 → E2E port 17029.
-- **L4**: Core user flows via Playwright. Port 27029. Run manually.
+- **L3**: 100% REST API coverage. `E2E_SKIP_AUTH=1` to bypass auth. Dev port 7030 → E2E port 17030.
+- **L4**: Core user flows via Playwright. Port 27030. Run manually.
 - **Husky**: pre-commit runs L1+L2 with coverage check; pre-push runs L3.
 
 ---
@@ -88,8 +88,8 @@ All development follows **TDD** — write tests first, then implement.
 - [x] `.husky/pre-commit` — runs L1 (vitest) + L2 (tsc --noEmit)
 - [x] `.husky/pre-push` — runs L3 (API E2E via scripts/run-e2e.ts)
 - [x] `scripts/e2e-utils.ts` — shared port/cleanup utilities
-- [x] `scripts/run-e2e.ts` — L3 API E2E runner (port 17029)
-- [x] `scripts/run-e2e-ui.ts` — L4 Playwright BDD runner (port 27029)
+- [x] `scripts/run-e2e.ts` — L3 API E2E runner (port 17030)
+- [x] `scripts/run-e2e-ui.ts` — L4 Playwright BDD runner (port 27030)
 
 ---
 

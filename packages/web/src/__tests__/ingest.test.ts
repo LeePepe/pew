@@ -38,7 +38,7 @@ function makeRequest(body: unknown, token?: string): Request {
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
-  return new Request("http://localhost:7029/api/ingest", {
+  return new Request("http://localhost:7030/api/ingest", {
     method: "POST",
     headers,
     body: JSON.stringify(body),

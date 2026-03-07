@@ -8,13 +8,13 @@ Zebra is a monorepo (Bun workspaces) for tracking token usage from local AI codi
 
 ### Supported AI Tools
 
-Claude Code, Codex CLI, Gemini CLI, OpenCode, OpenClaw
+Claude Code, Gemini CLI, OpenCode, OpenClaw
 
 ### Key Conventions
 
 - **Runtime**: Bun (package manager + runtime)
 - **TypeScript**: Strict mode, composite project references
-- **Port**: dev=7029, API E2E=17029, BDD E2E=27029
+- **Port**: dev=7030, API E2E=17030, BDD E2E=27030
 - **Testing**: Four-layer architecture (see docs/01-plan.md)
 - **TDD**: Always write tests first, then implement
 - **Commits**: Conventional Commits, atomic, auto-commit after changes
