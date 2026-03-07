@@ -10,11 +10,78 @@ import Google from "next-auth/providers/google";
 import { D1AuthAdapter } from "@/lib/auth-adapter";
 import { getD1Client } from "@/lib/d1";
 
+// For reverse proxy environments with HTTPS, we need secure cookies.
+// Set USE_SECURE_COOKIES=true in .env.local when using HTTPS reverse proxy in dev.
+const useSecureCookies =
+  process.env.NODE_ENV === "production" ||
+  process.env.NEXTAUTH_URL?.startsWith("https://") ||
+  process.env.USE_SECURE_COOKIES === "true";
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  // Trust the host header for automatic URL detection.
+  // This allows the app to work behind reverse proxies (e.g. zebra.dev.hexly.ai)
+  // so Auth.js reads x-forwarded-host instead of using localhost.
+  trustHost: true,
   adapter: D1AuthAdapter(getD1Client()),
   providers: [Google],
   session: {
     strategy: "jwt",
+  },
+  // Cookie configuration for reverse proxy environments
+  cookies: {
+    pkceCodeVerifier: {
+      name: useSecureCookies
+        ? "__Secure-authjs.pkce.code_verifier"
+        : "authjs.pkce.code_verifier",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: useSecureCookies,
+      },
+    },
+    state: {
+      name: useSecureCookies ? "__Secure-authjs.state" : "authjs.state",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: useSecureCookies,
+      },
+    },
+    callbackUrl: {
+      name: useSecureCookies
+        ? "__Secure-authjs.callback-url"
+        : "authjs.callback-url",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: useSecureCookies,
+      },
+    },
+    sessionToken: {
+      name: useSecureCookies
+        ? "__Secure-authjs.session-token"
+        : "authjs.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: useSecureCookies,
+      },
+    },
+    csrfToken: {
+      name: useSecureCookies
+        ? "__Host-authjs.csrf-token"
+        : "authjs.csrf-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: useSecureCookies,
+      },
+    },
   },
   callbacks: {
     /** Persist user ID in JWT token. */
@@ -34,5 +101,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   pages: {
     signIn: "/login",
+    error: "/login",
   },
 });
