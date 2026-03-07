@@ -234,7 +234,7 @@ CREATE TABLE verification_tokens (
 
 ### 3.4 CLI Login (Browser OAuth Flow)
 - [x] `zebra login` starts local HTTP server on random port
-- [x] Opens browser to `{ZEBRA_API_URL}/api/auth/cli?callback=http://localhost:{port}`
+- [x] Opens browser to `https://zebra.hexly.ai/api/auth/cli?callback=http://localhost:{port}` (or `zebra.dev.hexly.ai` with `--dev`)
 - [x] User authenticates via Google OAuth on SaaS
 - [x] SaaS generates `zk_*` API key, redirects back to local server
 - [x] CLI saves API key to `~/.config/zebra/config.json`
