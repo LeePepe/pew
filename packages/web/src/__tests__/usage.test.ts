@@ -1,0 +1,236 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { GET } from "@/app/api/usage/route";
+import * as d1Module from "@/lib/d1";
+
+// Mock D1
+vi.mock("@/lib/d1", async (importOriginal) => {
+  const original = await importOriginal<typeof d1Module>();
+  return {
+    ...original,
+    getD1Client: vi.fn(),
+  };
+});
+
+// Mock auth
+vi.mock("@/auth", () => ({
+  auth: vi.fn(),
+}));
+
+const { auth } = (await import("@/auth")) as unknown as {
+  auth: ReturnType<typeof vi.fn>;
+};
+
+function createMockClient() {
+  return {
+    query: vi.fn(),
+    execute: vi.fn(),
+    batch: vi.fn(),
+    firstOrNull: vi.fn(),
+  };
+}
+
+function makeRequest(params: Record<string, string> = {}): Request {
+  const url = new URL("http://localhost:7029/api/usage");
+  for (const [k, v] of Object.entries(params)) {
+    url.searchParams.set(k, v);
+  }
+  return new Request(url.toString());
+}
+
+describe("GET /api/usage", () => {
+  let mockClient: ReturnType<typeof createMockClient>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockClient = createMockClient();
+    vi.mocked(d1Module.getD1Client).mockReturnValue(
+      mockClient as unknown as d1Module.D1Client
+    );
+  });
+
+  describe("authentication", () => {
+    it("should reject unauthenticated requests", async () => {
+      auth.mockResolvedValueOnce(null);
+
+      const res = await GET(makeRequest());
+
+      expect(res.status).toBe(401);
+      const body = await res.json();
+      expect(body.error).toBe("Unauthorized");
+    });
+  });
+
+  describe("query params", () => {
+    beforeEach(() => {
+      auth.mockResolvedValue({
+        user: { id: "u1", email: "test@example.com" },
+        expires: "2026-12-31",
+      });
+    });
+
+    it("should query with default date range (last 30 days)", async () => {
+      mockClient.query.mockResolvedValueOnce({ results: [], meta: {} });
+
+      const res = await GET(makeRequest());
+
+      expect(res.status).toBe(200);
+      expect(mockClient.query).toHaveBeenCalledOnce();
+      const [sql, params] = mockClient.query.mock.calls[0]!;
+      expect(sql).toContain("WHERE user_id = ?");
+      expect(sql).toContain("hour_start >= ?");
+      expect(sql).toContain("hour_start < ?");
+      expect(params![0]).toBe("u1");
+    });
+
+    it("should accept custom from/to date range", async () => {
+      mockClient.query.mockResolvedValueOnce({ results: [], meta: {} });
+
+      const res = await GET(
+        makeRequest({
+          from: "2026-03-01",
+          to: "2026-03-07",
+        })
+      );
+
+      expect(res.status).toBe(200);
+      const [, params] = mockClient.query.mock.calls[0]!;
+      expect(params![1]).toBe("2026-03-01T00:00:00.000Z");
+      expect(params![2]).toBe("2026-03-07T00:00:00.000Z");
+    });
+
+    it("should filter by source", async () => {
+      mockClient.query.mockResolvedValueOnce({ results: [], meta: {} });
+
+      const res = await GET(makeRequest({ source: "claude-code" }));
+
+      expect(res.status).toBe(200);
+      const [sql, params] = mockClient.query.mock.calls[0]!;
+      expect(sql).toContain("source = ?");
+      expect(params).toContain("claude-code");
+    });
+
+    it("should reject invalid source filter", async () => {
+      const res = await GET(makeRequest({ source: "invalid-tool" }));
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toContain("source");
+    });
+
+    it("should reject invalid date format for from", async () => {
+      const res = await GET(makeRequest({ from: "not-a-date" }));
+
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe("response format", () => {
+    beforeEach(() => {
+      auth.mockResolvedValue({
+        user: { id: "u1", email: "test@example.com" },
+        expires: "2026-12-31",
+      });
+    });
+
+    it("should return aggregated records", async () => {
+      mockClient.query.mockResolvedValueOnce({
+        results: [
+          {
+            source: "claude-code",
+            model: "claude-sonnet-4-20250514",
+            hour_start: "2026-03-07T10:00:00.000Z",
+            input_tokens: 5000,
+            cached_input_tokens: 1000,
+            output_tokens: 2000,
+            reasoning_output_tokens: 0,
+            total_tokens: 7000,
+          },
+          {
+            source: "opencode",
+            model: "o3",
+            hour_start: "2026-03-07T10:00:00.000Z",
+            input_tokens: 3000,
+            cached_input_tokens: 500,
+            output_tokens: 1000,
+            reasoning_output_tokens: 200,
+            total_tokens: 4200,
+          },
+        ],
+        meta: { duration: 0.05 },
+      });
+
+      const res = await GET(makeRequest());
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.records).toHaveLength(2);
+      expect(body.records[0].source).toBe("claude-code");
+      expect(body.records[1].source).toBe("opencode");
+    });
+
+    it("should include summary totals", async () => {
+      mockClient.query.mockResolvedValueOnce({
+        results: [
+          {
+            source: "claude-code",
+            model: "claude-sonnet-4-20250514",
+            hour_start: "2026-03-07T10:00:00.000Z",
+            input_tokens: 5000,
+            cached_input_tokens: 1000,
+            output_tokens: 2000,
+            reasoning_output_tokens: 0,
+            total_tokens: 7000,
+          },
+          {
+            source: "opencode",
+            model: "o3",
+            hour_start: "2026-03-07T10:30:00.000Z",
+            input_tokens: 3000,
+            cached_input_tokens: 500,
+            output_tokens: 1000,
+            reasoning_output_tokens: 200,
+            total_tokens: 4200,
+          },
+        ],
+        meta: { duration: 0.05 },
+      });
+
+      const res = await GET(makeRequest());
+
+      const body = await res.json();
+      expect(body.summary).toBeDefined();
+      expect(body.summary.total_tokens).toBe(11200);
+      expect(body.summary.input_tokens).toBe(8000);
+      expect(body.summary.output_tokens).toBe(3000);
+    });
+
+    it("should return empty records when no data", async () => {
+      mockClient.query.mockResolvedValueOnce({ results: [], meta: {} });
+
+      const res = await GET(makeRequest());
+
+      const body = await res.json();
+      expect(body.records).toEqual([]);
+      expect(body.summary.total_tokens).toBe(0);
+    });
+
+    it("should group by day when granularity=day", async () => {
+      mockClient.query.mockResolvedValueOnce({ results: [], meta: {} });
+
+      const res = await GET(makeRequest({ granularity: "day" }));
+
+      expect(res.status).toBe(200);
+      const [sql] = mockClient.query.mock.calls[0]!;
+      // day granularity uses date() truncation in SQL
+      expect(sql).toContain("date(hour_start)");
+    });
+
+    it("should return 500 on D1 error", async () => {
+      mockClient.query.mockRejectedValueOnce(new Error("D1 down"));
+
+      const res = await GET(makeRequest());
+
+      expect(res.status).toBe(500);
+    });
+  });
+});
