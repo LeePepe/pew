@@ -11,7 +11,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { resolveUser } from "@/lib/auth-helpers";
 import { getD1Client } from "@/lib/d1";
 
 export async function GET(request: Request) {
@@ -19,8 +19,8 @@ export async function GET(request: Request) {
   const callback = url.searchParams.get("callback");
 
   // 1. Check authentication
-  const session = await auth();
-  if (!session?.user?.id) {
+  const authResult = await resolveUser(request);
+  if (!authResult) {
     // Redirect to login page, preserving the return URL
     const returnUrl = url.pathname + url.search;
     return NextResponse.redirect(
@@ -59,8 +59,8 @@ export async function GET(request: Request) {
 
   // 3. Get or generate api_key
   const client = getD1Client();
-  const userId = session.user.id;
-  const email = session.user.email ?? "";
+  const userId = authResult.userId;
+  const email = authResult.email ?? "";
 
   try {
     const row = await client.firstOrNull<{ api_key: string | null }>(

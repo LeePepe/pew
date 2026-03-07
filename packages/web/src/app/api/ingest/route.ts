@@ -1,13 +1,13 @@
 /**
  * POST /api/ingest — receive usage records from CLI and upsert into D1.
  *
- * Authentication: Auth.js session (from CLI login flow).
+ * Authentication: resolveUser (session, Bearer api_key, or E2E bypass).
  * Body: QueueRecord[] array.
  * Upserts by (user_id, source, model, hour_start) — on conflict, adds tokens.
  */
 
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { resolveUser } from "@/lib/auth-helpers";
 import { getD1Client } from "@/lib/d1";
 import type { D1BatchStatement } from "@/lib/d1";
 
@@ -78,31 +78,15 @@ function validateRecord(r: unknown, index: number): string | null {
 // ---------------------------------------------------------------------------
 
 export async function POST(request: Request) {
-  // 1. Authenticate — try session first, fall back to Bearer api_key
+  // 1. Authenticate
   const client = getD1Client();
-  let userId: string | undefined;
+  const authResult = await resolveUser(request);
 
-  const session = await auth();
-  if (session?.user?.id) {
-    userId = session.user.id;
-  } else {
-    // Try Bearer api_key
-    const authHeader = request.headers.get("Authorization");
-    if (authHeader?.startsWith("Bearer ")) {
-      const apiKey = authHeader.slice(7);
-      const row = await client.firstOrNull<{ id: string }>(
-        "SELECT id FROM users WHERE api_key = ?",
-        [apiKey]
-      );
-      if (row) {
-        userId = row.id;
-      }
-    }
-  }
-
-  if (!userId) {
+  if (!authResult) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const userId = authResult.userId;
 
   // 2. Parse body
   let records: unknown[];

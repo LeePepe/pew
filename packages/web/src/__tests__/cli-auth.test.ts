@@ -11,13 +11,15 @@ vi.mock("@/lib/d1", async (importOriginal) => {
   };
 });
 
-// Mock auth
-vi.mock("@/auth", () => ({
-  auth: vi.fn(),
+// Mock resolveUser
+vi.mock("@/lib/auth-helpers", () => ({
+  resolveUser: vi.fn(),
+  E2E_TEST_USER_ID: "e2e-test-user-id",
+  E2E_TEST_USER_EMAIL: "e2e@test.local",
 }));
 
-const { auth } = (await import("@/auth")) as unknown as {
-  auth: ReturnType<typeof vi.fn>;
+const { resolveUser } = (await import("@/lib/auth-helpers")) as unknown as {
+  resolveUser: ReturnType<typeof vi.fn>;
 };
 
 function createMockClient() {
@@ -49,7 +51,7 @@ describe("GET /api/auth/cli", () => {
 
   describe("authentication", () => {
     it("should reject unauthenticated requests", async () => {
-      vi.mocked(auth).mockResolvedValueOnce(null);
+      vi.mocked(resolveUser).mockResolvedValueOnce(null);
 
       const res = await GET(makeRequest("http://localhost:9999/callback"));
 
@@ -62,10 +64,10 @@ describe("GET /api/auth/cli", () => {
 
   describe("validation", () => {
     beforeEach(() => {
-      vi.mocked(auth).mockResolvedValue({
-        user: { id: "u1", email: "test@example.com" },
-        expires: "2026-12-31",
-      } as never);
+      vi.mocked(resolveUser).mockResolvedValue({
+        userId: "u1",
+        email: "test@example.com",
+      });
     });
 
     it("should reject requests without callback parameter", async () => {
@@ -116,10 +118,10 @@ describe("GET /api/auth/cli", () => {
 
   describe("api key generation", () => {
     beforeEach(() => {
-      vi.mocked(auth).mockResolvedValue({
-        user: { id: "u1", email: "test@example.com" },
-        expires: "2026-12-31",
-      } as never);
+      vi.mocked(resolveUser).mockResolvedValue({
+        userId: "u1",
+        email: "test@example.com",
+      });
     });
 
     it("should reuse existing api_key if user already has one", async () => {
@@ -157,10 +159,10 @@ describe("GET /api/auth/cli", () => {
     });
 
     it("should include email in callback redirect", async () => {
-      vi.mocked(auth).mockResolvedValue({
-        user: { id: "u1", email: "test@example.com" },
-        expires: "2026-12-31",
-      } as never);
+      vi.mocked(resolveUser).mockResolvedValue({
+        userId: "u1",
+        email: "test@example.com",
+      });
       mockClient.firstOrNull.mockResolvedValueOnce({
         api_key: "key-xyz",
       });

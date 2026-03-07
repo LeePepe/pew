@@ -11,7 +11,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { resolveUser } from "@/lib/auth-helpers";
 import { getD1Client } from "@/lib/d1";
 
 // ---------------------------------------------------------------------------
@@ -50,11 +50,11 @@ interface UsageRow {
 
 export async function GET(request: Request) {
   // 1. Authenticate
-  const session = await auth();
-  if (!session?.user?.id) {
+  const authResult = await resolveUser(request);
+  if (!authResult) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const userId = session.user.id;
+  const userId = authResult.userId;
 
   // 2. Parse query params
   const url = new URL(request.url);

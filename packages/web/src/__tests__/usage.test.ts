@@ -11,13 +11,13 @@ vi.mock("@/lib/d1", async (importOriginal) => {
   };
 });
 
-// Mock auth
-vi.mock("@/auth", () => ({
-  auth: vi.fn(),
+// Mock resolveUser
+vi.mock("@/lib/auth-helpers", () => ({
+  resolveUser: vi.fn(),
 }));
 
-const { auth } = (await import("@/auth")) as unknown as {
-  auth: ReturnType<typeof vi.fn>;
+const { resolveUser } = (await import("@/lib/auth-helpers")) as unknown as {
+  resolveUser: ReturnType<typeof vi.fn>;
 };
 
 function createMockClient() {
@@ -50,7 +50,7 @@ describe("GET /api/usage", () => {
 
   describe("authentication", () => {
     it("should reject unauthenticated requests", async () => {
-      auth.mockResolvedValueOnce(null);
+      vi.mocked(resolveUser).mockResolvedValueOnce(null);
 
       const res = await GET(makeRequest());
 
@@ -62,9 +62,9 @@ describe("GET /api/usage", () => {
 
   describe("query params", () => {
     beforeEach(() => {
-      auth.mockResolvedValue({
-        user: { id: "u1", email: "test@example.com" },
-        expires: "2026-12-31",
+      vi.mocked(resolveUser).mockResolvedValue({
+        userId: "u1",
+        email: "test@example.com",
       });
     });
 
@@ -126,9 +126,9 @@ describe("GET /api/usage", () => {
 
   describe("response format", () => {
     beforeEach(() => {
-      auth.mockResolvedValue({
-        user: { id: "u1", email: "test@example.com" },
-        expires: "2026-12-31",
+      vi.mocked(resolveUser).mockResolvedValue({
+        userId: "u1",
+        email: "test@example.com",
       });
     });
 
