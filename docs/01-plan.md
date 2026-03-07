@@ -71,7 +71,7 @@ All development follows **TDD** — write tests first, then implement.
 - [x] `package.json` (`@nocoo/zebra`, public, bin entry)
 - [x] `tsconfig.json` (extends root, references core)
 - [x] `src/bin.ts` — entry point
-- [x] `src/cli.ts` — citty main command with subcommands (sync, status, login, upload)
+- [x] `src/cli.ts` — citty main command with subcommands (sync, status, login)
 - [x] `src/__tests__/cli.test.ts` — CLI smoke tests (TDD: write first)
 
 ### 1.4 Web Package (`packages/web`)
@@ -116,7 +116,7 @@ All development follows **TDD** — write tests first, then implement.
 - [x] `executeSync()` — orchestrator with dependency injection, progress events
 - [x] `executeStatus()` — queue/cursor state reporting
 - [x] File discovery for all 4 sources (optimized with `withFileTypes`)
-- [x] CLI wiring — citty subcommands (sync/status/login/upload)
+- [x] CLI wiring — citty subcommands (sync/status/login)
 
 ### 2.5 Tests
 - [x] 128 unit tests across 14 test files
@@ -244,7 +244,7 @@ CREATE TABLE verification_tokens (
 - [x] Batch upload to POST /api/ingest with Bearer token (max 1000 per batch)
 - [x] Track upload cursor (last uploaded byte offset)
 - [x] Retry on failure with exponential backoff
-- [x] `zebra upload` standalone command + auto-upload via `zebra sync --upload`
+- [x] `zebra sync --upload` auto-uploads after parsing (default if logged in)
 
 ### 3.6 Tests
 - [x] D1 client unit tests

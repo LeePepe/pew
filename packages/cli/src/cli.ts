@@ -178,7 +178,7 @@ const loginCommand = defineCommand({
 });
 
 // ---------------------------------------------------------------------------
-// Shared upload helper (used by both `sync --upload` and standalone `upload`)
+// Upload helper (used by `sync --upload`)
 // ---------------------------------------------------------------------------
 
 async function runUpload(stateDir: string, apiUrl: string, dev: boolean): Promise<void> {
@@ -225,29 +225,6 @@ async function runUpload(stateDir: string, apiUrl: string, dev: boolean): Promis
   }
 }
 
-// ---------------------------------------------------------------------------
-// Upload command (standalone)
-// ---------------------------------------------------------------------------
-
-const uploadCommand = defineCommand({
-  meta: {
-    name: "upload",
-    description: "Upload pending queue records to the Zebra dashboard",
-  },
-  args: {
-    dev: {
-      type: "boolean",
-      description: "Use the dev host (zebra.dev.hexly.ai)",
-      default: false,
-    },
-  },
-  async run() {
-    const paths = resolveDefaultPaths();
-    const dev = isDevMode();
-    await runUpload(paths.stateDir, resolveHost(dev), dev);
-  },
-});
-
 export const main = defineCommand({
   meta: {
     name: "zebra",
@@ -256,7 +233,6 @@ export const main = defineCommand({
   },
   subCommands: {
     sync: syncCommand,
-    upload: uploadCommand,
     status: statusCommand,
     login: loginCommand,
   },
