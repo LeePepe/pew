@@ -1,0 +1,116 @@
+// ---------------------------------------------------------------------------
+// Session data helper types & pure functions
+// ---------------------------------------------------------------------------
+
+/** Shape of a row returned by GET /api/sessions */
+export type SessionRow = {
+  session_key: string;
+  source: string;
+  kind: string;
+  started_at: string;
+  last_message_at: string;
+  duration_seconds: number;
+  user_messages: number;
+  assistant_messages: number;
+  total_messages: number;
+  project_ref: string | null;
+  model: string | null;
+};
+
+// ---------------------------------------------------------------------------
+// toSessionOverview
+// ---------------------------------------------------------------------------
+
+export type SessionOverview = {
+  totalSessions: number;
+  totalHours: number;
+  avgDurationMinutes: number;
+  avgMessages: number;
+};
+
+export function toSessionOverview(records: SessionRow[]): SessionOverview {
+  if (records.length === 0) {
+    return {
+      totalSessions: 0,
+      totalHours: 0,
+      avgDurationMinutes: 0,
+      avgMessages: 0,
+    };
+  }
+
+  const totalSeconds = records.reduce((s, r) => s + r.duration_seconds, 0);
+  const totalMessages = records.reduce((s, r) => s + r.total_messages, 0);
+
+  return {
+    totalSessions: records.length,
+    totalHours: totalSeconds / 3600,
+    avgDurationMinutes: totalSeconds / records.length / 60,
+    avgMessages: totalMessages / records.length,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// toWorkingHoursGrid
+// ---------------------------------------------------------------------------
+
+const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+
+export type WorkingHoursDay = {
+  day: (typeof DAY_NAMES)[number];
+  hours: number[];
+};
+
+export function toWorkingHoursGrid(records: SessionRow[]): WorkingHoursDay[] {
+  // Initialize 7x24 grid of zeroes
+  const grid: WorkingHoursDay[] = DAY_NAMES.map((day) => ({
+    day,
+    hours: Array.from({ length: 24 }, () => 0),
+  }));
+
+  for (const r of records) {
+    const d = new Date(r.started_at);
+    // JS getUTCDay(): 0=Sun, 1=Mon, ..., 6=Sat
+    // We need Mon=0 ... Sun=6
+    const jsDay = d.getUTCDay();
+    const dayIndex = jsDay === 0 ? 6 : jsDay - 1;
+    const hour = d.getUTCHours();
+    grid[dayIndex]!.hours[hour]!++;
+  }
+
+  return grid;
+}
+
+// ---------------------------------------------------------------------------
+// toMessageDailyStats
+// ---------------------------------------------------------------------------
+
+export type MessageDailyStat = {
+  date: string;
+  user: number;
+  assistant: number;
+};
+
+export function toMessageDailyStats(records: SessionRow[]): MessageDailyStat[] {
+  if (records.length === 0) return [];
+
+  const byDate = new Map<string, { user: number; assistant: number }>();
+
+  for (const r of records) {
+    // Extract YYYY-MM-DD from ISO timestamp
+    const date = r.started_at.slice(0, 10);
+    const existing = byDate.get(date);
+    if (existing) {
+      existing.user += r.user_messages;
+      existing.assistant += r.assistant_messages;
+    } else {
+      byDate.set(date, {
+        user: r.user_messages,
+        assistant: r.assistant_messages,
+      });
+    }
+  }
+
+  return Array.from(byDate.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, stats]) => ({ date, ...stats }));
+}
