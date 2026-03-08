@@ -1,10 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
-import { useUsageData, sourceLabel } from "@/hooks/use-usage-data";
-import { formatTokens } from "@/lib/utils";
+import { ChevronDown, ChevronRight, ChevronLeft } from "lucide-react";
+import {
+  useUsageData,
+  toDailyPoints,
+  sourceLabel,
+} from "@/hooks/use-usage-data";
+import { formatTokens, cn } from "@/lib/utils";
 import { getModelPricing, estimateCost, formatCost } from "@/lib/pricing";
+import { UsageTrendChart } from "@/components/dashboard/usage-trend-chart";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { UsageRow } from "@/hooks/use-usage-data";
 
@@ -20,6 +25,25 @@ interface DailyGroup {
   cachedTokens: number;
   totalTokens: number;
   estimatedCost: number;
+}
+
+// ---------------------------------------------------------------------------
+// Month navigation helpers
+// ---------------------------------------------------------------------------
+
+function getMonthRange(year: number, month: number) {
+  const from = new Date(year, month, 1);
+  // Last day of the month
+  const to = new Date(year, month + 1, 0);
+  return {
+    from: from.toISOString().slice(0, 10),
+    to: to.toISOString().slice(0, 10),
+  };
+}
+
+function formatMonth(year: number, month: number): string {
+  const d = new Date(year, month, 1);
+  return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
 // ---------------------------------------------------------------------------
@@ -40,24 +64,37 @@ function groupByDate(records: UsageRow[]): DailyGroup[] {
   }
 
   return Array.from(byDate.entries())
-    .map(([date, records]) => {
+    .map(([date, recs]) => {
       let inputTokens = 0;
       let outputTokens = 0;
       let cachedTokens = 0;
       let totalTokens = 0;
-      let estimatedCost = 0;
+      let cost = 0;
 
-      for (const r of records) {
+      for (const r of recs) {
         inputTokens += r.input_tokens;
         outputTokens += r.output_tokens;
         cachedTokens += r.cached_input_tokens;
         totalTokens += r.total_tokens;
         const pricing = getModelPricing(r.model, r.source);
-        const cost = estimateCost(r.input_tokens, r.output_tokens, r.cached_input_tokens, pricing);
-        estimatedCost += cost.totalCost;
+        const c = estimateCost(
+          r.input_tokens,
+          r.output_tokens,
+          r.cached_input_tokens,
+          pricing
+        );
+        cost += c.totalCost;
       }
 
-      return { date, records, inputTokens, outputTokens, cachedTokens, totalTokens, estimatedCost };
+      return {
+        date,
+        records: recs,
+        inputTokens,
+        outputTokens,
+        cachedTokens,
+        totalTokens,
+        estimatedCost: cost,
+      };
     })
     .sort((a, b) => b.date.localeCompare(a.date));
 }
@@ -71,6 +108,20 @@ function formatDate(date: string): string {
   });
 }
 
+/** Extract unique sources from records */
+function extractSources(records: UsageRow[]): string[] {
+  const set = new Set<string>();
+  for (const r of records) set.add(r.source);
+  return Array.from(set).sort();
+}
+
+/** Extract unique models from records */
+function extractModels(records: UsageRow[]): string[] {
+  const set = new Set<string>();
+  for (const r of records) set.add(r.model);
+  return Array.from(set).sort();
+}
+
 // ---------------------------------------------------------------------------
 // Expandable day row
 // ---------------------------------------------------------------------------
@@ -78,23 +129,30 @@ function formatDate(date: string): string {
 function DayRow({ group }: { group: DailyGroup }) {
   const [expanded, setExpanded] = useState(false);
 
-  // Aggregate records by source+model for expansion
   const modelRows = useMemo(() => {
-    const byKey = new Map<string, {
-      source: string;
-      model: string;
-      input: number;
-      output: number;
-      cached: number;
-      total: number;
-      cost: number;
-    }>();
+    const byKey = new Map<
+      string,
+      {
+        source: string;
+        model: string;
+        input: number;
+        output: number;
+        cached: number;
+        total: number;
+        cost: number;
+      }
+    >();
 
     for (const r of group.records) {
       const key = `${r.source}:${r.model}`;
       const existing = byKey.get(key);
       const pricing = getModelPricing(r.model, r.source);
-      const cost = estimateCost(r.input_tokens, r.output_tokens, r.cached_input_tokens, pricing);
+      const cost = estimateCost(
+        r.input_tokens,
+        r.output_tokens,
+        r.cached_input_tokens,
+        pricing
+      );
 
       if (existing) {
         existing.input += r.input_tokens;
@@ -127,18 +185,34 @@ function DayRow({ group }: { group: DailyGroup }) {
         <td className="px-4 py-3 text-sm">
           <div className="flex items-center gap-2">
             {expanded ? (
-              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" strokeWidth={1.5} />
+              <ChevronDown
+                className="h-3.5 w-3.5 text-muted-foreground shrink-0"
+                strokeWidth={1.5}
+              />
             ) : (
-              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" strokeWidth={1.5} />
+              <ChevronRight
+                className="h-3.5 w-3.5 text-muted-foreground shrink-0"
+                strokeWidth={1.5}
+              />
             )}
             <span className="font-medium">{formatDate(group.date)}</span>
           </div>
         </td>
-        <td className="px-4 py-3 text-sm text-right tabular-nums">{formatTokens(group.inputTokens)}</td>
-        <td className="px-4 py-3 text-sm text-right tabular-nums">{formatTokens(group.outputTokens)}</td>
-        <td className="px-4 py-3 text-sm text-right tabular-nums hidden md:table-cell">{formatTokens(group.cachedTokens)}</td>
-        <td className="px-4 py-3 text-sm text-right tabular-nums font-medium">{formatTokens(group.totalTokens)}</td>
-        <td className="px-4 py-3 text-sm text-right tabular-nums hidden sm:table-cell">{formatCost(group.estimatedCost)}</td>
+        <td className="px-4 py-3 text-sm text-right tabular-nums">
+          {formatTokens(group.inputTokens)}
+        </td>
+        <td className="px-4 py-3 text-sm text-right tabular-nums">
+          {formatTokens(group.outputTokens)}
+        </td>
+        <td className="px-4 py-3 text-sm text-right tabular-nums hidden md:table-cell">
+          {formatTokens(group.cachedTokens)}
+        </td>
+        <td className="px-4 py-3 text-sm text-right tabular-nums font-medium">
+          {formatTokens(group.totalTokens)}
+        </td>
+        <td className="px-4 py-3 text-sm text-right tabular-nums hidden sm:table-cell">
+          {formatCost(group.estimatedCost)}
+        </td>
       </tr>
       {expanded &&
         modelRows.map((row) => (
@@ -147,15 +221,27 @@ function DayRow({ group }: { group: DailyGroup }) {
             className="border-b border-border/30 last:border-0 bg-accent/30"
           >
             <td className="pl-10 pr-4 py-2.5 text-xs text-muted-foreground">
-              <span className="text-foreground/70">{sourceLabel(row.source)}</span>
+              <span className="text-foreground/70">
+                {sourceLabel(row.source)}
+              </span>
               <span className="mx-1.5 text-border">/</span>
               <span className="font-mono text-foreground/60">{row.model}</span>
             </td>
-            <td className="px-4 py-2.5 text-xs text-right tabular-nums text-muted-foreground">{formatTokens(row.input)}</td>
-            <td className="px-4 py-2.5 text-xs text-right tabular-nums text-muted-foreground">{formatTokens(row.output)}</td>
-            <td className="px-4 py-2.5 text-xs text-right tabular-nums text-muted-foreground hidden md:table-cell">{formatTokens(row.cached)}</td>
-            <td className="px-4 py-2.5 text-xs text-right tabular-nums text-muted-foreground">{formatTokens(row.total)}</td>
-            <td className="px-4 py-2.5 text-xs text-right tabular-nums text-muted-foreground hidden sm:table-cell">{formatCost(row.cost)}</td>
+            <td className="px-4 py-2.5 text-xs text-right tabular-nums text-muted-foreground">
+              {formatTokens(row.input)}
+            </td>
+            <td className="px-4 py-2.5 text-xs text-right tabular-nums text-muted-foreground">
+              {formatTokens(row.output)}
+            </td>
+            <td className="px-4 py-2.5 text-xs text-right tabular-nums text-muted-foreground hidden md:table-cell">
+              {formatTokens(row.cached)}
+            </td>
+            <td className="px-4 py-2.5 text-xs text-right tabular-nums text-muted-foreground">
+              {formatTokens(row.total)}
+            </td>
+            <td className="px-4 py-2.5 text-xs text-right tabular-nums text-muted-foreground hidden sm:table-cell">
+              {formatCost(row.cost)}
+            </td>
           </tr>
         ))}
     </>
@@ -168,31 +254,92 @@ function DayRow({ group }: { group: DailyGroup }) {
 
 function DetailsSkeleton() {
   return (
-    <div className="rounded-xl bg-secondary p-1 overflow-x-auto">
-      <table className="w-full">
-        <thead>
-          <tr className="border-b border-border">
-            <th className="px-4 py-3 text-left"><Skeleton className="h-3 w-16" /></th>
-            <th className="px-4 py-3 text-right"><Skeleton className="h-3 w-12 ml-auto" /></th>
-            <th className="px-4 py-3 text-right"><Skeleton className="h-3 w-12 ml-auto" /></th>
-            <th className="px-4 py-3 text-right hidden md:table-cell"><Skeleton className="h-3 w-12 ml-auto" /></th>
-            <th className="px-4 py-3 text-right"><Skeleton className="h-3 w-12 ml-auto" /></th>
-            <th className="px-4 py-3 text-right hidden sm:table-cell"><Skeleton className="h-3 w-12 ml-auto" /></th>
-          </tr>
-        </thead>
-        <tbody>
-          {Array.from({ length: 7 }).map((_, i) => (
-            <tr key={i} className="border-b border-border/50">
-              <td className="px-4 py-3"><Skeleton className="h-4 w-28" /></td>
-              <td className="px-4 py-3"><Skeleton className="h-4 w-14 ml-auto" /></td>
-              <td className="px-4 py-3"><Skeleton className="h-4 w-14 ml-auto" /></td>
-              <td className="px-4 py-3 hidden md:table-cell"><Skeleton className="h-4 w-14 ml-auto" /></td>
-              <td className="px-4 py-3"><Skeleton className="h-4 w-14 ml-auto" /></td>
-              <td className="px-4 py-3 hidden sm:table-cell"><Skeleton className="h-4 w-14 ml-auto" /></td>
+    <div className="space-y-4">
+      <Skeleton className="h-[280px] w-full rounded-xl" />
+      <div className="rounded-xl bg-secondary p-1 overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-border">
+              <th className="px-4 py-3 text-left">
+                <Skeleton className="h-3 w-16" />
+              </th>
+              <th className="px-4 py-3 text-right">
+                <Skeleton className="h-3 w-12 ml-auto" />
+              </th>
+              <th className="px-4 py-3 text-right">
+                <Skeleton className="h-3 w-12 ml-auto" />
+              </th>
+              <th className="px-4 py-3 text-right hidden md:table-cell">
+                <Skeleton className="h-3 w-12 ml-auto" />
+              </th>
+              <th className="px-4 py-3 text-right">
+                <Skeleton className="h-3 w-12 ml-auto" />
+              </th>
+              <th className="px-4 py-3 text-right hidden sm:table-cell">
+                <Skeleton className="h-3 w-12 ml-auto" />
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {Array.from({ length: 7 }).map((_, i) => (
+              <tr key={i} className="border-b border-border/50">
+                <td className="px-4 py-3">
+                  <Skeleton className="h-4 w-28" />
+                </td>
+                <td className="px-4 py-3">
+                  <Skeleton className="h-4 w-14 ml-auto" />
+                </td>
+                <td className="px-4 py-3">
+                  <Skeleton className="h-4 w-14 ml-auto" />
+                </td>
+                <td className="px-4 py-3 hidden md:table-cell">
+                  <Skeleton className="h-4 w-14 ml-auto" />
+                </td>
+                <td className="px-4 py-3">
+                  <Skeleton className="h-4 w-14 ml-auto" />
+                </td>
+                <td className="px-4 py-3 hidden sm:table-cell">
+                  <Skeleton className="h-4 w-14 ml-auto" />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Filter select
+// ---------------------------------------------------------------------------
+
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-muted-foreground">{label}:</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="rounded-md border border-border bg-secondary px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+      >
+        <option value="">All</option>
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }
@@ -202,21 +349,122 @@ function DetailsSkeleton() {
 // ---------------------------------------------------------------------------
 
 export default function DetailsPage() {
-  const { data, loading, error } = useUsageData({ days: 90 });
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth());
+  const [sourceFilter, setSourceFilter] = useState("");
+  const [modelFilter, setModelFilter] = useState("");
+
+  const { from, to } = getMonthRange(year, month);
+
+  const { data, loading, error } = useUsageData({
+    from,
+    to,
+    ...(sourceFilter ? { source: sourceFilter } : {}),
+  });
+
+  // Filter records client-side for model filter (API only supports source filter)
+  const filteredRecords = useMemo(() => {
+    if (!data) return [];
+    if (!modelFilter) return data.records;
+    return data.records.filter((r) => r.model === modelFilter);
+  }, [data, modelFilter]);
+
+  const daily = useMemo(() => toDailyPoints(filteredRecords), [filteredRecords]);
 
   const dailyGroups = useMemo(
-    () => (data ? groupByDate(data.records) : []),
-    [data],
+    () => groupByDate(filteredRecords),
+    [filteredRecords]
   );
+
+  // Extract available sources/models from unfiltered data for filter dropdowns
+  const availableSources = useMemo(
+    () => (data ? extractSources(data.records) : []),
+    [data]
+  );
+  const availableModels = useMemo(
+    () => (data ? extractModels(data.records) : []),
+    [data]
+  );
+
+  const isCurrentMonth =
+    year === now.getFullYear() && month === now.getMonth();
+
+  function goToPrevMonth() {
+    if (month === 0) {
+      setYear(year - 1);
+      setMonth(11);
+    } else {
+      setMonth(month - 1);
+    }
+  }
+
+  function goToNextMonth() {
+    if (isCurrentMonth) return;
+    if (month === 11) {
+      setYear(year + 1);
+      setMonth(0);
+    } else {
+      setMonth(month + 1);
+    }
+  }
 
   return (
     <div className="space-y-4 md:space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold font-display">Daily Details</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Token usage broken down by day. Click a row to see per-model details.
-        </p>
+      {/* Header + month nav */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold font-display">Daily Usage</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Token usage broken down by day. Click a row to see per-model
+            details.
+          </p>
+        </div>
+        {/* Month pagination */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={goToPrevMonth}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            aria-label="Previous month"
+          >
+            <ChevronLeft className="h-4 w-4" strokeWidth={1.5} />
+          </button>
+          <span className="min-w-[140px] text-center text-sm font-medium">
+            {formatMonth(year, month)}
+          </span>
+          <button
+            onClick={goToNextMonth}
+            disabled={isCurrentMonth}
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
+              isCurrentMonth
+                ? "text-muted-foreground/30 cursor-not-allowed"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent"
+            )}
+            aria-label="Next month"
+          >
+            <ChevronRight className="h-4 w-4" strokeWidth={1.5} />
+          </button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-4">
+        <FilterSelect
+          label="Source"
+          value={sourceFilter}
+          onChange={setSourceFilter}
+          options={availableSources.map((s) => ({
+            value: s,
+            label: sourceLabel(s),
+          }))}
+        />
+        <FilterSelect
+          label="Model"
+          value={modelFilter}
+          onChange={setModelFilter}
+          options={availableModels.map((m) => ({ value: m, label: m }))}
+        />
       </div>
 
       {/* Error */}
@@ -232,21 +480,36 @@ export default function DetailsPage() {
       {/* Content */}
       {!loading && data && (
         <>
+          {/* Usage trend chart at top */}
+          <UsageTrendChart data={daily} />
+
           {dailyGroups.length === 0 ? (
             <div className="rounded-[var(--radius-card)] bg-secondary p-8 text-center text-sm text-muted-foreground">
-              No usage data yet. Start using your AI coding tools and sync with Pew!
+              No usage data for {formatMonth(year, month)}.
             </div>
           ) : (
             <div className="rounded-xl bg-secondary p-1 overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border">
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Date</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">Input</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">Output</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground hidden md:table-cell">Cached</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">Total</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground hidden sm:table-cell">Est. Cost</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
+                      Date
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">
+                      Input
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">
+                      Output
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground hidden md:table-cell">
+                      Cached
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">
+                      Total
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground hidden sm:table-cell">
+                      Est. Cost
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
