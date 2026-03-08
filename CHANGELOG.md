@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.4.0
+
+### Fixes
+
+- **Token accounting** — Include `cached_input_tokens` in `total_tokens` computation; previously only summed `input + output + reasoning`, now correctly sums `input + cached + output + reasoning`
+
+### Docs
+
+- **Token accounting spec** — Added `docs/05-token-accounting.md` documenting per-source token field mappings, formulas, and billing semantics
+- **Read-only constraint** — Codified raw data read-only rule in `CLAUDE.md` (never modify `~/.claude/`, `~/.gemini/`, etc.)
+
+### Chores
+
+- Added `sync` and `sync:prod` shortcut scripts to root `package.json`
+
 ## v0.3.0
 
 ### Features
