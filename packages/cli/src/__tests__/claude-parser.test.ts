@@ -260,4 +260,64 @@ describe("parseClaudeFile", () => {
     expect(result.deltas[0].model).toBe("glm-5");
     expect(result.deltas[1].model).toBe("glm-4.7");
   });
+
+  it("should skip lines where model is missing from both message and top-level", async () => {
+    const filePath = join(tempDir, "session.jsonl");
+    const noModel = JSON.stringify({
+      type: "assistant",
+      timestamp: "2026-03-07T10:15:30.000Z",
+      message: {
+        // no model field
+        usage: {
+          input_tokens: 100,
+          output_tokens: 50,
+        },
+      },
+    });
+    const content = [noModel, claudeLine()].join("\n") + "\n";
+    await writeFile(filePath, content);
+
+    const result = await parseClaudeFile({ filePath, startOffset: 0 });
+    // First line skipped (no model), second line parsed
+    expect(result.deltas).toHaveLength(1);
+    expect(result.deltas[0].model).toBe("glm-5");
+  });
+
+  it("should extract model from top-level obj when message.model is missing", async () => {
+    const filePath = join(tempDir, "session.jsonl");
+    const topLevelModel = JSON.stringify({
+      type: "assistant",
+      timestamp: "2026-03-07T10:15:30.000Z",
+      model: "top-level-model",
+      message: {
+        // no model field here
+        usage: {
+          input_tokens: 200,
+          output_tokens: 100,
+        },
+      },
+    });
+    await writeFile(filePath, topLevelModel + "\n");
+
+    const result = await parseClaudeFile({ filePath, startOffset: 0 });
+    expect(result.deltas).toHaveLength(1);
+    expect(result.deltas[0].model).toBe("top-level-model");
+  });
+
+  it("should skip lines where usage is not an object", async () => {
+    const filePath = join(tempDir, "session.jsonl");
+    const badUsage = JSON.stringify({
+      type: "assistant",
+      timestamp: "2026-03-07T10:15:30.000Z",
+      message: {
+        model: "glm-5",
+        usage: "not-an-object",
+      },
+    });
+    const content = [badUsage, claudeLine()].join("\n") + "\n";
+    await writeFile(filePath, content);
+
+    const result = await parseClaudeFile({ filePath, startOffset: 0 });
+    expect(result.deltas).toHaveLength(1);
+  });
 });

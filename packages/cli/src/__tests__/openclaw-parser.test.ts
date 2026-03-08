@@ -122,4 +122,71 @@ describe("parseOpenClawFile", () => {
     const result = await parseOpenClawFile({ filePath, startOffset: 0 });
     expect(result.deltas).toHaveLength(1);
   });
+
+  it("should skip lines with usage keyword but invalid JSON containing totalTokens", async () => {
+    const filePath = join(tempDir, "session.jsonl");
+    // Line has "usage" and "totalTokens" text but is not valid JSON
+    const badLine = '{"type":"message","usage":"broken","totalTokens":invalid}';
+    await writeFile(filePath, badLine + "\n" + openclawLine() + "\n");
+
+    const result = await parseOpenClawFile({ filePath, startOffset: 0 });
+    expect(result.deltas).toHaveLength(1);
+  });
+
+  it("should skip lines where message is missing", async () => {
+    const filePath = join(tempDir, "session.jsonl");
+    const noMsg = JSON.stringify({
+      type: "message",
+      timestamp: "2026-03-07T10:00:00.000Z",
+      // message field missing, but usage/totalTokens in other places won't match fast-path
+    });
+    // But we need the fast-path to pass, so embed usage+totalTokens in a way that parses
+    const noMsgWithKeywords = JSON.stringify({
+      type: "message",
+      timestamp: "2026-03-07T10:00:00.000Z",
+      message: null,
+      usage: { totalTokens: 100 },
+    });
+    await writeFile(filePath, noMsgWithKeywords + "\n" + openclawLine() + "\n");
+
+    const result = await parseOpenClawFile({ filePath, startOffset: 0 });
+    expect(result.deltas).toHaveLength(1); // only the valid line
+  });
+
+  it("should skip lines where message.usage is missing", async () => {
+    const filePath = join(tempDir, "session.jsonl");
+    const noUsage = JSON.stringify({
+      type: "message",
+      timestamp: "2026-03-07T10:00:00.000Z",
+      message: { model: "test", totalTokens: 100 },
+      usage: { totalTokens: 100 }, // top-level to pass fast-path
+    });
+    await writeFile(filePath, noUsage + "\n" + openclawLine() + "\n");
+
+    const result = await parseOpenClawFile({ filePath, startOffset: 0 });
+    expect(result.deltas).toHaveLength(1);
+  });
+
+  it("should use 'unknown' when model is missing from message", async () => {
+    const filePath = join(tempDir, "session.jsonl");
+    const noModel = JSON.stringify({
+      type: "message",
+      timestamp: "2026-03-07T10:00:00.000Z",
+      message: {
+        // no model field
+        usage: {
+          input: 100,
+          cacheRead: 0,
+          cacheWrite: 0,
+          output: 50,
+          totalTokens: 150,
+        },
+      },
+    });
+    await writeFile(filePath, noModel + "\n");
+
+    const result = await parseOpenClawFile({ filePath, startOffset: 0 });
+    expect(result.deltas).toHaveLength(1);
+    expect(result.deltas[0].model).toBe("unknown");
+  });
 });
