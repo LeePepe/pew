@@ -244,7 +244,7 @@ async function runUpload(stateDir: string, apiUrl: string, dev: boolean): Promis
 export const main = defineCommand({
   meta: {
     name: "pew",
-    version: "0.1.1",
+    version: "0.2.0",
     description: "Track token usage from your local AI coding tools",
   },
   subCommands: {

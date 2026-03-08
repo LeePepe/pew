@@ -1,5 +1,41 @@
 # Changelog
 
+## v0.2.0
+
+### Breaking Changes
+
+- **Project rename** — Renamed from "zebra" to "pew" across all packages, types, config paths, API key prefixes (`zk_` → `pk_`), and domains
+- **CLI package** — Now published as `@nocoo/pew` (was `@nocoo/zebra`)
+- **Config directory** — Moved from `~/.config/zebra/` to `~/.config/pew/`
+
+### Features
+
+- **Worker ingest** — Cloudflare Worker with native D1 bindings replaces REST API, reducing 60 sequential HTTP calls to a single batched request
+- **CLI pre-aggregation** — Idempotent upload pipeline with multi-row INSERT and chunked batches (20 rows / 180 params)
+- **429 retry** — CLI retries on rate limit with `Retry-After` header support
+- **Dev mode** — `--dev` flag with separate `config.dev.json`, `DEFAULT_HOST`/`DEV_HOST` constants, and `resolveHost` helper
+- **Sync improvements** — Files scanned per source in summary, directory-level mtime skip for OpenCode, batch size tuned to 50 for D1 Free plan limits
+- **Logo assets** — Asset pipeline (`scripts/resize-logos.py`), file-based metadata icons, OpenGraph images in layout
+
+### Fixes
+
+- Exclude API routes from proxy matcher to allow Bearer token auth
+- Pass env vars as Docker build args for Next.js page data collection
+- Chunk ingest into 20-row batches to avoid D1 999-param limit
+- Skip TLS verification in dev mode for mkcert certs
+
+### Refactoring
+
+- Remove standalone `upload` and `init` commands (merged into `sync`)
+- Extract testable pure functions from `auth.ts` and `proxy.ts`
+- Replace `--api` string flag with `--dev` boolean
+
+### Infrastructure
+
+- Cloudflare Worker workspace (`packages/worker`) with wrangler config
+- Dockerfile for Railway deployment with Bun workspaces
+- Test suite expanded: 32 test files, 400 tests passing
+
 ## v0.1.1
 
 ### Features
