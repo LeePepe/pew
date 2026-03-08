@@ -26,16 +26,34 @@ export async function GET(request: Request) {
   }
 
   const client = getD1Client();
-  const row = await client.firstOrNull<UserSettings>(
-    "SELECT nickname, slug FROM users WHERE id = ?",
-    [authResult.userId],
-  );
 
-  if (!row) {
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  try {
+    const row = await client.firstOrNull<UserSettings>(
+      "SELECT nickname, slug FROM users WHERE id = ?",
+      [authResult.userId],
+    );
+
+    if (!row) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(row);
+  } catch (err) {
+    // Fallback if nickname column doesn't exist yet
+    const msg = err instanceof Error ? err.message : "";
+    if (msg.includes("no such column")) {
+      const row = await client.firstOrNull<{ slug: string | null }>(
+        "SELECT slug FROM users WHERE id = ?",
+        [authResult.userId],
+      );
+      if (!row) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+      return NextResponse.json({ nickname: null, slug: row.slug });
+    }
+    console.error("Failed to load settings:", err);
+    return NextResponse.json({ error: "Failed to load settings" }, { status: 500 });
   }
-
-  return NextResponse.json(row);
 }
 
 // ---------------------------------------------------------------------------
@@ -123,16 +141,29 @@ export async function PATCH(request: Request) {
   params.push(authResult.userId);
 
   const client = getD1Client();
-  await client.execute(
-    `UPDATE users SET ${sets.join(", ")} WHERE id = ?`,
-    params,
-  );
 
-  // Return updated settings
-  const row = await client.firstOrNull<UserSettings>(
-    "SELECT nickname, slug FROM users WHERE id = ?",
-    [authResult.userId],
-  );
+  try {
+    await client.execute(
+      `UPDATE users SET ${sets.join(", ")} WHERE id = ?`,
+      params,
+    );
 
-  return NextResponse.json(row);
+    // Return updated settings
+    const row = await client.firstOrNull<UserSettings>(
+      "SELECT nickname, slug FROM users WHERE id = ?",
+      [authResult.userId],
+    );
+
+    return NextResponse.json(row);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "";
+    if (msg.includes("no such column")) {
+      return NextResponse.json(
+        { error: "Nickname feature not available yet — database migration pending" },
+        { status: 503 },
+      );
+    }
+    console.error("Failed to update settings:", err);
+    return NextResponse.json({ error: "Failed to update settings" }, { status: 500 });
+  }
 }

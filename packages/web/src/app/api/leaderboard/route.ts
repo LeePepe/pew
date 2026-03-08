@@ -95,7 +95,7 @@ export async function GET(request: Request) {
     params.push(fromDate);
   }
 
-  // Team filter: only include team members
+  // Team filter: only include team members (requires teams tables to exist)
   let teamJoin = "";
   if (teamId) {
     teamJoin = "JOIN team_members tm ON tm.user_id = ur.user_id";
@@ -108,11 +108,12 @@ export async function GET(request: Request) {
 
   params.push(limit);
 
-  const sql = `
+  // Try with nickname column first, fall back without it
+  const buildSql = (withNickname: boolean) => `
     SELECT
       ur.user_id,
       u.name,
-      u.nickname,
+      ${withNickname ? "u.nickname," : ""}
       u.image,
       u.slug,
       SUM(ur.total_tokens) AS total_tokens,
@@ -129,7 +130,45 @@ export async function GET(request: Request) {
   `;
 
   try {
-    const result = await client.query<LeaderboardRow>(sql, params);
+    let result: { results: LeaderboardRow[] };
+    try {
+      result = await client.query<LeaderboardRow>(buildSql(true), params);
+    } catch (firstErr) {
+      // Fallback: nickname column or team_members table may not exist yet
+      const msg = firstErr instanceof Error ? firstErr.message : "";
+      if (msg.includes("no such column") || msg.includes("no such table")) {
+        // Retry without nickname and without team join
+        const fallbackConditions = ["1=1"];
+        const fallbackParams: unknown[] = [];
+        if (fromDate) {
+          fallbackConditions.push("ur.hour_start >= ?");
+          fallbackParams.push(fromDate);
+        }
+        fallbackConditions.push("u.slug IS NOT NULL");
+        fallbackParams.push(limit);
+
+        const fallbackSql = `
+          SELECT
+            ur.user_id,
+            u.name,
+            u.image,
+            u.slug,
+            SUM(ur.total_tokens) AS total_tokens,
+            SUM(ur.input_tokens) AS input_tokens,
+            SUM(ur.output_tokens) AS output_tokens,
+            SUM(ur.cached_input_tokens) AS cached_input_tokens
+          FROM usage_records ur
+          JOIN users u ON u.id = ur.user_id
+          WHERE ${fallbackConditions.join(" AND ")}
+          GROUP BY ur.user_id
+          ORDER BY total_tokens DESC
+          LIMIT ?
+        `;
+        result = await client.query<LeaderboardRow>(fallbackSql, fallbackParams);
+      } else {
+        throw firstErr;
+      }
+    }
 
     const entries = result.results.map((row, index) => ({
       rank: index + 1,

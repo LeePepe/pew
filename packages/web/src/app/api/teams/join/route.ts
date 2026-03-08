@@ -27,44 +27,56 @@ export async function POST(request: Request) {
     );
   }
 
-  const client = getD1Client();
+  try {
+    const client = getD1Client();
 
-  // Find team by invite code
-  const team = await client.firstOrNull<{ id: string; name: string; slug: string }>(
-    "SELECT id, name, slug FROM teams WHERE invite_code = ?",
-    [inviteCode],
-  );
-
-  if (!team) {
-    return NextResponse.json(
-      { error: "Invalid invite code" },
-      { status: 404 },
+    // Find team by invite code
+    const team = await client.firstOrNull<{ id: string; name: string; slug: string }>(
+      "SELECT id, name, slug FROM teams WHERE invite_code = ?",
+      [inviteCode],
     );
-  }
 
-  // Check if already a member
-  const existing = await client.firstOrNull<{ id: string }>(
-    "SELECT id FROM team_members WHERE team_id = ? AND user_id = ?",
-    [team.id, authResult.userId],
-  );
+    if (!team) {
+      return NextResponse.json(
+        { error: "Invalid invite code" },
+        { status: 404 },
+      );
+    }
 
-  if (existing) {
-    return NextResponse.json(
-      { error: "Already a member of this team" },
-      { status: 409 },
+    // Check if already a member
+    const existing = await client.firstOrNull<{ id: string }>(
+      "SELECT id FROM team_members WHERE team_id = ? AND user_id = ?",
+      [team.id, authResult.userId],
     );
+
+    if (existing) {
+      return NextResponse.json(
+        { error: "Already a member of this team" },
+        { status: 409 },
+      );
+    }
+
+    // Add as member
+    await client.execute(
+      `INSERT INTO team_members (id, team_id, user_id, role, joined_at)
+       VALUES (?, ?, ?, 'member', datetime('now'))`,
+      [crypto.randomUUID(), team.id, authResult.userId],
+    );
+
+    return NextResponse.json({
+      team_id: team.id,
+      team_name: team.name,
+      team_slug: team.slug,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "";
+    if (msg.includes("no such table")) {
+      return NextResponse.json(
+        { error: "Teams feature not available yet — database migration pending" },
+        { status: 503 },
+      );
+    }
+    console.error("Failed to join team:", err);
+    return NextResponse.json({ error: "Failed to join team" }, { status: 500 });
   }
-
-  // Add as member
-  await client.execute(
-    `INSERT INTO team_members (id, team_id, user_id, role, joined_at)
-     VALUES (?, ?, ?, 'member', datetime('now'))`,
-    [crypto.randomUUID(), team.id, authResult.userId],
-  );
-
-  return NextResponse.json({
-    team_id: team.id,
-    team_name: team.name,
-    team_slug: team.slug,
-  });
 }

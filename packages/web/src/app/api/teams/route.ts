@@ -31,18 +31,28 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const client = getD1Client();
-  const result = await client.query<TeamRow>(
-    `SELECT t.id, t.name, t.slug, t.invite_code, t.created_by, t.created_at,
-       (SELECT COUNT(*) FROM team_members WHERE team_id = t.id) AS member_count
-     FROM teams t
-     JOIN team_members tm ON tm.team_id = t.id
-     WHERE tm.user_id = ?
-     ORDER BY t.created_at DESC`,
-    [authResult.userId],
-  );
+  try {
+    const client = getD1Client();
+    const result = await client.query<TeamRow>(
+      `SELECT t.id, t.name, t.slug, t.invite_code, t.created_by, t.created_at,
+         (SELECT COUNT(*) FROM team_members WHERE team_id = t.id) AS member_count
+       FROM teams t
+       JOIN team_members tm ON tm.team_id = t.id
+       WHERE tm.user_id = ?
+       ORDER BY t.created_at DESC`,
+      [authResult.userId],
+    );
 
-  return NextResponse.json({ teams: result.results });
+    return NextResponse.json({ teams: result.results });
+  } catch (err) {
+    // Gracefully degrade if teams table doesn't exist yet
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("no such table")) {
+      return NextResponse.json({ teams: [] });
+    }
+    console.error("Failed to query teams:", err);
+    return NextResponse.json({ error: "Failed to load teams" }, { status: 500 });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -79,41 +89,53 @@ export async function POST(request: Request) {
 
   const slug = baseSlug || "team";
 
-  const client = getD1Client();
+  try {
+    const client = getD1Client();
 
-  // Ensure unique slug
-  const existing = await client.firstOrNull<{ id: string }>(
-    "SELECT id FROM teams WHERE slug = ?",
-    [slug],
-  );
+    // Ensure unique slug
+    const existing = await client.firstOrNull<{ id: string }>(
+      "SELECT id FROM teams WHERE slug = ?",
+      [slug],
+    );
 
-  const finalSlug = existing
-    ? `${slug}-${crypto.randomUUID().slice(0, 6)}`
-    : slug;
+    const finalSlug = existing
+      ? `${slug}-${crypto.randomUUID().slice(0, 6)}`
+      : slug;
 
-  // Generate invite code (8 chars)
-  const inviteCode = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+    // Generate invite code (8 chars)
+    const inviteCode = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
 
-  const teamId = crypto.randomUUID();
+    const teamId = crypto.randomUUID();
 
-  await client.execute(
-    `INSERT INTO teams (id, name, slug, invite_code, created_by, created_at)
-     VALUES (?, ?, ?, ?, ?, datetime('now'))`,
-    [teamId, name, finalSlug, inviteCode, authResult.userId],
-  );
+    await client.execute(
+      `INSERT INTO teams (id, name, slug, invite_code, created_by, created_at)
+       VALUES (?, ?, ?, ?, ?, datetime('now'))`,
+      [teamId, name, finalSlug, inviteCode, authResult.userId],
+    );
 
-  // Add creator as member (role: owner)
-  await client.execute(
-    `INSERT INTO team_members (id, team_id, user_id, role, joined_at)
-     VALUES (?, ?, ?, 'owner', datetime('now'))`,
-    [crypto.randomUUID(), teamId, authResult.userId],
-  );
+    // Add creator as member (role: owner)
+    await client.execute(
+      `INSERT INTO team_members (id, team_id, user_id, role, joined_at)
+       VALUES (?, ?, ?, 'owner', datetime('now'))`,
+      [crypto.randomUUID(), teamId, authResult.userId],
+    );
 
-  return NextResponse.json({
-    id: teamId,
-    name,
-    slug: finalSlug,
-    invite_code: inviteCode,
-    member_count: 1,
-  }, { status: 201 });
+    return NextResponse.json({
+      id: teamId,
+      name,
+      slug: finalSlug,
+      invite_code: inviteCode,
+      member_count: 1,
+    }, { status: 201 });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("no such table")) {
+      return NextResponse.json(
+        { error: "Teams feature not available yet — database migration pending" },
+        { status: 503 },
+      );
+    }
+    console.error("Failed to create team:", err);
+    return NextResponse.json({ error: "Failed to create team" }, { status: 500 });
+  }
 }
