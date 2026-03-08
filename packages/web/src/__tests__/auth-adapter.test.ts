@@ -192,5 +192,106 @@ describe("D1AuthAdapter", () => {
       expect(result.name).toBe("New Name");
       expect(mockClient.execute).toHaveBeenCalledOnce();
     });
+
+    it("should update image field", async () => {
+      vi.mocked(mockClient.execute).mockResolvedValueOnce({
+        changes: 1,
+        duration: 0.01,
+      });
+      vi.mocked(mockClient.firstOrNull).mockResolvedValueOnce({
+        id: "u1",
+        email: "test@example.com",
+        name: "Test",
+        image: "https://example.com/new-avatar.jpg",
+        email_verified: null,
+      });
+
+      const result = await adapter.updateUser!({
+        id: "u1",
+        image: "https://example.com/new-avatar.jpg",
+      });
+
+      expect(result.image).toBe("https://example.com/new-avatar.jpg");
+      const [sql, params] = vi.mocked(mockClient.execute).mock.calls[0]!;
+      expect(sql).toContain("image = ?");
+      expect(params).toContain("https://example.com/new-avatar.jpg");
+    });
+
+    it("should update emailVerified field", async () => {
+      const verifiedDate = new Date("2026-06-15T12:00:00.000Z");
+      vi.mocked(mockClient.execute).mockResolvedValueOnce({
+        changes: 1,
+        duration: 0.01,
+      });
+      vi.mocked(mockClient.firstOrNull).mockResolvedValueOnce({
+        id: "u1",
+        email: "test@example.com",
+        name: "Test",
+        image: null,
+        email_verified: "2026-06-15T12:00:00.000Z",
+      });
+
+      const result = await adapter.updateUser!({
+        id: "u1",
+        emailVerified: verifiedDate,
+      });
+
+      expect(result.emailVerified).toEqual(verifiedDate);
+      const [sql, params] = vi.mocked(mockClient.execute).mock.calls[0]!;
+      expect(sql).toContain("email_verified = ?");
+      expect(params).toContain("2026-06-15T12:00:00.000Z");
+    });
+
+    it("should handle emailVerified set to null", async () => {
+      vi.mocked(mockClient.execute).mockResolvedValueOnce({
+        changes: 1,
+        duration: 0.01,
+      });
+      vi.mocked(mockClient.firstOrNull).mockResolvedValueOnce({
+        id: "u1",
+        email: "test@example.com",
+        name: "Test",
+        image: null,
+        email_verified: null,
+      });
+
+      const result = await adapter.updateUser!({
+        id: "u1",
+        emailVerified: null,
+      });
+
+      expect(result.emailVerified).toBeNull();
+      const [sql, params] = vi.mocked(mockClient.execute).mock.calls[0]!;
+      expect(sql).toContain("email_verified = ?");
+      expect(params).toContain(null);
+    });
+
+    it("should skip execute when no fields provided (only id)", async () => {
+      vi.mocked(mockClient.firstOrNull).mockResolvedValueOnce({
+        id: "u1",
+        email: "test@example.com",
+        name: "Test",
+        image: null,
+        email_verified: null,
+      });
+
+      const result = await adapter.updateUser!({ id: "u1" });
+
+      expect(result.id).toBe("u1");
+      // execute should NOT be called since sets.length === 0
+      expect(mockClient.execute).not.toHaveBeenCalled();
+    });
+
+    it("should throw if user not found after update", async () => {
+      vi.mocked(mockClient.execute).mockResolvedValueOnce({
+        changes: 1,
+        duration: 0.01,
+      });
+      vi.mocked(mockClient.firstOrNull).mockResolvedValueOnce(null);
+
+      await expect(
+        adapter.updateUser!({ id: "u1", name: "Ghost" })
+      ).rejects.toThrow("User u1 not found after update");
+    });
   });
 });
