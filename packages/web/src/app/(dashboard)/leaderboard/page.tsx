@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Zap, Trophy, Medal, Award } from "lucide-react";
+import { Trophy, Medal, Award, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatTokens } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,6 +12,16 @@ import {
   type LeaderboardPeriod,
   type LeaderboardEntry,
 } from "@/hooks/use-leaderboard";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface Team {
+  id: string;
+  name: string;
+  slug: string;
+}
 
 // ---------------------------------------------------------------------------
 // Period tabs
@@ -131,34 +141,44 @@ function LeaderboardSkeleton() {
 
 export default function LeaderboardPage() {
   const [period, setPeriod] = useState<LeaderboardPeriod>("week");
-  const { data, loading, error } = useLeaderboard({ period });
+  const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const { data, loading, error } = useLeaderboard({
+    period,
+    teamId: selectedTeam,
+  });
+
+  // Fetch user's teams for the filter dropdown
+  const fetchTeams = useCallback(async () => {
+    try {
+      const res = await fetch("/api/teams");
+      if (res.ok) {
+        const json = await res.json();
+        setTeams(json.teams ?? []);
+      }
+    } catch {
+      // Silently fail — teams are optional
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTeams();
+  }, [fetchTeams]);
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Top bar */}
-      <header className="border-b border-border bg-background/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="mx-auto max-w-3xl flex items-center justify-between px-4 md:px-6 h-14">
-          <Link
-            href="/"
-            className="flex items-center gap-2 text-foreground hover:text-primary transition-colors"
-          >
-            <Zap className="h-5 w-5 text-primary" strokeWidth={1.5} />
-            <span className="font-bold tracking-tighter">pew</span>
-          </Link>
-        </div>
-      </header>
+    <div className="space-y-4 md:space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold font-display">Leaderboard</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Who&apos;s burning the most tokens?
+        </p>
+      </div>
 
-      <main className="mx-auto max-w-3xl px-4 md:px-6 py-6 md:py-8 space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold font-display">Leaderboard</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Who&apos;s burning the most tokens?
-          </p>
-        </div>
-
+      {/* Controls row */}
+      <div className="flex flex-col sm:flex-row gap-3">
         {/* Period tabs */}
-        <div className="flex gap-1 rounded-lg bg-secondary p-1">
+        <div className="flex gap-1 rounded-lg bg-secondary p-1 flex-1">
           {PERIODS.map((p) => (
             <button
               key={p.value}
@@ -175,42 +195,63 @@ export default function LeaderboardPage() {
           ))}
         </div>
 
-        {/* Error */}
-        {error && (
-          <div className="rounded-[var(--radius-card)] bg-destructive/10 p-4 text-sm text-destructive">
-            Failed to load leaderboard: {error}
+        {/* Team filter */}
+        {teams.length > 0 && (
+          <div className="flex gap-1 rounded-lg bg-secondary p-1 shrink-0">
+            <button
+              onClick={() => setSelectedTeam(null)}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                !selectedTeam
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Global
+            </button>
+            {teams.map((team) => (
+              <button
+                key={team.id}
+                onClick={() => setSelectedTeam(team.id)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                  selectedTeam === team.id
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Users className="h-3.5 w-3.5" strokeWidth={1.5} />
+                {team.name}
+              </button>
+            ))}
           </div>
         )}
+      </div>
 
-        {/* Loading */}
-        {loading && <LeaderboardSkeleton />}
+      {/* Error */}
+      {error && (
+        <div className="rounded-[var(--radius-card)] bg-destructive/10 p-4 text-sm text-destructive">
+          Failed to load leaderboard: {error}
+        </div>
+      )}
 
-        {/* Content */}
-        {!loading && data && (
-          <div className="space-y-2">
-            {data.entries.length === 0 ? (
-              <div className="rounded-[var(--radius-card)] bg-secondary p-8 text-center text-sm text-muted-foreground">
-                No usage data for this period yet.
-              </div>
-            ) : (
-              data.entries.map((entry) => (
-                <LeaderboardRow key={entry.rank} entry={entry} />
-              ))
-            )}
-          </div>
-        )}
+      {/* Loading */}
+      {loading && <LeaderboardSkeleton />}
 
-        {/* Footer */}
-        <footer className="pt-4 pb-8 text-center">
-          <p className="text-xs text-muted-foreground">
-            Powered by{" "}
-            <Link href="/" className="text-primary hover:underline">
-              Pew
-            </Link>{" "}
-            — Track your AI coding tool usage
-          </p>
-        </footer>
-      </main>
+      {/* Content */}
+      {!loading && data && (
+        <div className="space-y-2">
+          {data.entries.length === 0 ? (
+            <div className="rounded-[var(--radius-card)] bg-secondary p-8 text-center text-sm text-muted-foreground">
+              No usage data for this period yet.
+            </div>
+          ) : (
+            data.entries.map((entry) => (
+              <LeaderboardRow key={entry.rank} entry={entry} />
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }

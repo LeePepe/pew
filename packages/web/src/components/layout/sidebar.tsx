@@ -10,6 +10,9 @@ import {
   PanelLeft,
   LogOut,
   Trophy,
+  CalendarDays,
+  AppWindow,
+  Cpu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { APP_VERSION } from "@/lib/version";
@@ -24,6 +27,9 @@ import { useSidebar } from "./sidebar-context";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/details", label: "Daily Details", icon: CalendarDays },
+  { href: "/apps", label: "By App", icon: AppWindow },
+  { href: "/models", label: "By Model", icon: Cpu },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

@@ -15,6 +15,10 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 const ROUTE_LABELS: Record<string, string> = {
   settings: "Settings",
+  details: "Daily Details",
+  apps: "By App",
+  models: "By Model",
+  leaderboard: "Leaderboard",
 };
 
 function breadcrumbsFromPathname(pathname: string) {

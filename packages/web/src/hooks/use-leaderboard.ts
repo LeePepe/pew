@@ -33,6 +33,7 @@ export interface LeaderboardData {
 interface UseLeaderboardOptions {
   period?: LeaderboardPeriod;
   limit?: number;
+  teamId?: string | null;
 }
 
 interface UseLeaderboardResult {
@@ -45,7 +46,7 @@ interface UseLeaderboardResult {
 export function useLeaderboard(
   options: UseLeaderboardOptions = {},
 ): UseLeaderboardResult {
-  const { period = "week", limit = 50 } = options;
+  const { period = "week", limit = 50, teamId } = options;
   const [data, setData] = useState<LeaderboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +60,9 @@ export function useLeaderboard(
         period,
         limit: String(limit),
       });
+      if (teamId) {
+        params.set("team", teamId);
+      }
 
       const res = await fetch(`/api/leaderboard?${params.toString()}`);
       if (!res.ok) {
@@ -75,7 +79,7 @@ export function useLeaderboard(
     } finally {
       setLoading(false);
     }
-  }, [period, limit]);
+  }, [period, limit, teamId]);
 
   useEffect(() => {
     fetchData();

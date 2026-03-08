@@ -1,0 +1,138 @@
+/**
+ * GET/PATCH /api/settings — user settings (nickname, slug, etc.)
+ */
+
+import { NextResponse } from "next/server";
+import { resolveUser } from "@/lib/auth-helpers";
+import { getD1Client } from "@/lib/d1";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface UserSettings {
+  nickname: string | null;
+  slug: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// GET — read current settings
+// ---------------------------------------------------------------------------
+
+export async function GET(request: Request) {
+  const authResult = await resolveUser(request);
+  if (!authResult) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const client = getD1Client();
+  const row = await client.firstOrNull<UserSettings>(
+    "SELECT nickname, slug FROM users WHERE id = ?",
+    [authResult.userId],
+  );
+
+  if (!row) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
+
+  return NextResponse.json(row);
+}
+
+// ---------------------------------------------------------------------------
+// PATCH — update settings
+// ---------------------------------------------------------------------------
+
+export async function PATCH(request: Request) {
+  const authResult = await resolveUser(request);
+  if (!authResult) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const sets: string[] = [];
+  const params: unknown[] = [];
+
+  if ("nickname" in body) {
+    const nickname = body.nickname;
+    if (nickname !== null && typeof nickname !== "string") {
+      return NextResponse.json(
+        { error: "nickname must be a string or null" },
+        { status: 400 },
+      );
+    }
+    if (typeof nickname === "string" && (nickname.length < 1 || nickname.length > 32)) {
+      return NextResponse.json(
+        { error: "nickname must be 1-32 characters" },
+        { status: 400 },
+      );
+    }
+    sets.push("nickname = ?");
+    params.push(nickname);
+  }
+
+  if ("slug" in body) {
+    const slug = body.slug;
+    if (slug !== null && typeof slug !== "string") {
+      return NextResponse.json(
+        { error: "slug must be a string or null" },
+        { status: 400 },
+      );
+    }
+    if (typeof slug === "string") {
+      if (slug.length < 2 || slug.length > 32) {
+        return NextResponse.json(
+          { error: "slug must be 2-32 characters" },
+          { status: 400 },
+        );
+      }
+      if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(slug)) {
+        return NextResponse.json(
+          { error: "slug must be lowercase alphanumeric with optional hyphens" },
+          { status: 400 },
+        );
+      }
+
+      // Check uniqueness
+      const client = getD1Client();
+      const existing = await client.firstOrNull<{ id: string }>(
+        "SELECT id FROM users WHERE slug = ? AND id != ?",
+        [slug, authResult.userId],
+      );
+      if (existing) {
+        return NextResponse.json(
+          { error: "slug is already taken" },
+          { status: 409 },
+        );
+      }
+    }
+    sets.push("slug = ?");
+    params.push(slug);
+  }
+
+  if (sets.length === 0) {
+    return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
+  }
+
+  sets.push("updated_at = datetime('now')");
+  params.push(authResult.userId);
+
+  const client = getD1Client();
+  await client.execute(
+    `UPDATE users SET ${sets.join(", ")} WHERE id = ?`,
+    params,
+  );
+
+  // Return updated settings
+  const row = await client.firstOrNull<UserSettings>(
+    "SELECT nickname, slug FROM users WHERE id = ?",
+    [authResult.userId],
+  );
+
+  return NextResponse.json(row);
+}

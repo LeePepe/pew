@@ -4,6 +4,7 @@
  * Query params:
  *   period — "week" | "month" | "all" (default: "week")
  *   limit  — max entries to return (default: 50, max: 100)
+ *   team   — team ID for team-scoped leaderboard (optional)
  *
  * Returns { period, entries[] } where each entry has user info + total tokens.
  */
@@ -26,6 +27,7 @@ const DEFAULT_LIMIT = 50;
 interface LeaderboardRow {
   user_id: string;
   name: string | null;
+  nickname: string | null;
   image: string | null;
   slug: string | null;
   total_tokens: number;
@@ -59,6 +61,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const period = url.searchParams.get("period") ?? "week";
   const limitParam = url.searchParams.get("limit");
+  const teamId = url.searchParams.get("team");
 
   // Validate period
   if (!VALID_PERIODS.has(period)) {
@@ -92,12 +95,24 @@ export async function GET(request: Request) {
     params.push(fromDate);
   }
 
+  // Team filter: only include team members
+  let teamJoin = "";
+  if (teamId) {
+    teamJoin = "JOIN team_members tm ON tm.user_id = ur.user_id";
+    conditions.push("tm.team_id = ?");
+    params.push(teamId);
+  } else {
+    // Public leaderboard only shows users with slugs
+    conditions.push("u.slug IS NOT NULL");
+  }
+
   params.push(limit);
 
   const sql = `
     SELECT
       ur.user_id,
       u.name,
+      u.nickname,
       u.image,
       u.slug,
       SUM(ur.total_tokens) AS total_tokens,
@@ -106,8 +121,8 @@ export async function GET(request: Request) {
       SUM(ur.cached_input_tokens) AS cached_input_tokens
     FROM usage_records ur
     JOIN users u ON u.id = ur.user_id
+    ${teamJoin}
     WHERE ${conditions.join(" AND ")}
-      AND u.slug IS NOT NULL
     GROUP BY ur.user_id
     ORDER BY total_tokens DESC
     LIMIT ?
@@ -119,7 +134,7 @@ export async function GET(request: Request) {
     const entries = result.results.map((row, index) => ({
       rank: index + 1,
       user: {
-        name: row.name,
+        name: row.nickname ?? row.name,
         image: row.image,
         slug: row.slug,
       },
