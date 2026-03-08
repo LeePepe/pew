@@ -7,9 +7,9 @@
 
 | # | Commit | Description | Status |
 |---|--------|-------------|--------|
-| 1 | `docs: add worker ingest migration plan` | This document | pending |
-| 2 | `chore: add packages/worker workspace with wrangler config` | Scaffold worker package | pending |
-| 3 | `feat: implement worker ingest endpoint with batch D1` | Worker entry point | pending |
+| 1 | `docs: add worker ingest migration plan` | This document | ✅ done |
+| 2 | `chore: add packages/worker workspace with wrangler config` | Scaffold worker package | ✅ done |
+| 3 | `feat: implement worker ingest endpoint with batch D1` | Worker entry point | ✅ done |
 | 4 | `test: add L1 unit tests for worker ingest` | Worker tests | pending |
 | 5 | `refactor: replace D1 REST API with worker proxy in ingest route` | Next.js route rewrite | pending |
 | 6 | `test: rewrite ingest route tests for worker proxy` | Ingest test rewrite | pending |
