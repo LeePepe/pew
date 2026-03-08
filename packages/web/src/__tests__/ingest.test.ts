@@ -1,15 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { POST, buildMultiRowUpsert, CHUNK_SIZE } from "@/app/api/ingest/route";
-import * as d1Module from "@/lib/d1";
-
-// Mock getD1Client
-vi.mock("@/lib/d1", async (importOriginal) => {
-  const original = await importOriginal<typeof d1Module>();
-  return {
-    ...original,
-    getD1Client: vi.fn(),
-  };
-});
+import { POST } from "@/app/api/ingest/route";
 
 // Mock resolveUser from auth-helpers
 vi.mock("@/lib/auth-helpers", () => ({
@@ -20,14 +10,9 @@ const { resolveUser } = await import("@/lib/auth-helpers") as unknown as {
   resolveUser: ReturnType<typeof vi.fn>;
 };
 
-function createMockClient() {
-  return {
-    query: vi.fn(),
-    execute: vi.fn(),
-    batch: vi.fn(),
-    firstOrNull: vi.fn(),
-  };
-}
+// Mock global fetch for Worker proxy calls
+const mockFetch = vi.fn();
+vi.stubGlobal("fetch", mockFetch);
 
 function makeRequest(body: unknown, token?: string): Request {
   const headers: Record<string, string> = {
@@ -54,15 +39,23 @@ const VALID_RECORD = {
   total_tokens: 1500,
 };
 
-describe("POST /api/ingest", () => {
-  let mockClient: ReturnType<typeof createMockClient>;
+/** Stub a successful Worker response */
+function stubWorkerOk(ingested = 1) {
+  mockFetch.mockResolvedValueOnce(
+    new Response(JSON.stringify({ ingested }), { status: 200 }),
+  );
+}
 
+/** Stub a failed Worker response */
+function stubWorkerError(status = 500, error = "D1 batch failed") {
+  mockFetch.mockResolvedValueOnce(
+    new Response(JSON.stringify({ error }), { status }),
+  );
+}
+
+describe("POST /api/ingest", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockClient = createMockClient();
-    vi.mocked(d1Module.getD1Client).mockReturnValue(
-      mockClient as unknown as d1Module.D1Client
-    );
   });
 
   describe("authentication", () => {
@@ -81,7 +74,7 @@ describe("POST /api/ingest", () => {
         userId: "u1",
         email: "test@example.com",
       });
-      mockClient.execute.mockResolvedValueOnce({ changes: 1, duration: 5 });
+      stubWorkerOk();
 
       const res = await POST(makeRequest([VALID_RECORD]));
 
@@ -93,28 +86,30 @@ describe("POST /api/ingest", () => {
         userId: "u2",
         email: "apikey@example.com",
       });
-      mockClient.execute.mockResolvedValueOnce({ changes: 1, duration: 5 });
+      stubWorkerOk();
 
       const res = await POST(makeRequest([VALID_RECORD], "zk_abc123"));
 
       expect(res.status).toBe(200);
-      // Verify execute was called with params containing the user_id
-      const [, params] = mockClient.execute.mock.calls[0]!;
-      expect(params).toContain("u2");
+      // Verify Worker was called with userId from resolveUser
+      const [, fetchInit] = mockFetch.mock.calls[0]!;
+      const sentBody = JSON.parse(fetchInit.body as string);
+      expect(sentBody.userId).toBe("u2");
     });
 
-    it("should use userId from resolveUser in upsert statement", async () => {
+    it("should use userId from resolveUser in Worker request", async () => {
       vi.mocked(resolveUser).mockResolvedValueOnce({
         userId: "u1",
         email: "test@example.com",
       });
-      mockClient.execute.mockResolvedValueOnce({ changes: 1, duration: 5 });
+      stubWorkerOk();
 
       const res = await POST(makeRequest([VALID_RECORD], "zk_some_key"));
 
       expect(res.status).toBe(200);
-      const [, params] = mockClient.execute.mock.calls[0]!;
-      expect(params).toContain("u1");
+      const [, fetchInit] = mockFetch.mock.calls[0]!;
+      const sentBody = JSON.parse(fetchInit.body as string);
+      expect(sentBody.userId).toBe("u1");
     });
   });
 
@@ -185,9 +180,16 @@ describe("POST /api/ingest", () => {
       const body = await res.json();
       expect(body.error).toContain("300");
     });
+
+    it("should not call Worker for invalid requests", async () => {
+      const res = await POST(makeRequest([]));
+
+      expect(res.status).toBe(400);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
   });
 
-  describe("upsert", () => {
+  describe("worker proxy", () => {
     beforeEach(() => {
       vi.mocked(resolveUser).mockResolvedValue({
         userId: "u1",
@@ -195,27 +197,27 @@ describe("POST /api/ingest", () => {
       });
     });
 
-    it("should call execute with a single multi-row INSERT", async () => {
-      mockClient.execute.mockResolvedValueOnce({ changes: 1, duration: 5 });
+    it("should forward records to Worker via fetch", async () => {
+      stubWorkerOk();
 
       const res = await POST(makeRequest([VALID_RECORD]));
 
       expect(res.status).toBe(200);
-      expect(mockClient.execute).toHaveBeenCalledOnce();
-      expect(mockClient.batch).not.toHaveBeenCalled();
+      expect(mockFetch).toHaveBeenCalledOnce();
 
-      const [sql, params] = mockClient.execute.mock.calls[0]!;
-      expect(sql).toContain("INSERT INTO usage_records");
-      expect(sql).toContain("ON CONFLICT");
-      // Overwrite semantics — tokens replaced on conflict
-      expect(sql).toContain("input_tokens = excluded.input_tokens");
-      expect(sql).toContain("total_tokens = excluded.total_tokens");
-      expect(params).toContain("u1"); // user_id
-      expect(params).toContain("claude-code"); // source
+      const [, fetchInit] = mockFetch.mock.calls[0]!;
+      expect(fetchInit.method).toBe("POST");
+      expect(fetchInit.headers["Content-Type"]).toBe("application/json");
+      expect(fetchInit.headers["Authorization"]).toContain("Bearer ");
+
+      const sentBody = JSON.parse(fetchInit.body as string);
+      expect(sentBody.userId).toBe("u1");
+      expect(sentBody.records).toHaveLength(1);
+      expect(sentBody.records[0].source).toBe("claude-code");
     });
 
-    it("should build multi-row VALUES for multiple records", async () => {
-      mockClient.execute.mockResolvedValue({ changes: 3, duration: 5 });
+    it("should forward multiple records in a single request", async () => {
+      stubWorkerOk(3);
 
       const records = [
         VALID_RECORD,
@@ -225,19 +227,15 @@ describe("POST /api/ingest", () => {
       const res = await POST(makeRequest(records));
 
       expect(res.status).toBe(200);
+      expect(mockFetch).toHaveBeenCalledOnce();
 
-      // 3 records < CHUNK_SIZE (5) → single execute call with all records
-      expect(mockClient.execute).toHaveBeenCalledOnce();
-      const [sql, params] = mockClient.execute.mock.calls[0]!;
-      // 3 records × 9 columns = 27 params
-      expect(params).toHaveLength(27);
-      // SQL should have 3 value tuples
-      const valueMatches = sql.match(/\([\s,?]+\)/g);
-      expect(valueMatches).toHaveLength(3);
+      const [, fetchInit] = mockFetch.mock.calls[0]!;
+      const sentBody = JSON.parse(fetchInit.body as string);
+      expect(sentBody.records).toHaveLength(3);
     });
 
     it("should return ingested count in response", async () => {
-      mockClient.execute.mockResolvedValueOnce({ changes: 2, duration: 5 });
+      stubWorkerOk(2);
 
       const res = await POST(makeRequest([VALID_RECORD, VALID_RECORD]));
 
@@ -246,8 +244,8 @@ describe("POST /api/ingest", () => {
       expect(body.ingested).toBe(2);
     });
 
-    it("should return 500 on D1 failure", async () => {
-      mockClient.execute.mockRejectedValueOnce(new Error("D1 unavailable"));
+    it("should return 500 when Worker returns error", async () => {
+      stubWorkerError(500, "D1 batch failed: table not found");
 
       const res = await POST(makeRequest([VALID_RECORD]));
 
@@ -256,124 +254,14 @@ describe("POST /api/ingest", () => {
       expect(body.error).toContain("ingest");
     });
 
-    it("should chunk large batches into CHUNK_SIZE groups", async () => {
-      // Create more records than CHUNK_SIZE to trigger multiple execute calls
-      const count = CHUNK_SIZE * 2 + 1; // 11 records → 3 chunks (5, 5, 1)
-      const records = Array.from({ length: count }, (_, i) => ({
-        ...VALID_RECORD,
-        model: `model-${i}`,
-      }));
+    it("should return 500 when fetch itself throws", async () => {
+      mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
-      // Mock execute for each chunk
-      mockClient.execute.mockResolvedValue({ changes: CHUNK_SIZE, duration: 5 });
+      const res = await POST(makeRequest([VALID_RECORD]));
 
-      const res = await POST(makeRequest(records));
-
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(500);
       const body = await res.json();
-      expect(body.ingested).toBe(count);
-
-      // ceil(11 / 5) = 3 chunks
-      const expectedChunks = Math.ceil(count / CHUNK_SIZE);
-      expect(mockClient.execute).toHaveBeenCalledTimes(expectedChunks);
-
-      // First two chunks: CHUNK_SIZE rows × 9 cols
-      const [, params1] = mockClient.execute.mock.calls[0]!;
-      expect(params1).toHaveLength(CHUNK_SIZE * 9);
-      // Last chunk: 1 row × 9 cols
-      const [, paramsLast] = mockClient.execute.mock.calls[expectedChunks - 1]!;
-      expect(paramsLast).toHaveLength((count % CHUNK_SIZE) * 9);
+      expect(body.error).toContain("ingest");
     });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Unit tests for buildMultiRowUpsert
-// ---------------------------------------------------------------------------
-
-describe("buildMultiRowUpsert", () => {
-  it("should build correct SQL for a single record", () => {
-    const { sql, params } = buildMultiRowUpsert("u1", [
-      {
-        source: "claude-code",
-        model: "sonnet",
-        hour_start: "2026-03-07T10:00:00.000Z",
-        input_tokens: 100,
-        cached_input_tokens: 20,
-        output_tokens: 50,
-        reasoning_output_tokens: 0,
-        total_tokens: 150,
-      },
-    ]);
-
-    expect(sql).toContain("INSERT INTO usage_records");
-    expect(sql).toContain("VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-    expect(sql).toContain("ON CONFLICT");
-    // Overwrite semantics on conflict
-    expect(sql).toContain("input_tokens = excluded.input_tokens");
-    expect(sql).toContain("total_tokens = excluded.total_tokens");
-    expect(params).toEqual([
-      "u1", "claude-code", "sonnet", "2026-03-07T10:00:00.000Z",
-      100, 20, 50, 0, 150,
-    ]);
-  });
-
-  it("should build correct SQL for multiple records", () => {
-    const { sql, params } = buildMultiRowUpsert("u1", [
-      {
-        source: "claude-code",
-        model: "sonnet",
-        hour_start: "2026-03-07T10:00:00.000Z",
-        input_tokens: 100,
-        cached_input_tokens: 0,
-        output_tokens: 50,
-        reasoning_output_tokens: 0,
-        total_tokens: 150,
-      },
-      {
-        source: "gemini-cli",
-        model: "gemini-2.5-pro",
-        hour_start: "2026-03-07T11:00:00.000Z",
-        input_tokens: 200,
-        cached_input_tokens: 10,
-        output_tokens: 100,
-        reasoning_output_tokens: 0,
-        total_tokens: 300,
-      },
-    ]);
-
-    // 2 rows × 9 columns = 18 params
-    expect(params).toHaveLength(18);
-    // SQL should contain two value tuples
-    const valueSection = sql.split("VALUES")[1]!.split("ON CONFLICT")[0]!;
-    const tupleCount = (valueSection.match(/\(/g) ?? []).length;
-    expect(tupleCount).toBe(2);
-    // Both user_ids should be "u1"
-    expect(params[0]).toBe("u1");
-    expect(params[9]).toBe("u1");
-    // Second record source
-    expect(params[10]).toBe("gemini-cli");
-  });
-
-  it("should use overwrite semantics on conflict", () => {
-    const { sql } = buildMultiRowUpsert("u1", [
-      {
-        source: "claude-code",
-        model: "sonnet",
-        hour_start: "2026-03-07T10:00:00.000Z",
-        input_tokens: 100,
-        cached_input_tokens: 0,
-        output_tokens: 50,
-        reasoning_output_tokens: 0,
-        total_tokens: 150,
-      },
-    ]);
-
-    // Each token field should overwrite on conflict
-    expect(sql).toContain("input_tokens = excluded.input_tokens");
-    expect(sql).toContain("cached_input_tokens = excluded.cached_input_tokens");
-    expect(sql).toContain("output_tokens = excluded.output_tokens");
-    expect(sql).toContain("reasoning_output_tokens = excluded.reasoning_output_tokens");
-    expect(sql).toContain("total_tokens = excluded.total_tokens");
   });
 });

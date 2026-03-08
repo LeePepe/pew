@@ -10,9 +10,9 @@
 | 1 | `docs: add worker ingest migration plan` | This document | ✅ done |
 | 2 | `chore: add packages/worker workspace with wrangler config` | Scaffold worker package | ✅ done |
 | 3 | `feat: implement worker ingest endpoint with batch D1` | Worker entry point | ✅ done |
-| 4 | `test: add L1 unit tests for worker ingest` | Worker tests | pending |
-| 5 | `refactor: replace D1 REST API with worker proxy in ingest route` | Next.js route rewrite | pending |
-| 6 | `test: rewrite ingest route tests for worker proxy` | Ingest test rewrite | pending |
+| 4 | `test: add L1 unit tests for worker ingest` | Worker tests | ✅ done |
+| 5 | `refactor: replace D1 REST API with worker proxy in ingest route` | Next.js route rewrite | ✅ done |
+| 6 | `test: rewrite ingest route tests for worker proxy` | Ingest test rewrite | ✅ done |
 | 7 | `feat: reduce CLI batch size from 300 to 50` | CLI + server limit change | pending |
 | 8 | `docs: update CLAUDE.md retrospective` | Lessons learned | pending |
 
