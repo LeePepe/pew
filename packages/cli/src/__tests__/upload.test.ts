@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { executeUpload, type UploadOptions } from "../commands/upload.js";
+import { executeUpload, aggregateRecords, type UploadOptions } from "../commands/upload.js";
 import { LocalQueue } from "../storage/local-queue.js";
 import { ConfigManager } from "../config/manager.js";
 import { DEFAULT_HOST } from "../commands/login.js";
@@ -394,9 +394,9 @@ describe("executeUpload", () => {
     expect(events.some((e) => e.phase === "done")).toBe(true);
   });
 
-  // ----- Partial batch failure: offset only saved for successful batches -----
+  // ----- Partial batch failure: no partial offset saved (all-or-nothing) -----
 
-  it("should save offset up to the last successful batch on multi-batch failure", async () => {
+  it("should not save partial offset on multi-batch failure (idempotent retry)", async () => {
     const config = new ConfigManager(dir);
     await config.save({ token: "zk_partial" });
 
@@ -433,8 +433,15 @@ describe("executeUpload", () => {
     expect(result.success).toBe(false);
     expect(result.uploaded).toBe(300);
 
-    // On re-upload, only the remaining 200 should be sent
+    // Offset should NOT be saved (all-or-nothing for idempotent retry)
+    const offset = await queue.loadOffset();
+    expect(offset).toBe(0);
+
+    // On re-upload, all 500 records are re-aggregated and re-sent.
+    // With overwrite upsert, this is safe — already-uploaded records
+    // are simply overwritten with the same values.
     const { fetchFn: fetchFn2, calls: calls2 } = createMockFetch([
+      { status: 200, body: { ingested: 300 } },
       { status: 200, body: { ingested: 200 } },
     ]);
 
@@ -445,9 +452,7 @@ describe("executeUpload", () => {
     });
 
     expect(result2.success).toBe(true);
-    expect(result2.uploaded).toBe(200);
-    const body2 = JSON.parse(calls2[0].init.body as string);
-    expect(body2).toHaveLength(200);
+    expect(result2.uploaded).toBe(500);
   });
 
   // ----- 429 rate limit — should retry (not treat as fatal 4xx) -----
@@ -500,5 +505,94 @@ describe("executeUpload", () => {
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/429|rate.?limit|too many|retry|failed/i);
     expect(calls).toHaveLength(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// aggregateRecords
+// ---------------------------------------------------------------------------
+
+describe("aggregateRecords", () => {
+  it("should return records unchanged when all keys are unique", () => {
+    const records: QueueRecord[] = [
+      makeRecord({ source: "claude-code", model: "sonnet", hour_start: "2026-03-07T10:00:00.000Z" }),
+      makeRecord({ source: "gemini-cli", model: "gemini-2.5-pro", hour_start: "2026-03-07T10:00:00.000Z" }),
+    ];
+
+    const result = aggregateRecords(records);
+    expect(result).toHaveLength(2);
+  });
+
+  it("should merge records with the same (source, model, hour_start)", () => {
+    const records: QueueRecord[] = [
+      makeRecord({
+        source: "claude-code",
+        model: "sonnet",
+        hour_start: "2026-03-07T10:00:00.000Z",
+        input_tokens: 100,
+        cached_input_tokens: 20,
+        output_tokens: 50,
+        reasoning_output_tokens: 0,
+        total_tokens: 150,
+      }),
+      makeRecord({
+        source: "claude-code",
+        model: "sonnet",
+        hour_start: "2026-03-07T10:00:00.000Z",
+        input_tokens: 200,
+        cached_input_tokens: 30,
+        output_tokens: 100,
+        reasoning_output_tokens: 10,
+        total_tokens: 330,
+      }),
+    ];
+
+    const result = aggregateRecords(records);
+    expect(result).toHaveLength(1);
+    expect(result[0].input_tokens).toBe(300);
+    expect(result[0].cached_input_tokens).toBe(50);
+    expect(result[0].output_tokens).toBe(150);
+    expect(result[0].reasoning_output_tokens).toBe(10);
+    expect(result[0].total_tokens).toBe(480);
+    expect(result[0].source).toBe("claude-code");
+    expect(result[0].model).toBe("sonnet");
+    expect(result[0].hour_start).toBe("2026-03-07T10:00:00.000Z");
+  });
+
+  it("should handle empty array", () => {
+    expect(aggregateRecords([])).toEqual([]);
+  });
+
+  it("should keep separate buckets for different models", () => {
+    const records: QueueRecord[] = [
+      makeRecord({ model: "sonnet", input_tokens: 100, total_tokens: 100 }),
+      makeRecord({ model: "opus", input_tokens: 200, total_tokens: 200 }),
+    ];
+
+    const result = aggregateRecords(records);
+    expect(result).toHaveLength(2);
+  });
+
+  it("should keep separate buckets for different hour_starts", () => {
+    const records: QueueRecord[] = [
+      makeRecord({ hour_start: "2026-03-07T10:00:00.000Z", input_tokens: 100, total_tokens: 100 }),
+      makeRecord({ hour_start: "2026-03-07T10:30:00.000Z", input_tokens: 200, total_tokens: 200 }),
+    ];
+
+    const result = aggregateRecords(records);
+    expect(result).toHaveLength(2);
+  });
+
+  it("should aggregate three duplicate records into one", () => {
+    const records: QueueRecord[] = [
+      makeRecord({ input_tokens: 100, total_tokens: 100 }),
+      makeRecord({ input_tokens: 200, total_tokens: 200 }),
+      makeRecord({ input_tokens: 300, total_tokens: 300 }),
+    ];
+
+    const result = aggregateRecords(records);
+    expect(result).toHaveLength(1);
+    expect(result[0].input_tokens).toBe(600);
+    expect(result[0].total_tokens).toBe(600);
   });
 });

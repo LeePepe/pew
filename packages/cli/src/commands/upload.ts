@@ -61,6 +61,39 @@ const DEFAULT_MAX_RETRIES = 2;
 const DEFAULT_RETRY_DELAY_MS = 1000;
 
 // ---------------------------------------------------------------------------
+// Pre-aggregation — merge QueueRecords with the same (source, model, hour_start)
+// ---------------------------------------------------------------------------
+
+/**
+ * Aggregate QueueRecords by (source, model, hour_start), summing token fields.
+ *
+ * This ensures that when combined with server-side overwrite upsert, the
+ * pipeline is fully idempotent: re-scanning and re-uploading produces the
+ * same final result in D1.
+ */
+export function aggregateRecords(records: QueueRecord[]): QueueRecord[] {
+  if (records.length === 0) return [];
+
+  const map = new Map<string, QueueRecord>();
+
+  for (const r of records) {
+    const key = `${r.source}|${r.model}|${r.hour_start}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.input_tokens += r.input_tokens;
+      existing.cached_input_tokens += r.cached_input_tokens;
+      existing.output_tokens += r.output_tokens;
+      existing.reasoning_output_tokens += r.reasoning_output_tokens;
+      existing.total_tokens += r.total_tokens;
+    } else {
+      map.set(key, { ...r });
+    }
+  }
+
+  return [...map.values()];
+}
+
+// ---------------------------------------------------------------------------
 // Implementation
 // ---------------------------------------------------------------------------
 
@@ -92,11 +125,14 @@ export async function executeUpload(opts: UploadOptions): Promise<UploadResult> 
   // 2. Read un-uploaded records
   const queue = new LocalQueue(stateDir);
   const currentOffset = await queue.loadOffset();
-  const { records, newOffset } = await queue.readFromOffset(currentOffset);
+  const { records: rawRecords, newOffset } = await queue.readFromOffset(currentOffset);
 
-  if (records.length === 0) {
+  if (rawRecords.length === 0) {
     return { success: true, uploaded: 0, batches: 0 };
   }
+
+  // 2b. Pre-aggregate by (source, model, hour_start) for idempotent upsert
+  const records = aggregateRecords(rawRecords);
 
   // 3. Split into batches
   const batches: QueueRecord[][] = [];
@@ -108,13 +144,6 @@ export async function executeUpload(opts: UploadOptions): Promise<UploadResult> 
   const endpoint = `${apiUrl}/api/ingest`;
   let totalUploaded = 0;
   let batchesCompleted = 0;
-
-  // We need to track byte offsets per-batch for partial resume.
-  // Calculate the byte size of each record's JSONL line to compute
-  // intermediate offsets.
-  const recordLineSizes = records.map(
-    (r) => Buffer.byteLength(JSON.stringify(r) + "\n", "utf-8"),
-  );
 
   for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
     const batch = batches[batchIdx];
@@ -137,15 +166,8 @@ export async function executeUpload(opts: UploadOptions): Promise<UploadResult> 
     });
 
     if (!result.ok) {
-      // Persist offset up to last successful batch
-      if (batchesCompleted > 0) {
-        const uploadedRecordCount = batchesCompleted * batchSize;
-        const bytesUploaded = recordLineSizes
-          .slice(0, uploadedRecordCount)
-          .reduce((a, b) => a + b, 0);
-        await queue.saveOffset(currentOffset + bytesUploaded);
-      }
-
+      // With idempotent overwrite upsert, don't save partial offset.
+      // Next retry will re-aggregate and re-send everything safely.
       return {
         success: false,
         uploaded: totalUploaded,
