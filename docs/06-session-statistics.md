@@ -366,13 +366,10 @@ Extend `packages/worker/src/index.ts` with URL-path-based routing:
 
 | # | Type | Description | Status |
 |---|------|-------------|--------|
-| 27 | `test` | RED: SessionOverview component tests | |
-| 28 | `feat` | GREEN: Implement SessionOverview stat cards | |
-| 29 | `test` | RED: WorkingHoursHeatmap tests | |
-| 30 | `feat` | GREEN: Implement WorkingHoursHeatmap | |
-| 31 | `test` | RED: MessageStats chart tests | |
-| 32 | `feat` | GREEN: Implement MessageStats | |
-| 33 | `feat` | Add Sessions page to dashboard | |
+| 27 | `test` | RED: session data helper tests (all 3 helpers) | done |
+| 28 | `feat` | GREEN: Implement session data helpers | done |
+| 29-32 | `feat` | SessionOverview, WorkingHoursHeatmap, MessageStats components | done |
+| 33 | `feat` | Sessions page, useSessionData hook, sidebar nav entry | done |
 
 ---
 
