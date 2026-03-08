@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
@@ -13,6 +14,7 @@ import {
   CalendarDays,
   AppWindow,
   Cpu,
+  ChevronUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { APP_VERSION } from "@/lib/version";
@@ -23,16 +25,127 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Collapsible, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useSidebar } from "./sidebar-context";
 
-const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/details", label: "Daily Details", icon: CalendarDays },
-  { href: "/apps", label: "By App", icon: AppWindow },
-  { href: "/models", label: "By Model", icon: Cpu },
-  { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
-  { href: "/settings", label: "Settings", icon: Settings },
+// ---------------------------------------------------------------------------
+// Navigation data model
+// ---------------------------------------------------------------------------
+
+interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+}
+
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+  defaultOpen?: boolean;
+}
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: "Overview",
+    defaultOpen: true,
+    items: [
+      { href: "/", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
+    ],
+  },
+  {
+    label: "Analytics",
+    defaultOpen: true,
+    items: [
+      { href: "/details", label: "Daily Usage", icon: CalendarDays },
+      { href: "/apps", label: "By App", icon: AppWindow },
+      { href: "/models", label: "By Model", icon: Cpu },
+    ],
+  },
+  {
+    label: "Account",
+    defaultOpen: true,
+    items: [{ href: "/settings", label: "Settings", icon: Settings }],
+  },
 ];
+
+const ALL_NAV_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
+
+// ---------------------------------------------------------------------------
+// Collapsible nav group (expanded sidebar)
+// ---------------------------------------------------------------------------
+
+function NavGroupSection({
+  group,
+  pathname,
+}: {
+  group: NavGroup;
+  pathname: string;
+}) {
+  const [open, setOpen] = useState(group.defaultOpen ?? true);
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <div className="px-3 mt-2">
+        <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
+            {group.label}
+          </span>
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+            <ChevronUp
+              className={cn(
+                "h-3.5 w-3.5 text-muted-foreground/50 transition-transform duration-200",
+                !open && "rotate-180"
+              )}
+              strokeWidth={1.5}
+            />
+          </span>
+        </CollapsibleTrigger>
+      </div>
+      <div
+        className="grid overflow-hidden"
+        style={{
+          gridTemplateRows: open ? "1fr" : "0fr",
+          transition: "grid-template-rows 200ms ease-out",
+        }}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="flex flex-col gap-0.5 px-3">
+            {group.items.map((item) => {
+              const isActive =
+                item.href === "/"
+                  ? pathname === "/"
+                  : pathname.startsWith(item.href);
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-normal transition-colors",
+                    isActive
+                      ? "bg-accent text-foreground"
+                      : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                  )}
+                >
+                  <item.icon
+                    className="h-4 w-4 shrink-0"
+                    strokeWidth={1.5}
+                  />
+                  <span className="flex-1 text-left">{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </Collapsible>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main sidebar
+// ---------------------------------------------------------------------------
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -57,7 +170,13 @@ export function Sidebar() {
           <div className="flex h-screen w-[68px] flex-col items-center">
             {/* Logo */}
             <div className="flex h-14 w-full items-center justify-start pl-5 pr-3">
-              <Image src="/logo-24.png" alt="Pew" width={24} height={24} className="shrink-0" />
+              <Image
+                src="/logo-24.png"
+                alt="Pew"
+                width={24}
+                height={24}
+                className="shrink-0"
+              />
             </div>
 
             {/* Expand toggle */}
@@ -68,7 +187,11 @@ export function Sidebar() {
                   aria-label="Expand sidebar"
                   className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors mb-2"
                 >
-                  <PanelLeft className="h-4 w-4" aria-hidden="true" strokeWidth={1.5} />
+                  <PanelLeft
+                    className="h-4 w-4"
+                    aria-hidden="true"
+                    strokeWidth={1.5}
+                  />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right" sideOffset={8}>
@@ -76,9 +199,9 @@ export function Sidebar() {
               </TooltipContent>
             </Tooltip>
 
-            {/* Navigation */}
+            {/* Navigation — flattened icon-only list */}
             <nav className="flex-1 flex flex-col items-center gap-1 overflow-y-auto pt-1">
-              {navItems.map((item) => {
+              {ALL_NAV_ITEMS.map((item) => {
                 const isActive =
                   item.href === "/"
                     ? pathname === "/"
@@ -116,7 +239,9 @@ export function Sidebar() {
                     className="cursor-pointer"
                   >
                     <Avatar className="h-9 w-9">
-                      {userImage && <AvatarImage src={userImage} alt={userName} />}
+                      {userImage && (
+                        <AvatarImage src={userImage} alt={userName} />
+                      )}
                       <AvatarFallback className="text-xs bg-primary text-primary-foreground">
                         {userInitial}
                       </AvatarFallback>
@@ -136,8 +261,16 @@ export function Sidebar() {
             <div className="px-3 h-14 flex items-center">
               <div className="flex w-full items-center justify-between px-3">
                 <div className="flex items-center gap-3">
-              <Image src="/logo-24.png" alt="Pew" width={24} height={24} className="shrink-0" />
-                  <span className="text-lg font-bold tracking-tighter">pew</span>
+                  <Image
+                    src="/logo-24.png"
+                    alt="Pew"
+                    width={24}
+                    height={24}
+                    className="shrink-0"
+                  />
+                  <span className="text-lg font-bold tracking-tighter">
+                    pew
+                  </span>
                   <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-medium text-muted-foreground font-mono leading-none">
                     v{APP_VERSION}
                   </span>
@@ -147,51 +280,44 @@ export function Sidebar() {
                   aria-label="Collapse sidebar"
                   className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  <PanelLeft className="h-4 w-4" aria-hidden="true" strokeWidth={1.5} />
+                  <PanelLeft
+                    className="h-4 w-4"
+                    aria-hidden="true"
+                    strokeWidth={1.5}
+                  />
                 </button>
               </div>
             </div>
 
-            {/* Navigation */}
+            {/* Navigation — collapsible groups */}
             <nav className="flex-1 overflow-y-auto pt-1">
-              <div className="flex flex-col gap-0.5 px-3">
-                {navItems.map((item) => {
-                  const isActive =
-                    item.href === "/"
-                      ? pathname === "/"
-                      : pathname.startsWith(item.href);
-
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={cn(
-                        "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-normal transition-colors",
-                        isActive
-                          ? "bg-accent text-foreground"
-                          : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                      )}
-                    >
-                      <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
-                      <span className="flex-1 text-left">{item.label}</span>
-                    </Link>
-                  );
-                })}
-              </div>
+              {NAV_GROUPS.map((group) => (
+                <NavGroupSection
+                  key={group.label}
+                  group={group}
+                  pathname={pathname}
+                />
+              ))}
             </nav>
 
             {/* User info + sign out */}
             <div className="px-4 py-3">
               <div className="flex items-center gap-3">
                 <Avatar className="h-9 w-9 shrink-0">
-                  {userImage && <AvatarImage src={userImage} alt={userName} />}
+                  {userImage && (
+                    <AvatarImage src={userImage} alt={userName} />
+                  )}
                   <AvatarFallback className="text-xs bg-primary text-primary-foreground">
                     {userInitial}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{userName}</p>
-                  <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {userName}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {userEmail}
+                  </p>
                 </div>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -200,7 +326,11 @@ export function Sidebar() {
                       aria-label="Sign out"
                       className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0"
                     >
-                      <LogOut className="h-4 w-4" aria-hidden="true" strokeWidth={1.5} />
+                      <LogOut
+                        className="h-4 w-4"
+                        aria-hidden="true"
+                        strokeWidth={1.5}
+                      />
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="top">Sign out</TooltipContent>
