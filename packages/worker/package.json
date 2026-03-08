@@ -1,5 +1,5 @@
 {
-  "name": "@zebra/worker",
+  "name": "@pew/worker",
   "version": "0.1.1",
   "private": true,
   "scripts": {

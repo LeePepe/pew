@@ -5,7 +5,7 @@
  * Body: IngestRecord[] array.
  *
  * After validation, delegates the D1 write to the Cloudflare Worker
- * (zebra-ingest) which uses native D1 bindings for atomic batch upserts.
+ * (pew-ingest) which uses native D1 bindings for atomic batch upserts.
  */
 
 import { NextResponse } from "next/server";

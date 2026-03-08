@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseClaudeFile, normalizeClaudeUsage } from "../parsers/claude.js";
-import type { ByteOffsetCursor, CursorState } from "@zebra/core";
+import type { ByteOffsetCursor, CursorState } from "@pew/core";
 
 /** Helper: create a Claude-style JSONL line */
 function claudeLine(overrides: Record<string, unknown> = {}): string {
@@ -108,7 +108,7 @@ describe("parseClaudeFile", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "zebra-claude-test-"));
+    tempDir = await mkdtemp(join(tmpdir(), "pew-claude-test-"));
   });
 
   afterEach(async () => {

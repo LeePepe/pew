@@ -143,7 +143,7 @@ export default function LeaderboardPage() {
             className="flex items-center gap-2 text-foreground hover:text-primary transition-colors"
           >
             <Zap className="h-5 w-5 text-primary" strokeWidth={1.5} />
-            <span className="font-bold tracking-tighter">zebra</span>
+            <span className="font-bold tracking-tighter">pew</span>
           </Link>
         </div>
       </header>
@@ -205,7 +205,7 @@ export default function LeaderboardPage() {
           <p className="text-xs text-muted-foreground">
             Powered by{" "}
             <Link href="/" className="text-primary hover:underline">
-              Zebra
+              Pew
             </Link>{" "}
             — Track your AI coding tool usage
           </p>

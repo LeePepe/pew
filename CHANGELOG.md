@@ -15,7 +15,7 @@
 
 - Fix Google OAuth redirect using `localhost` instead of reverse proxy domain — added `trustHost: true` and secure cookie config
 - Fix D1 batch sending array to REST API (no batch endpoint) — send individual queries in loop
-- Add `zebra.dev.hexly.ai` to `allowedDevOrigins`
+- Add `pew.dev.hexly.ai` to `allowedDevOrigins`
 
 ### Infrastructure
 

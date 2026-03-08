@@ -45,7 +45,7 @@ function makeRequest(
   if (secret !== null) {
     headers["Authorization"] = `Bearer ${secret}`;
   }
-  return new Request("https://zebra-ingest.workers.dev/ingest", {
+  return new Request("https://pew-ingest.workers.dev/ingest", {
     method,
     headers,
     ...(method !== "GET" ? { body: JSON.stringify(body) } : {}),
@@ -75,7 +75,7 @@ describe("Worker ingest endpoint", () => {
 
   describe("method check", () => {
     it("should reject non-POST methods with 405", async () => {
-      const req = new Request("https://zebra-ingest.workers.dev/ingest", {
+      const req = new Request("https://pew-ingest.workers.dev/ingest", {
         method: "GET",
         headers: { Authorization: `Bearer ${SECRET}` },
       });
@@ -131,7 +131,7 @@ describe("Worker ingest endpoint", () => {
 
   describe("validation", () => {
     it("should reject invalid JSON body with 400", async () => {
-      const req = new Request("https://zebra-ingest.workers.dev/ingest", {
+      const req = new Request("https://pew-ingest.workers.dev/ingest", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${SECRET}`,

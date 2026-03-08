@@ -1,6 +1,6 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
-import type { CursorState } from "@zebra/core";
+import type { CursorState } from "@pew/core";
 
 const CURSORS_FILE = "cursors.json";
 
@@ -11,7 +11,7 @@ function emptyCursorState(): CursorState {
 
 /**
  * Persists incremental parsing cursors to disk.
- * Stored at ~/.config/zebra/cursors.json
+ * Stored at ~/.config/pew/cursors.json
  */
 export class CursorStore {
   readonly filePath: string;

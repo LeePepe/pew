@@ -340,7 +340,7 @@ describe("GET /api/auth/cli", () => {
     // Should have api_key in query params
     const apiKey = redirectUrl.searchParams.get("api_key");
     expect(apiKey).toBeTruthy();
-    expect(apiKey!).toMatch(/^zk_[a-f0-9]{32}$/);
+    expect(apiKey!).toMatch(/^pk_[a-f0-9]{32}$/);
 
     // Should have email in query params
     const email = redirectUrl.searchParams.get("email");

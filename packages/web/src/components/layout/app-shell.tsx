@@ -100,7 +100,7 @@ function AppShellInner({ children }: AppShellProps) {
           </div>
           <div className="flex items-center gap-1">
             <a
-              href="https://github.com/nocoo/zebra"
+              href="https://github.com/nocoo/pew"
               target="_blank"
               rel="noopener noreferrer"
               aria-label="GitHub repository"

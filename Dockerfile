@@ -31,7 +31,7 @@ ENV AUTH_SECRET=$AUTH_SECRET
 
 COPY --from=deps /app ./
 COPY . .
-RUN bun run --filter @zebra/web build
+RUN bun run --filter @pew/web build
 
 # --- Production image ---
 FROM node:22-slim AS runner

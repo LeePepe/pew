@@ -81,7 +81,7 @@ describe("parseOpenCodeFile", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "zebra-opencode-test-"));
+    tempDir = await mkdtemp(join(tmpdir(), "pew-opencode-test-"));
   });
 
   afterEach(async () => {

@@ -16,12 +16,12 @@ const dmSans = DM_Sans({
 
 export const metadata: Metadata = {
   metadataBase: new URL(
-    process.env.NEXTAUTH_URL ?? "https://zebra.nocoo.dev"
+    process.env.NEXTAUTH_URL ?? "https://pew.md"
   ),
-  title: "Zebra Dashboard",
+  title: "Pew Dashboard",
   description: "Track and visualize token usage from your AI coding tools",
   openGraph: {
-    title: "Zebra Dashboard",
+    title: "Pew Dashboard",
     description: "Track and visualize token usage from your AI coding tools",
     type: "website",
   },

@@ -88,7 +88,7 @@ describe("POST /api/ingest", () => {
       });
       stubWorkerOk();
 
-      const res = await POST(makeRequest([VALID_RECORD], "zk_abc123"));
+      const res = await POST(makeRequest([VALID_RECORD], "pk_abc123"));
 
       expect(res.status).toBe(200);
       // Verify Worker was called with userId from resolveUser
@@ -104,7 +104,7 @@ describe("POST /api/ingest", () => {
       });
       stubWorkerOk();
 
-      const res = await POST(makeRequest([VALID_RECORD], "zk_some_key"));
+      const res = await POST(makeRequest([VALID_RECORD], "pk_some_key"));
 
       expect(res.status).toBe(200);
       const [, fetchInit] = mockFetch.mock.calls[0]!;

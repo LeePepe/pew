@@ -1,4 +1,4 @@
-import type { TokenDelta } from "@zebra/core";
+import type { TokenDelta } from "@pew/core";
 
 /**
  * Floor a timestamp to the nearest half-hour UTC boundary.

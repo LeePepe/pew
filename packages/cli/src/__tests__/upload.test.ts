@@ -6,7 +6,7 @@ import { executeUpload, aggregateRecords, type UploadOptions } from "../commands
 import { LocalQueue } from "../storage/local-queue.js";
 import { ConfigManager } from "../config/manager.js";
 import { DEFAULT_HOST } from "../commands/login.js";
-import type { QueueRecord } from "@zebra/core";
+import type { QueueRecord } from "@pew/core";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -59,7 +59,7 @@ describe("executeUpload", () => {
   let dir: string;
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), "zebra-upload-test-"));
+    dir = await mkdtemp(join(tmpdir(), "pew-upload-test-"));
   });
 
   afterEach(async () => {
@@ -86,7 +86,7 @@ describe("executeUpload", () => {
 
   it("should succeed with 0 records when queue is empty", async () => {
     const config = new ConfigManager(dir);
-    await config.save({ token: "zk_abc123" });
+    await config.save({ token: "pk_abc123" });
 
     const { fetchFn, calls } = createMockFetch([]);
 
@@ -106,7 +106,7 @@ describe("executeUpload", () => {
 
   it("should upload pending records in a single batch", async () => {
     const config = new ConfigManager(dir);
-    await config.save({ token: "zk_test_token" });
+    await config.save({ token: "pk_test_token" });
 
     const queue = new LocalQueue(dir);
     const records = [
@@ -135,7 +135,7 @@ describe("executeUpload", () => {
     expect(calls[0].init.method).toBe("POST");
     expect(calls[0].init.headers).toMatchObject({
       "Content-Type": "application/json",
-      Authorization: "Bearer zk_test_token",
+      Authorization: "Bearer pk_test_token",
     });
 
     // Verify body contains both records
@@ -149,7 +149,7 @@ describe("executeUpload", () => {
 
   it("should only upload records after the saved offset", async () => {
     const config = new ConfigManager(dir);
-    await config.save({ token: "zk_incremental" });
+    await config.save({ token: "pk_incremental" });
 
     const queue = new LocalQueue(dir);
 
@@ -188,7 +188,7 @@ describe("executeUpload", () => {
 
   it("should persist offset after successful upload", async () => {
     const config = new ConfigManager(dir);
-    await config.save({ token: "zk_persist" });
+    await config.save({ token: "pk_persist" });
 
     const queue = new LocalQueue(dir);
     await queue.appendBatch([makeRecord()]);
@@ -219,7 +219,7 @@ describe("executeUpload", () => {
 
   it("should split into multiple batches for >50 records", async () => {
     const config = new ConfigManager(dir);
-    await config.save({ token: "zk_big_batch" });
+    await config.save({ token: "pk_big_batch" });
 
     const queue = new LocalQueue(dir);
     const records: QueueRecord[] = [];
@@ -262,7 +262,7 @@ describe("executeUpload", () => {
 
   it("should fail on 401 unauthorized", async () => {
     const config = new ConfigManager(dir);
-    await config.save({ token: "zk_bad_token" });
+    await config.save({ token: "pk_bad_token" });
 
     const queue = new LocalQueue(dir);
     await queue.appendBatch([makeRecord()]);
@@ -290,7 +290,7 @@ describe("executeUpload", () => {
 
   it("should retry on 500 and succeed on second attempt", async () => {
     const config = new ConfigManager(dir);
-    await config.save({ token: "zk_retry" });
+    await config.save({ token: "pk_retry" });
 
     const queue = new LocalQueue(dir);
     await queue.appendBatch([makeRecord()]);
@@ -316,7 +316,7 @@ describe("executeUpload", () => {
 
   it("should fail after max retries exhausted", async () => {
     const config = new ConfigManager(dir);
-    await config.save({ token: "zk_exhaust" });
+    await config.save({ token: "pk_exhaust" });
 
     const queue = new LocalQueue(dir);
     await queue.appendBatch([makeRecord()]);
@@ -349,7 +349,7 @@ describe("executeUpload", () => {
 
   it("should handle network/fetch errors gracefully", async () => {
     const config = new ConfigManager(dir);
-    await config.save({ token: "zk_network" });
+    await config.save({ token: "pk_network" });
 
     const queue = new LocalQueue(dir);
     await queue.appendBatch([makeRecord()]);
@@ -374,7 +374,7 @@ describe("executeUpload", () => {
 
   it("should call onProgress with batch events", async () => {
     const config = new ConfigManager(dir);
-    await config.save({ token: "zk_progress" });
+    await config.save({ token: "pk_progress" });
 
     const queue = new LocalQueue(dir);
     await queue.appendBatch([makeRecord(), makeRecord({ model: "o3" })]);
@@ -401,7 +401,7 @@ describe("executeUpload", () => {
 
   it("should not save partial offset on multi-batch failure (idempotent retry)", async () => {
     const config = new ConfigManager(dir);
-    await config.save({ token: "zk_partial" });
+    await config.save({ token: "pk_partial" });
 
     const queue = new LocalQueue(dir);
     // 120 records → 3 batches (50 + 50 + 20)
@@ -463,7 +463,7 @@ describe("executeUpload", () => {
 
   it("should retry on 429 and succeed on next attempt", async () => {
     const config = new ConfigManager(dir);
-    await config.save({ token: "zk_ratelimit" });
+    await config.save({ token: "pk_ratelimit" });
 
     const queue = new LocalQueue(dir);
     await queue.appendBatch([makeRecord()]);
@@ -487,7 +487,7 @@ describe("executeUpload", () => {
 
   it("should fail after max retries on persistent 429", async () => {
     const config = new ConfigManager(dir);
-    await config.save({ token: "zk_ratelimit_exhaust" });
+    await config.save({ token: "pk_ratelimit_exhaust" });
 
     const queue = new LocalQueue(dir);
     await queue.appendBatch([makeRecord()]);

@@ -26,7 +26,7 @@ describe("executeLogin", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "zebra-login-test-"));
+    tempDir = await mkdtemp(join(tmpdir(), "pew-login-test-"));
   });
 
   afterEach(async () => {
@@ -47,7 +47,7 @@ describe("executeLogin", () => {
 
         // Simulate the SaaS redirecting back to CLI's callback server
         const callbackUrl = new URL(callbackParam!);
-        callbackUrl.searchParams.set("api_key", "zk_test123abc");
+        callbackUrl.searchParams.set("api_key", "pk_test123abc");
         callbackUrl.searchParams.set("email", "test@example.com");
 
         // Small delay to let server start
@@ -65,7 +65,7 @@ describe("executeLogin", () => {
     const config = JSON.parse(
       await readFile(join(tempDir, "config.json"), "utf-8")
     );
-    expect(config.token).toBe("zk_test123abc");
+    expect(config.token).toBe("pk_test123abc");
   });
 
   it("should return existing config info if already logged in and force=false", async () => {
@@ -74,7 +74,7 @@ describe("executeLogin", () => {
     await mkdir(tempDir, { recursive: true });
     await writeFile(
       join(tempDir, "config.json"),
-      JSON.stringify({ token: "zk_existing" })
+      JSON.stringify({ token: "pk_existing" })
     );
 
     const result = await executeLogin({
@@ -96,7 +96,7 @@ describe("executeLogin", () => {
     await mkdir(tempDir, { recursive: true });
     await writeFile(
       join(tempDir, "config.json"),
-      JSON.stringify({ token: "zk_old_key" })
+      JSON.stringify({ token: "pk_old_key" })
     );
 
     const loginPromise = executeLogin({
@@ -108,7 +108,7 @@ describe("executeLogin", () => {
         const parsed = new URL(url);
         const callbackParam = parsed.searchParams.get("callback")!;
         const callbackUrl = new URL(callbackParam);
-        callbackUrl.searchParams.set("api_key", "zk_new_key");
+        callbackUrl.searchParams.set("api_key", "pk_new_key");
         callbackUrl.searchParams.set("email", "new@example.com");
 
         await new Promise((r) => setTimeout(r, 100));
@@ -124,7 +124,7 @@ describe("executeLogin", () => {
     const config = JSON.parse(
       await readFile(join(tempDir, "config.json"), "utf-8")
     );
-    expect(config.token).toBe("zk_new_key");
+    expect(config.token).toBe("pk_new_key");
   });
 
   it("should timeout if no callback received", async () => {
@@ -181,7 +181,7 @@ describe("executeLogin", () => {
         expect(res.status).toBe(404);
 
         // Then send the real callback so the test can complete
-        callbackUrl.searchParams.set("api_key", "zk_test456");
+        callbackUrl.searchParams.set("api_key", "pk_test456");
         callbackUrl.searchParams.set("email", "test@example.com");
         await fetch(callbackUrl.toString());
       },

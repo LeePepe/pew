@@ -1,5 +1,5 @@
 /**
- * CLI E2E tests for @nocoo/zebra.
+ * CLI E2E tests for @nocoo/pew.
  *
  * Full pipeline integration tests that validate:
  * - Complete sync pipeline: discover → parse → aggregate → queue write
@@ -98,7 +98,7 @@ describe("CLI E2E: sync pipeline", () => {
   let dataDir: string;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "zebra-e2e-sync-"));
+    tempDir = await mkdtemp(join(tmpdir(), "pew-e2e-sync-"));
     stateDir = join(tempDir, "state");
     dataDir = join(tempDir, "data");
   });
@@ -303,7 +303,7 @@ describe("CLI E2E: status after sync", () => {
   let dataDir: string;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "zebra-e2e-status-"));
+    tempDir = await mkdtemp(join(tmpdir(), "pew-e2e-status-"));
     stateDir = join(tempDir, "state");
     dataDir = join(tempDir, "data");
   });
@@ -364,7 +364,7 @@ describe("CLI E2E: queue record schema validation", () => {
   let dataDir: string;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "zebra-e2e-schema-"));
+    tempDir = await mkdtemp(join(tmpdir(), "pew-e2e-schema-"));
     stateDir = join(tempDir, "state");
     dataDir = join(tempDir, "data");
   });

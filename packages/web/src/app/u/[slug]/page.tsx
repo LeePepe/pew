@@ -29,10 +29,10 @@ export async function generateMetadata({
   const displayName = user?.name ?? slug;
 
   return {
-    title: `${displayName} — Zebra`,
+    title: `${displayName} — Pew`,
     description: `Public AI coding tool usage profile for ${displayName}`,
     openGraph: {
-      title: `${displayName} — Zebra`,
+      title: `${displayName} — Pew`,
       description: `See how ${displayName} uses AI coding tools`,
     },
   };

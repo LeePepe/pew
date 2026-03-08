@@ -42,7 +42,7 @@ CLI ──POST /api/ingest (≤300)──→ Next.js (Railway)
 
 ## Solution
 
-Deploy a lightweight **Cloudflare Worker** (`zebra-ingest`) that uses **native
+Deploy a lightweight **Cloudflare Worker** (`pew-ingest`) that uses **native
 D1 bindings** to perform batch upserts. Next.js delegates writes to this Worker
 via a single HTTP call.
 
@@ -69,7 +69,7 @@ records exceed 50, the CLI automatically sends multiple HTTP batches.
 
 ## Free Tier Budget
 
-| Resource | Free Limit | Zebra Estimate | OK? |
+| Resource | Free Limit | Pew Estimate | OK? |
 |----------|-----------|---------------|-----|
 | Worker requests | 100K/day | ~tens/day | yes |
 | Worker CPU | 10ms/invocation | batch 50 → ~1-2ms | yes |
@@ -84,7 +84,7 @@ records exceed 50, the CLI automatically sends multiple HTTP batches.
 
 ```
 packages/worker/
-├── package.json           # @zebra/worker, wrangler devDep
+├── package.json           # @pew/worker, wrangler devDep
 ├── wrangler.toml          # Worker config + D1 binding
 ├── tsconfig.json
 └── src/

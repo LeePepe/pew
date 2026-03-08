@@ -13,7 +13,7 @@ describe("discoverClaudeFiles", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "zebra-discover-"));
+    tempDir = await mkdtemp(join(tmpdir(), "pew-discover-"));
   });
 
   afterEach(async () => {
@@ -42,7 +42,7 @@ describe("discoverGeminiFiles", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "zebra-discover-"));
+    tempDir = await mkdtemp(join(tmpdir(), "pew-discover-"));
   });
 
   afterEach(async () => {
@@ -70,7 +70,7 @@ describe("discoverOpenCodeFiles", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "zebra-discover-"));
+    tempDir = await mkdtemp(join(tmpdir(), "pew-discover-"));
   });
 
   afterEach(async () => {
@@ -121,7 +121,7 @@ describe("discoverOpenClawFiles", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "zebra-discover-"));
+    tempDir = await mkdtemp(join(tmpdir(), "pew-discover-"));
   });
 
   afterEach(async () => {

@@ -94,12 +94,12 @@ export async function GET(request: Request) {
   }
 }
 
-/** Generate a random API key: zk_ prefix + 32 hex chars */
+/** Generate a random API key: pk_ prefix + 32 hex chars */
 function generateApiKey(): string {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
   const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join(
     ""
   );
-  return `zk_${hex}`;
+  return `pk_${hex}`;
 }

@@ -5,7 +5,7 @@ import {
   addTokens,
   emptyTokenDelta,
 } from "../utils/buckets.js";
-import type { TokenDelta } from "@zebra/core";
+import type { TokenDelta } from "@pew/core";
 
 describe("toUtcHalfHourStart", () => {
   it("should floor to :00 for minutes 0-29", () => {

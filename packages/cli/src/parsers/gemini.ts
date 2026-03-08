@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import type { Source, TokenDelta } from "@zebra/core";
+import type { Source, TokenDelta } from "@pew/core";
 import type { ParsedDelta } from "./claude.js";
 
 /** Result of parsing a Gemini session JSON file */

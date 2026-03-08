@@ -5,14 +5,14 @@ import { join } from "node:path";
 import { executeStatus, type StatusResult } from "../commands/status.js";
 import { CursorStore } from "../storage/cursor-store.js";
 import { LocalQueue } from "../storage/local-queue.js";
-import type { QueueRecord } from "@zebra/core";
+import type { QueueRecord } from "@pew/core";
 
 describe("executeStatus", () => {
   let tempDir: string;
   let stateDir: string;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "zebra-status-test-"));
+    tempDir = await mkdtemp(join(tmpdir(), "pew-status-test-"));
     stateDir = join(tempDir, "state");
   });
 

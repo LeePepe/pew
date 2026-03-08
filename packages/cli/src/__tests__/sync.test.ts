@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile, mkdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { executeSync, type SyncResult } from "../commands/sync.js";
-import type { QueueRecord } from "@zebra/core";
+import type { QueueRecord } from "@pew/core";
 
 /** Helper: create Claude JSONL content */
 function claudeLine(ts: string, input: number, output: number): string {
@@ -81,7 +81,7 @@ describe("executeSync", () => {
   let stateDir: string;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "zebra-sync-test-"));
+    tempDir = await mkdtemp(join(tmpdir(), "pew-sync-test-"));
     dataDir = join(tempDir, "data");
     stateDir = join(tempDir, "state");
   });

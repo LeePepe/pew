@@ -155,7 +155,7 @@ describe("resolveUser", () => {
       });
       getD1Client.mockReturnValueOnce(mockClient);
 
-      const result = await resolveUser(makeRequest("zk_valid_key"));
+      const result = await resolveUser(makeRequest("pk_valid_key"));
 
       expect(result).toEqual({
         userId: "u-api-key-1",
@@ -179,7 +179,7 @@ describe("resolveUser", () => {
       });
       getD1Client.mockReturnValueOnce(mockClient);
 
-      const result = await resolveUser(makeRequest("zk_test_key_123"));
+      const result = await resolveUser(makeRequest("pk_test_key_123"));
 
       expect(result).toEqual({
         userId: "u-api-1",
@@ -187,7 +187,7 @@ describe("resolveUser", () => {
       });
       expect(mockClient.firstOrNull).toHaveBeenCalledWith(
         "SELECT id, email FROM users WHERE api_key = ?",
-        ["zk_test_key_123"],
+        ["pk_test_key_123"],
       );
     });
 
@@ -196,7 +196,7 @@ describe("resolveUser", () => {
       mockClient.firstOrNull.mockResolvedValueOnce(null);
       getD1Client.mockReturnValueOnce(mockClient);
 
-      const result = await resolveUser(makeRequest("zk_bad_key"));
+      const result = await resolveUser(makeRequest("pk_bad_key"));
 
       expect(result).toBeNull();
     });
@@ -228,7 +228,7 @@ describe("resolveUser", () => {
         user: { id: "u-session", email: "session@example.com" },
       } as Session);
 
-      const result = await resolveUser(makeRequest("zk_ignored_key"));
+      const result = await resolveUser(makeRequest("pk_ignored_key"));
 
       expect(result).toEqual({
         userId: "u-session",

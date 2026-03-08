@@ -1,5 +1,5 @@
 /**
- * Zebra Ingest Worker — Cloudflare Worker with native D1 bindings.
+ * Pew Ingest Worker — Cloudflare Worker with native D1 bindings.
  *
  * Receives pre-validated usage records from Next.js and performs
  * atomic batch upserts via env.DB.batch().

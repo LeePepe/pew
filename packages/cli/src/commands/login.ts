@@ -5,7 +5,7 @@
  * 1. Start local HTTP server on random port
  * 2. Open browser to SaaS auth endpoint with callback URL
  * 3. SaaS authenticates user (Google OAuth) and redirects back with api_key
- * 4. Save api_key to ~/.config/zebra/config.json
+ * 4. Save api_key to ~/.config/pew/config.json
  */
 
 import { createServer, type Server } from "node:http";
@@ -15,8 +15,8 @@ import { ConfigManager } from "../config/manager.js";
 // Host constants
 // ---------------------------------------------------------------------------
 
-export const DEFAULT_HOST = "https://zebra.hexly.ai";
-export const DEV_HOST = "https://zebra.dev.hexly.ai";
+export const DEFAULT_HOST = "https://pew.md";
+export const DEV_HOST = "https://pew.dev.hexly.ai";
 
 export function resolveHost(dev: boolean): string {
   return dev ? DEV_HOST : DEFAULT_HOST;
@@ -29,7 +29,7 @@ export function resolveHost(dev: boolean): string {
 export interface LoginOptions {
   /** Directory for config file */
   configDir: string;
-  /** Base URL of the Zebra SaaS */
+  /** Base URL of the Pew SaaS */
   apiUrl: string;
   /** Whether dev mode is active (uses config.dev.json) */
   dev?: boolean;
@@ -150,7 +150,7 @@ export async function executeLogin(options: LoginOptions): Promise<LoginResult> 
 function htmlPage(title: string, message: string): string {
   return `<!DOCTYPE html>
 <html>
-<head><title>Zebra — ${title}</title>
+<head><title>Pew — ${title}</title>
 <style>
   body { font-family: -apple-system, sans-serif; text-align: center; padding: 60px 20px; background: #0a0a0a; color: #fafafa; }
   h1 { font-size: 2rem; margin-bottom: 1rem; }

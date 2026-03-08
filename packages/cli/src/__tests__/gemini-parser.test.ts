@@ -142,7 +142,7 @@ describe("parseGeminiFile", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "zebra-gemini-test-"));
+    tempDir = await mkdtemp(join(tmpdir(), "pew-gemini-test-"));
   });
 
   afterEach(async () => {

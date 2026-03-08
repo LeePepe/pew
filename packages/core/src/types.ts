@@ -1,5 +1,5 @@
 /**
- * Core type definitions for the Zebra token usage tracking system.
+ * Core type definitions for the Pew token usage tracking system.
  *
  * Architecture:
  *   CLI (Parsers) → UsageRecord → HourBucket → Upload to SaaS
@@ -141,8 +141,8 @@ export interface QueueRecord {
 // CLI Config
 // ---------------------------------------------------------------------------
 
-/** Persisted CLI configuration (stored at ~/.config/zebra/config.json) */
-export interface ZebraConfig {
-  /** Auth token obtained via `zebra login` */
+/** Persisted CLI configuration (stored at ~/.config/pew/config.json) */
+export interface PewConfig {
+  /** Auth token obtained via `pew login` */
   token?: string;
 }

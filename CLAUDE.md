@@ -1,11 +1,11 @@
 ## Project
 
-Zebra is a monorepo (Bun workspaces) for tracking token usage from local AI coding tools.
+Pew is a monorepo (Bun workspaces) for tracking token usage from local AI coding tools.
 
-- `packages/core` — shared TypeScript types (`@zebra/core`, private, zero runtime deps)
-- `packages/cli` — CLI tool (`@nocoo/zebra`, published to npm, citty + consola + picocolors)
-- `packages/web` — SaaS dashboard (`@zebra/web`, private, Next.js 16 + App Router)
-- `packages/worker` — Cloudflare Worker for D1 ingest writes (`@zebra/worker`, private)
+- `packages/core` — shared TypeScript types (`@pew/core`, private, zero runtime deps)
+- `packages/cli` — CLI tool (`@nocoo/pew`, published to npm, citty + consola + picocolors)
+- `packages/web` — SaaS dashboard (`@pew/web`, private, Next.js 16 + App Router)
+- `packages/worker` — Cloudflare Worker for D1 ingest writes (`@pew/worker`, private)
 
 ### Supported AI Tools
 
@@ -19,7 +19,7 @@ Claude Code, Gemini CLI, OpenCode, OpenClaw
 - **Testing**: Four-layer architecture (see docs/01-plan.md)
 - **TDD**: Always write tests first, then implement
 - **Commits**: Conventional Commits, atomic, auto-commit after changes
-- **`@zebra/core` is NOT published**: Pure types, `import type` only, `devDependencies`
+- **`@pew/core` is NOT published**: Pure types, `import type` only, `devDependencies`
 
 ## CLI Dev Workflow
 
@@ -28,34 +28,34 @@ Claude Code, Gemini CLI, OpenCode, OpenClaw
 bun run build
 
 # Start dev server (port 7030)
-bun run --filter '@zebra/web' dev
+bun run --filter '@pew/web' dev
 
 # Run sync against dev server
 NODE_TLS_REJECT_UNAUTHORIZED=0 bun packages/cli/dist/bin.js sync --dev
 
 # Full reset sync (delete cursors + queue, then sync)
-rm -f ~/.config/zebra/cursors.json ~/.config/zebra/queue.jsonl ~/.config/zebra/queue.state.json
+rm -f ~/.config/pew/cursors.json ~/.config/pew/queue.jsonl ~/.config/pew/queue.state.json
 NODE_TLS_REJECT_UNAUTHORIZED=0 bun packages/cli/dist/bin.js sync --dev
 ```
 
 ### State Files
 
-- `~/.config/zebra/config.json` — prod API key (`zk_...`)
-- `~/.config/zebra/config.dev.json` — dev API key
-- `~/.config/zebra/cursors.json` — per-file byte offsets + dir mtimes (shared across dev/prod)
-- `~/.config/zebra/queue.jsonl` — pending upload records
-- `~/.config/zebra/queue.state.json` — upload queue metadata
+- `~/.config/pew/config.json` — prod API key (`pk_...`)
+- `~/.config/pew/config.dev.json` — dev API key
+- `~/.config/pew/cursors.json` — per-file byte offsets + dir mtimes (shared across dev/prod)
+- `~/.config/pew/queue.jsonl` — pending upload records
+- `~/.config/pew/queue.state.json` — upload queue metadata
 
 ## npm Publish Procedure
 
-CLI package `@nocoo/zebra` is published to npm. Steps:
+CLI package `@nocoo/pew` is published to npm. Steps:
 
 1. **Bump version** — ALL `package.json` files + `packages/cli/src/cli.ts` (`meta.version`)
 2. **Build** — `bun install && bun run build`
 3. **Test** — `bun run test`
 4. **Dry-run** — `npm publish --dry-run` in `packages/cli/`
 5. **Publish** — `npm publish` in `packages/cli/`
-6. **Verify** — `npx @nocoo/zebra@latest --help`
+6. **Verify** — `npx @nocoo/pew@latest --help`
 7. **Commit & push** — Triggers Railway auto-deploy for web
 8. **Tag & release** — `git tag vX.Y.Z && git push origin vX.Y.Z`
 

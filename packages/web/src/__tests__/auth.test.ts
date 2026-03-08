@@ -41,7 +41,7 @@ describe("shouldUseSecureCookies", () => {
 
   it("should return true when NEXTAUTH_URL starts with https", () => {
     vi.stubEnv("NODE_ENV", "test");
-    vi.stubEnv("NEXTAUTH_URL", "https://zebra.example.com");
+    vi.stubEnv("NEXTAUTH_URL", "https://pew.example.com");
     expect(shouldUseSecureCookies()).toBe(true);
   });
 

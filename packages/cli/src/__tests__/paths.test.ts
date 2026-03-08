@@ -5,7 +5,7 @@ import { resolveDefaultPaths } from "../utils/paths.js";
 describe("resolveDefaultPaths", () => {
   it("should resolve all paths relative to home directory", () => {
     const paths = resolveDefaultPaths("/fakehome");
-    expect(paths.stateDir).toBe(join("/fakehome", ".config", "zebra"));
+    expect(paths.stateDir).toBe(join("/fakehome", ".config", "pew"));
     expect(paths.claudeDir).toBe(join("/fakehome", ".claude"));
     expect(paths.geminiDir).toBe(join("/fakehome", ".gemini"));
     expect(paths.openCodeMessageDir).toBe(
@@ -18,7 +18,7 @@ describe("resolveDefaultPaths", () => {
     const { homedir } = require("node:os");
     const home = homedir();
     const paths = resolveDefaultPaths();
-    expect(paths.stateDir).toBe(join(home, ".config", "zebra"));
+    expect(paths.stateDir).toBe(join(home, ".config", "pew"));
     expect(paths.claudeDir).toBe(join(home, ".claude"));
   });
 

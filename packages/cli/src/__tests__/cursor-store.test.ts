@@ -3,13 +3,13 @@ import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CursorStore } from "../storage/cursor-store.js";
-import type { ByteOffsetCursor, CursorState } from "@zebra/core";
+import type { ByteOffsetCursor, CursorState } from "@pew/core";
 
 describe("CursorStore", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "zebra-cursor-test-"));
+    tempDir = await mkdtemp(join(tmpdir(), "pew-cursor-test-"));
   });
 
   afterEach(async () => {

@@ -7,7 +7,7 @@ import type {
   QueueRecord,
   Source,
   TokenDelta,
-} from "@zebra/core";
+} from "@pew/core";
 import { CursorStore } from "../storage/cursor-store.js";
 import { LocalQueue } from "../storage/local-queue.js";
 import {

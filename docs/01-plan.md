@@ -1,11 +1,11 @@
-# Zebra — Implementation Plan
+# Pew — Implementation Plan
 
 > Monorepo skeleton for token usage tracking CLI + SaaS dashboard.
 > Mirror structure from `../otter`, token collection logic from `../vibeusage`.
 
 ## Overview
 
-Zebra collects token usage from 4 local AI coding tools and provides a SaaS dashboard
+Pew collects token usage from 4 local AI coding tools and provides a SaaS dashboard
 with auth, data display, public profiles, and leaderboards.
 
 ### Supported AI Tools
@@ -61,21 +61,21 @@ All development follows **TDD** — write tests first, then implement.
 - [x] `CLAUDE.md` — project conventions for AI agents
 
 ### 1.2 Core Package (`packages/core`)
-- [x] `package.json` (`@zebra/core`, private, types-only)
+- [x] `package.json` (`@pew/core`, private, types-only)
 - [x] `tsconfig.json` (extends root, composite: true)
 - [x] `src/types.ts` — Source enum (4 tools), UsageRecord, TokenDelta, HourBucket, SyncCursor
 - [x] `src/index.ts` — re-export types
 - [x] `src/__tests__/types.test.ts` — type-level tests (TDD: write first)
 
 ### 1.3 CLI Package (`packages/cli`)
-- [x] `package.json` (`@nocoo/zebra`, public, bin entry)
+- [x] `package.json` (`@nocoo/pew`, public, bin entry)
 - [x] `tsconfig.json` (extends root, references core)
 - [x] `src/bin.ts` — entry point
 - [x] `src/cli.ts` — citty main command with subcommands (sync, status, login)
 - [x] `src/__tests__/cli.test.ts` — CLI smoke tests (TDD: write first)
 
 ### 1.4 Web Package (`packages/web`)
-- [x] `package.json` (`@zebra/web`, private, Next.js 16)
+- [x] `package.json` (`@pew/web`, private, Next.js 16)
 - [x] `tsconfig.json` (Next.js strict settings)
 - [x] `next.config.ts` (standalone output, turbopack root)
 - [x] `postcss.config.mjs` (Tailwind v4 PostCSS plugin)
@@ -97,7 +97,7 @@ All development follows **TDD** — write tests first, then implement.
 
 ### 2.1 Core Types
 - [x] `ByteOffsetCursor`, `GeminiCursor`, `OpenCodeCursor`, `FileCursor`, `CursorState`
-- [x] `QueueRecord`, `ZebraConfig`
+- [x] `QueueRecord`, `PewConfig`
 
 ### 2.2 CLI Infrastructure
 - [x] `ConfigManager` — config.json read/write
@@ -130,10 +130,10 @@ All development follows **TDD** — write tests first, then implement.
 ### Architecture
 
 ```
-CLI (zebra sync) ──→ POST /api/ingest ──→ D1 (via Cloudflare HTTP API)
+CLI (pew sync) ──→ POST /api/ingest ──→ D1 (via Cloudflare HTTP API)
 Browser          ──→ Auth.js (Google)  ──→ Session cookie
 Dashboard        ──→ GET /api/usage    ──→ D1 query → JSON response
-CLI (zebra login)──→ Browser OAuth flow → Token saved to ~/.config/zebra/config.json
+CLI (pew login)──→ Browser OAuth flow → Token saved to ~/.config/pew/config.json
 ```
 
 ### Database: Cloudflare D1
@@ -151,7 +151,7 @@ CREATE TABLE users (
   name TEXT,
   image TEXT,                    -- avatar URL
   slug TEXT UNIQUE,              -- public profile slug (e.g. "nocoo")
-  api_key TEXT UNIQUE,           -- for CLI auth (zk_* prefix)
+  api_key TEXT UNIQUE,           -- for CLI auth (pk_* prefix)
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -233,18 +233,18 @@ CREATE TABLE verification_tokens (
 - [x] `GET /api/users/[slug]` — public profile data with daily aggregation
 
 ### 3.4 CLI Login (Browser OAuth Flow)
-- [x] `zebra login` starts local HTTP server on random port
-- [x] Opens browser to `https://zebra.hexly.ai/api/auth/cli?callback=http://localhost:{port}` (or `zebra.dev.hexly.ai` with `--dev`)
+- [x] `pew login` starts local HTTP server on random port
+- [x] Opens browser to `https://pew.md/api/auth/cli?callback=http://localhost:{port}` (or `pew.dev.hexly.ai` with `--dev`)
 - [x] User authenticates via Google OAuth on SaaS
-- [x] SaaS generates `zk_*` API key, redirects back to local server
-- [x] CLI saves API key to `~/.config/zebra/config.json`
+- [x] SaaS generates `pk_*` API key, redirects back to local server
+- [x] CLI saves API key to `~/.config/pew/config.json`
 
-### 3.5 CLI Upload (zebra sync → POST /api/ingest)
+### 3.5 CLI Upload (pew sync → POST /api/ingest)
 - [x] After local sync, read queue records from JSONL
 - [x] Batch upload to POST /api/ingest with Bearer token (max 1000 per batch)
 - [x] Track upload cursor (last uploaded byte offset)
 - [x] Retry on failure with exponential backoff
-- [x] `zebra sync --upload` auto-uploads after parsing (default if logged in)
+- [x] `pew sync --upload` auto-uploads after parsing (default if logged in)
 
 ### 3.6 Tests
 - [x] D1 client unit tests

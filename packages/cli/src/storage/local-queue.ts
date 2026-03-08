@@ -1,6 +1,6 @@
 import { readFile, writeFile, appendFile, mkdir, stat } from "node:fs/promises";
 import { join, dirname } from "node:path";
-import type { QueueRecord } from "@zebra/core";
+import type { QueueRecord } from "@pew/core";
 
 const QUEUE_FILE = "queue.jsonl";
 const STATE_FILE = "queue.state.json";

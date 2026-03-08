@@ -3,7 +3,7 @@ import { mkdtemp, rm, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { LocalQueue } from "../storage/local-queue.js";
-import type { QueueRecord } from "@zebra/core";
+import type { QueueRecord } from "@pew/core";
 
 function makeRecord(overrides: Partial<QueueRecord> = {}): QueueRecord {
   return {
@@ -23,7 +23,7 @@ describe("LocalQueue", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "zebra-queue-test-"));
+    tempDir = await mkdtemp(join(tmpdir(), "pew-queue-test-"));
   });
 
   afterEach(async () => {

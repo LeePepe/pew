@@ -1,5 +1,5 @@
 /**
- * Type-level tests for @zebra/core.
+ * Type-level tests for @pew/core.
  *
  * These tests validate that the type definitions compile correctly
  * and that the Source enum contains exactly the 5 supported tools.
@@ -15,7 +15,7 @@ import type {
   Source,
   TokenDelta,
   UsageRecord,
-  ZebraConfig,
+  PewConfig,
 } from "../types.js";
 
 describe("Source type", () => {
@@ -192,16 +192,16 @@ describe("QueueRecord type", () => {
   });
 });
 
-describe("ZebraConfig type", () => {
+describe("PewConfig type", () => {
   it("should hold CLI configuration", () => {
-    const config: ZebraConfig = {
-      token: "zb_abc123",
+    const config: PewConfig = {
+      token: "pk_abc123",
     };
-    expect(config.token).toBe("zb_abc123");
+    expect(config.token).toBe("pk_abc123");
   });
 
   it("should allow empty config", () => {
-    const config: ZebraConfig = {};
+    const config: PewConfig = {};
     expect(config.token).toBeUndefined();
   });
 });

@@ -33,7 +33,7 @@ const syncCommand = defineCommand({
     },
     dev: {
       type: "boolean",
-      description: "Use the dev host (zebra.dev.hexly.ai)",
+      description: "Use the dev host (pew.dev.hexly.ai)",
       default: false,
     },
   },
@@ -110,7 +110,7 @@ const statusCommand = defineCommand({
     const result = await executeStatus({ stateDir: paths.stateDir });
 
     consola.log("");
-    consola.log(pc.bold("Zebra Status"));
+    consola.log(pc.bold("Pew Status"));
     consola.log(pc.dim("─".repeat(40)));
     consola.log(`  Tracked files:   ${pc.cyan(String(result.trackedFiles))}`);
     consola.log(
@@ -134,7 +134,7 @@ const statusCommand = defineCommand({
 const loginCommand = defineCommand({
   meta: {
     name: "login",
-    description: "Connect your CLI to the Zebra dashboard via browser OAuth",
+    description: "Connect your CLI to the Pew dashboard via browser OAuth",
   },
   args: {
     force: {
@@ -144,7 +144,7 @@ const loginCommand = defineCommand({
     },
     dev: {
       type: "boolean",
-      description: "Use the dev host (zebra.dev.hexly.ai)",
+      description: "Use the dev host (pew.dev.hexly.ai)",
       default: false,
     },
   },
@@ -174,7 +174,7 @@ const loginCommand = defineCommand({
 
     if (result.alreadyLoggedIn) {
       consola.info(
-        `Already logged in. Use ${pc.cyan("zebra login --force")} to re-authenticate.`,
+        `Already logged in. Use ${pc.cyan("pew login --force")} to re-authenticate.`,
       );
       return;
     }
@@ -217,7 +217,7 @@ async function runUpload(stateDir: string, apiUrl: string, dev: boolean): Promis
 
   if (!uploadResult.success && uploadResult.error?.match(/not logged in/i)) {
     consola.info(
-      `Not logged in — skipping upload. Run ${pc.cyan("zebra login")} to enable.`,
+      `Not logged in — skipping upload. Run ${pc.cyan("pew login")} to enable.`,
     );
     return;
   }
@@ -243,7 +243,7 @@ async function runUpload(stateDir: string, apiUrl: string, dev: boolean): Promis
 
 export const main = defineCommand({
   meta: {
-    name: "zebra",
+    name: "pew",
     version: "0.1.1",
     description: "Track token usage from your local AI coding tools",
   },

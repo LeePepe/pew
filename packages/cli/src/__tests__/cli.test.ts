@@ -1,5 +1,5 @@
 /**
- * CLI smoke tests for @nocoo/zebra.
+ * CLI smoke tests for @nocoo/pew.
  *
  * Validates that the CLI entry point and all subcommands are defined correctly.
  */
@@ -8,7 +8,7 @@ import { main } from "../cli.js";
 
 describe("CLI main command", () => {
   it("should have correct meta", () => {
-    expect(main.meta?.name).toBe("zebra");
+    expect(main.meta?.name).toBe("pew");
     expect(main.meta?.version).toBe("0.1.1");
     expect(main.meta?.description).toBeDefined();
   });

@@ -27,7 +27,7 @@ describe("parseOpenClawFile", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "zebra-openclaw-test-"));
+    tempDir = await mkdtemp(join(tmpdir(), "pew-openclaw-test-"));
   });
 
   afterEach(async () => {

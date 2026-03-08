@@ -1,7 +1,7 @@
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { createInterface } from "node:readline";
-import type { Source, TokenDelta } from "@zebra/core";
+import type { Source, TokenDelta } from "@pew/core";
 
 /** A parsed token delta with metadata for bucket aggregation */
 export interface ParsedDelta {

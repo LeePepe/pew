@@ -1,7 +1,7 @@
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { createInterface } from "node:readline";
-import type { Source, TokenDelta } from "@zebra/core";
+import type { Source, TokenDelta } from "@pew/core";
 import type { ParsedDelta } from "./claude.js";
 
 /** Result of parsing an OpenClaw JSONL session file */

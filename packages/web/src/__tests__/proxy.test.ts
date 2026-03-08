@@ -16,7 +16,7 @@ function makeReq(
   pathname: string,
   headers: Record<string, string> = {},
 ): NextRequest {
-  const url = `https://zebra.example.com${pathname}`;
+  const url = `https://pew.example.com${pathname}`;
   return new NextRequest(url, { headers });
 }
 
@@ -29,7 +29,7 @@ describe("buildRedirectUrl", () => {
     const req = makeReq("/dashboard");
     const url = buildRedirectUrl(req, "/login");
     expect(url.pathname).toBe("/login");
-    expect(url.origin).toBe("https://zebra.example.com");
+    expect(url.origin).toBe("https://pew.example.com");
   });
 
   it("should use x-forwarded-host and x-forwarded-proto", () => {

@@ -1,10 +1,10 @@
 {
-  "name": "@nocoo/zebra",
+  "name": "@nocoo/pew",
   "version": "0.1.1",
   "description": "Track token usage from your local AI coding tools",
   "type": "module",
   "bin": {
-    "zebra": "dist/bin.js"
+    "pew": "dist/bin.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -19,7 +19,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nocoo/zebra.git",
+    "url": "git+https://github.com/nocoo/pew.git",
     "directory": "packages/cli"
   },
   "keywords": [
@@ -38,7 +38,7 @@
     "picocolors": "^1.1.0"
   },
   "devDependencies": {
-    "@zebra/core": "workspace:*",
+    "@pew/core": "workspace:*",
     "@types/node": "^22.0.0"
   }
 }

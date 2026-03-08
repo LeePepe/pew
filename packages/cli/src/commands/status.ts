@@ -1,7 +1,7 @@
 import { stat } from "node:fs/promises";
 import { CursorStore } from "../storage/cursor-store.js";
 import { LocalQueue } from "../storage/local-queue.js";
-import type { CursorState, QueueRecord } from "@zebra/core";
+import type { CursorState, QueueRecord } from "@pew/core";
 
 /** Status summary for display */
 export interface StatusResult {

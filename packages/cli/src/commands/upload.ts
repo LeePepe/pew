@@ -1,5 +1,5 @@
 /**
- * CLI upload command — sends local queue records to the Zebra SaaS.
+ * CLI upload command — sends local queue records to the Pew SaaS.
  *
  * Flow:
  * 1. Load API key from config
@@ -12,7 +12,7 @@
 
 import { ConfigManager } from "../config/manager.js";
 import { LocalQueue } from "../storage/local-queue.js";
-import type { QueueRecord } from "@zebra/core";
+import type { QueueRecord } from "@pew/core";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -21,7 +21,7 @@ import type { QueueRecord } from "@zebra/core";
 export interface UploadOptions {
   /** Directory for config file and queue state */
   stateDir: string;
-  /** Base URL of the Zebra SaaS */
+  /** Base URL of the Pew SaaS */
   apiUrl: string;
   /** Whether dev mode is active (uses config.dev.json) */
   dev?: boolean;
@@ -118,7 +118,7 @@ export async function executeUpload(opts: UploadOptions): Promise<UploadResult> 
       success: false,
       uploaded: 0,
       batches: 0,
-      error: "Not logged in. Run `zebra login` first.",
+      error: "Not logged in. Run `pew login` first.",
     };
   }
 

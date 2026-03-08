@@ -1,5 +1,5 @@
 /**
- * Auth.js v5 configuration for Zebra SaaS.
+ * Auth.js v5 configuration for Pew SaaS.
  *
  * Uses JWT strategy (no session table needed) with Google OAuth.
  * User data stored in Cloudflare D1 via custom adapter.
@@ -61,7 +61,7 @@ const useSecureCookies = shouldUseSecureCookies();
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   // Trust the host header for automatic URL detection.
-  // This allows the app to work behind reverse proxies (e.g. zebra.dev.hexly.ai)
+  // This allows the app to work behind reverse proxies (e.g. pew.dev.hexly.ai)
   // so Auth.js reads x-forwarded-host instead of using localhost.
   trustHost: true,
   adapter: D1AuthAdapter(getD1Client()),

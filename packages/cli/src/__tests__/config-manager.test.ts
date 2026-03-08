@@ -8,7 +8,7 @@ describe("ConfigManager", () => {
   let tempDir: string;
 
   beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "zebra-config-test-"));
+    tempDir = await mkdtemp(join(tmpdir(), "pew-config-test-"));
   });
 
   afterEach(async () => {
