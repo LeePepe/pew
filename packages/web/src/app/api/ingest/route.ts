@@ -82,7 +82,7 @@ function validateRecord(r: unknown, index: number): string | null {
 
 /** Max rows per INSERT statement. D1 REST API rejects multi-row INSERTs
  *  beyond a low threshold (empirically ~5-7 rows). Use small chunks. */
-export const CHUNK_SIZE = 1; // one row at a time until we find the real limit
+export const CHUNK_SIZE = 5;
 
 /**
  * Build a single multi-row INSERT ... ON CONFLICT DO UPDATE SET statement.

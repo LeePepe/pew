@@ -215,7 +215,7 @@ describe("POST /api/ingest", () => {
     });
 
     it("should build multi-row VALUES for multiple records", async () => {
-      mockClient.execute.mockResolvedValue({ changes: 1, duration: 5 });
+      mockClient.execute.mockResolvedValue({ changes: 3, duration: 5 });
 
       const records = [
         VALID_RECORD,
@@ -226,13 +226,14 @@ describe("POST /api/ingest", () => {
 
       expect(res.status).toBe(200);
 
-      // With CHUNK_SIZE=1, each record is its own INSERT → 3 execute calls
-      expect(mockClient.execute).toHaveBeenCalledTimes(3);
-      // Each call has 1 record × 9 columns = 9 params
-      for (const call of mockClient.execute.mock.calls) {
-        const [, params] = call;
-        expect(params).toHaveLength(9);
-      }
+      // 3 records < CHUNK_SIZE (5) → single execute call with all records
+      expect(mockClient.execute).toHaveBeenCalledOnce();
+      const [sql, params] = mockClient.execute.mock.calls[0]!;
+      // 3 records × 9 columns = 27 params
+      expect(params).toHaveLength(27);
+      // SQL should have 3 value tuples
+      const valueMatches = sql.match(/\([\s,?]+\)/g);
+      expect(valueMatches).toHaveLength(3);
     });
 
     it("should return ingested count in response", async () => {
@@ -257,7 +258,7 @@ describe("POST /api/ingest", () => {
 
     it("should chunk large batches into CHUNK_SIZE groups", async () => {
       // Create more records than CHUNK_SIZE to trigger multiple execute calls
-      const count = CHUNK_SIZE + 5; // 6 records → 6 chunks with CHUNK_SIZE=1
+      const count = CHUNK_SIZE * 2 + 1; // 11 records → 3 chunks (5, 5, 1)
       const records = Array.from({ length: count }, (_, i) => ({
         ...VALID_RECORD,
         model: `model-${i}`,
@@ -272,14 +273,16 @@ describe("POST /api/ingest", () => {
       const body = await res.json();
       expect(body.ingested).toBe(count);
 
-      // Each record is its own chunk with CHUNK_SIZE=1
-      expect(mockClient.execute).toHaveBeenCalledTimes(count);
+      // ceil(11 / 5) = 3 chunks
+      const expectedChunks = Math.ceil(count / CHUNK_SIZE);
+      expect(mockClient.execute).toHaveBeenCalledTimes(expectedChunks);
 
-      // Every call should have exactly 9 params (1 row × 9 cols)
-      for (const call of mockClient.execute.mock.calls) {
-        const [, params] = call;
-        expect(params).toHaveLength(CHUNK_SIZE * 9);
-      }
+      // First two chunks: CHUNK_SIZE rows × 9 cols
+      const [, params1] = mockClient.execute.mock.calls[0]!;
+      expect(params1).toHaveLength(CHUNK_SIZE * 9);
+      // Last chunk: 1 row × 9 cols
+      const [, paramsLast] = mockClient.execute.mock.calls[expectedChunks - 1]!;
+      expect(paramsLast).toHaveLength((count % CHUNK_SIZE) * 9);
     });
   });
 });
