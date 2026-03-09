@@ -361,7 +361,7 @@ describe("executeSessionSync", () => {
     expect(records[0].user_messages).toBe(2);
     expect(records[0].assistant_messages).toBe(2);
     expect(records[0].model).toBe("gpt-5.4");
-    expect(records[0].project_ref).toBe("/tmp/project");
+    expect(records[0].project_ref).toBe("f630ad93b344");
   });
 
   it("should skip unchanged Codex files on second sync", async () => {

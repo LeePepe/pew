@@ -5,7 +5,7 @@
  * Each rollout file represents one session. Codex is user-driven (kind: "human").
  *
  * Session ID comes from session_meta.payload.id (UUID).
- * Project ref comes from session_meta.payload.cwd (working directory).
+ * Project ref is a SHA-256 hash of session_meta.payload.cwd (privacy-safe).
  * Model comes from turn_context.payload.model (preferred) or session_meta.payload.model (fallback).
  *
  * Message counting:
@@ -80,7 +80,10 @@ export async function collectCodexSessions(
           sessionId = payload.id;
         }
         if (typeof payload.cwd === "string" && payload.cwd) {
-          projectRef = payload.cwd;
+          projectRef = createHash("sha256")
+            .update(payload.cwd)
+            .digest("hex")
+            .slice(0, 12);
         }
         // Fallback model from session_meta
         if (typeof payload.model === "string" && payload.model.trim()) {

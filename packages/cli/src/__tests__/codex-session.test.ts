@@ -162,7 +162,7 @@ describe("collectCodexSessions", () => {
     expect(s.lastMessageAt).toBe("2026-03-07T10:03:30.000Z");
     expect(s.durationSeconds).toBe(210); // 3.5 min
     expect(s.model).toBe("gpt-5.4");
-    expect(s.projectRef).toBe("/Users/nocoo/workspace/personal/pew");
+    expect(s.projectRef).toBe("9f5e23b26651");
     expect(s.snapshotAt).toBeDefined();
   });
 
@@ -190,7 +190,7 @@ describe("collectCodexSessions", () => {
     expect(result[0].sessionKey).toMatch(/^codex:[a-f0-9]{16}$/);
   });
 
-  it("should extract projectRef from session_meta.payload.cwd", async () => {
+  it("should hash projectRef from session_meta.payload.cwd", async () => {
     const f = join(tmpDir, "rollout-cwd.jsonl");
     const lines = [
       sessionMetaLine({ cwd: "/home/user/my-project" }),
@@ -199,7 +199,7 @@ describe("collectCodexSessions", () => {
 
     const result = await collectCodexSessions(f);
     expect(result).toHaveLength(1);
-    expect(result[0].projectRef).toBe("/home/user/my-project");
+    expect(result[0].projectRef).toBe("c7e2f75b53b9");
   });
 
   it("should set projectRef to null when no session_meta cwd", async () => {
