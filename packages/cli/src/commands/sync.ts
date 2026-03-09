@@ -4,6 +4,7 @@ import type {
   CursorState,
   GeminiCursor,
   OpenCodeCursor,
+  OpenCodeSqliteCursor,
   QueueRecord,
   Source,
   TokenDelta,
@@ -21,6 +22,8 @@ import { parseClaudeFile } from "../parsers/claude.js";
 import { parseGeminiFile } from "../parsers/gemini.js";
 import { parseOpenCodeFile } from "../parsers/opencode.js";
 import { parseOpenClawFile } from "../parsers/openclaw.js";
+import { processOpenCodeMessages } from "../parsers/opencode-sqlite.js";
+import type { QueryMessagesFn } from "../parsers/opencode-sqlite.js";
 import type { ParsedDelta } from "../parsers/claude.js";
 import { toUtcHalfHourStart, bucketKey, addTokens, emptyTokenDelta } from "../utils/buckets.js";
 
@@ -34,6 +37,10 @@ export interface SyncOptions {
   geminiDir?: string;
   /** Override: OpenCode message directory (~/.local/share/opencode/storage/message) */
   openCodeMessageDir?: string;
+  /** Override: OpenCode SQLite database path (~/.local/share/opencode/opencode.db) */
+  openCodeDbPath?: string;
+  /** Factory for opening the OpenCode SQLite DB (DI for testability) */
+  openMessageDb?: (dbPath: string) => { queryMessages: QueryMessagesFn; close: () => void } | null;
   /** Override: OpenClaw data directory (~/.openclaw) */
   openclawDir?: string;
   /** Progress callback */
@@ -294,6 +301,88 @@ export async function executeSync(opts: SyncOptions): Promise<SyncResult> {
 
     // Persist directory mtimes for next run
     cursors.dirMtimes = discovery.dirMtimes;
+  }
+
+  // ---------- OpenCode SQLite ----------
+  if (opts.openCodeDbPath && opts.openMessageDb) {
+    onProgress?.({
+      source: "opencode-sqlite",
+      phase: "discover",
+      message: "Checking OpenCode SQLite database...",
+    });
+
+    // Check if DB file exists
+    const dbStat = await stat(opts.openCodeDbPath).catch(() => null);
+    if (dbStat) {
+      const dbInode = dbStat.ino;
+      const prevSqlite = cursors.openCodeSqlite;
+
+      // If inode changed (DB recreated), reset cursor
+      const lastTimeCreated =
+        prevSqlite && prevSqlite.inode === dbInode
+          ? prevSqlite.lastTimeCreated
+          : 0;
+
+      const handle = opts.openMessageDb(opts.openCodeDbPath);
+      if (handle) {
+        try {
+          const rows = handle.queryMessages(lastTimeCreated);
+
+          // Collect JSON messageKeys from cursor store for dedup.
+          // During the overlap window (~Feb 15-17), both JSON and SQLite
+          // sources contain the same messages. We skip any SQLite row
+          // whose messageKey is already tracked by a JSON file cursor.
+          const jsonMessageKeys = new Set<string>();
+          for (const cursor of Object.values(cursors.files)) {
+            const oc = cursor as OpenCodeCursor;
+            if (oc.messageKey) {
+              jsonMessageKeys.add(oc.messageKey);
+            }
+          }
+
+          // Filter rows: exclude assistant messages already tracked by JSON parser
+          const filteredRows = rows.filter((row) => {
+            let msg: Record<string, unknown>;
+            try {
+              msg = JSON.parse(row.data);
+            } catch {
+              return true; // keep — processOpenCodeMessages will skip non-parseable rows
+            }
+            if (msg.role !== "assistant") return true; // non-assistant rows don't produce deltas
+            const key = `${row.session_id}|${row.id}`;
+            return !jsonMessageKeys.has(key);
+          });
+
+          const dedupSkipped = rows.length - filteredRows.length;
+          const result = processOpenCodeMessages(filteredRows);
+
+          onProgress?.({
+            source: "opencode-sqlite",
+            phase: "parse",
+            message: `Parsed ${result.deltas.length} deltas from ${rows.length} SQLite rows${dedupSkipped > 0 ? ` (${dedupSkipped} deduped)` : ""}`,
+          });
+
+          allDeltas.push(...result.deltas);
+          sourceCounts.opencode += result.deltas.length;
+
+          // Update SQLite cursor — advance past ALL rows (including deduped)
+          // so we don't re-query them next time. Max time_created from
+          // unfiltered rows is the correct watermark.
+          let maxTime = lastTimeCreated;
+          for (const row of rows) {
+            if (row.time_created > maxTime) maxTime = row.time_created;
+          }
+          cursors.openCodeSqlite = {
+            lastTimeCreated: maxTime,
+            lastSessionUpdated: prevSqlite?.lastSessionUpdated ?? 0,
+            inode: dbInode,
+            updatedAt: new Date().toISOString(),
+          } satisfies OpenCodeSqliteCursor;
+        } finally {
+          handle.close();
+        }
+      }
+    }
   }
 
   // ---------- OpenClaw ----------

@@ -699,4 +699,162 @@ describe("executeSync", () => {
     expect(result.filesScanned.opencode).toBe(1);
     expect(result.filesScanned.openclaw).toBe(1);
   });
+
+  // ===== OpenCode SQLite integration =====
+
+  /**
+   * Helper: create a mock openMessageDb factory that returns rows from an in-memory array.
+   * Simulates the bun:sqlite adapter without requiring the actual runtime.
+   */
+  function mockOpenMessageDb(rows: Array<{ id: string; session_id: string; time_created: number; data: string }>) {
+    return (_dbPath: string) => ({
+      queryMessages: (lastTimeCreated: number) =>
+        rows.filter((r) => r.time_created > lastTimeCreated),
+      close: () => {},
+    });
+  }
+
+  /** Helper: build a SQLite message row JSON data blob */
+  function sqliteRowData(opts: {
+    role: string;
+    modelID?: string;
+    input?: number;
+    output?: number;
+    timeCreated?: number;
+    timeCompleted?: number;
+  }): string {
+    return JSON.stringify({
+      role: opts.role,
+      modelID: opts.modelID ?? "claude-sonnet-4-20250514",
+      time: {
+        created: opts.timeCreated ?? 1739600000000,
+        completed: opts.timeCompleted ?? (opts.timeCreated ?? 1739600000000) + 5000,
+      },
+      tokens: opts.role === "assistant"
+        ? { total: (opts.input ?? 100) + (opts.output ?? 50), input: opts.input ?? 100, output: opts.output ?? 50, reasoning: 0, cache: { read: 0, write: 0 } }
+        : null,
+    });
+  }
+
+  it("should sync OpenCode SQLite data to queue", async () => {
+    const rows = [
+      { id: "msg_001", session_id: "ses_001", time_created: 1739600000000, data: sqliteRowData({ role: "assistant", input: 5000, output: 800, timeCreated: 1739600000000 }) },
+      { id: "msg_002", session_id: "ses_001", time_created: 1739600010000, data: sqliteRowData({ role: "user", timeCreated: 1739600010000 }) },
+      { id: "msg_003", session_id: "ses_001", time_created: 1739600020000, data: sqliteRowData({ role: "assistant", input: 3000, output: 200, timeCreated: 1739600020000 }) },
+    ];
+
+    // Create a dummy DB file so stat() succeeds
+    const dbDir = join(dataDir, "opencode");
+    await mkdir(dbDir, { recursive: true });
+    const dbPath = join(dbDir, "opencode.db");
+    await writeFile(dbPath, "dummy");
+
+    const result = await executeSync({
+      stateDir,
+      openCodeDbPath: dbPath,
+      openMessageDb: mockOpenMessageDb(rows),
+    });
+
+    // 2 assistant messages with tokens → 2 deltas
+    expect(result.totalDeltas).toBe(2);
+    expect(result.sources.opencode).toBe(2);
+    expect(result.totalRecords).toBeGreaterThanOrEqual(1);
+  });
+
+  it("should be incremental for OpenCode SQLite (second sync with no new rows)", async () => {
+    const rows = [
+      { id: "msg_001", session_id: "ses_001", time_created: 1739600000000, data: sqliteRowData({ role: "assistant", input: 5000, output: 800, timeCreated: 1739600000000 }) },
+    ];
+
+    const dbDir = join(dataDir, "opencode");
+    await mkdir(dbDir, { recursive: true });
+    const dbPath = join(dbDir, "opencode.db");
+    await writeFile(dbPath, "dummy");
+
+    const r1 = await executeSync({
+      stateDir,
+      openCodeDbPath: dbPath,
+      openMessageDb: mockOpenMessageDb(rows),
+    });
+    expect(r1.totalDeltas).toBe(1);
+
+    // Second sync: cursor has advanced, no new rows
+    const r2 = await executeSync({
+      stateDir,
+      openCodeDbPath: dbPath,
+      openMessageDb: mockOpenMessageDb(rows),
+    });
+    expect(r2.totalDeltas).toBe(0);
+    expect(r2.totalRecords).toBe(0);
+  });
+
+  it("should dedup SQLite rows against JSON messageKeys during overlap window", async () => {
+    // Simulate overlap: same message exists in both JSON file and SQLite
+
+    // Step 1: sync the JSON file first
+    const ocDir = join(dataDir, "opencode", "message", "ses_001");
+    await mkdir(ocDir, { recursive: true });
+    await writeFile(
+      join(ocDir, "msg_001.json"),
+      opencodeMsg(1739600000000, 14967, 437),
+    );
+
+    const r1 = await executeSync({
+      stateDir,
+      openCodeMessageDir: join(dataDir, "opencode", "message"),
+    });
+    expect(r1.totalDeltas).toBe(1);
+    expect(r1.sources.opencode).toBe(1);
+
+    // Step 2: now sync with SQLite containing the SAME message + a new one
+    const dbDir = join(dataDir, "opencode");
+    const dbPath = join(dbDir, "opencode.db");
+    await writeFile(dbPath, "dummy");
+
+    const sqliteRows = [
+      // Same message as JSON — should be deduped
+      { id: "msg_001", session_id: "ses_001", time_created: 1739600000000, data: sqliteRowData({ role: "assistant", input: 14967, output: 437, timeCreated: 1739600000000 }) },
+      // New message — should be included
+      { id: "msg_002", session_id: "ses_001", time_created: 1739600020000, data: sqliteRowData({ role: "assistant", input: 3000, output: 200, timeCreated: 1739600020000 }) },
+    ];
+
+    const r2 = await executeSync({
+      stateDir,
+      openCodeMessageDir: join(dataDir, "opencode", "message"),
+      openCodeDbPath: dbPath,
+      openMessageDb: mockOpenMessageDb(sqliteRows),
+    });
+
+    // JSON file unchanged (triple-check skip) → 0 from JSON
+    // SQLite: msg_001 deduped, msg_002 is new → 1 from SQLite
+    expect(r2.sources.opencode).toBe(1);
+    expect(r2.totalDeltas).toBe(1);
+  });
+
+  it("should gracefully skip when SQLite DB file does not exist", async () => {
+    const result = await executeSync({
+      stateDir,
+      openCodeDbPath: "/nonexistent/opencode.db",
+      openMessageDb: mockOpenMessageDb([]),
+    });
+
+    expect(result.totalDeltas).toBe(0);
+    expect(result.sources.opencode).toBe(0);
+  });
+
+  it("should gracefully handle when openMessageDb returns null", async () => {
+    const dbDir = join(dataDir, "opencode");
+    await mkdir(dbDir, { recursive: true });
+    const dbPath = join(dbDir, "opencode.db");
+    await writeFile(dbPath, "dummy");
+
+    const result = await executeSync({
+      stateDir,
+      openCodeDbPath: dbPath,
+      openMessageDb: () => null,
+    });
+
+    expect(result.totalDeltas).toBe(0);
+    expect(result.sources.opencode).toBe(0);
+  });
 });

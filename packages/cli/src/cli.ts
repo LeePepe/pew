@@ -43,11 +43,23 @@ const syncCommand = defineCommand({
     const paths = resolveDefaultPaths();
     consola.start("Syncing token usage from AI coding tools...\n");
 
+    // Dynamic import: opencode-sqlite-db.ts uses bun:sqlite which is
+    // only available at runtime under Bun, not in Vitest/Node test env.
+    let openMessageDb: typeof import("./parsers/opencode-sqlite-db.js").openMessageDb | undefined;
+    try {
+      const mod = await import("./parsers/opencode-sqlite-db.js");
+      openMessageDb = mod.openMessageDb;
+    } catch {
+      // bun:sqlite not available — SQLite sync will be skipped
+    }
+
     const result = await executeSync({
       stateDir: paths.stateDir,
       claudeDir: paths.claudeDir,
       geminiDir: paths.geminiDir,
       openCodeMessageDir: paths.openCodeMessageDir,
+      openCodeDbPath: paths.openCodeDbPath,
+      openMessageDb,
       openclawDir: paths.openclawDir,
       onProgress(event) {
         if (event.phase === "parse" && event.current && event.total) {
