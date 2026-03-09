@@ -64,6 +64,7 @@ const syncCommand = defineCommand({
     const result = await executeSync({
       stateDir: paths.stateDir,
       claudeDir: paths.claudeDir,
+      codexSessionsDir: paths.codexSessionsDir,
       geminiDir: paths.geminiDir,
       openCodeMessageDir: paths.openCodeMessageDir,
       openCodeDbPath: ENABLE_OPENCODE_SQLITE ? paths.openCodeDbPath : undefined,
@@ -95,6 +96,7 @@ const syncCommand = defineCommand({
       );
       const deltaParts: string[] = [];
       if (result.sources.claude > 0) deltaParts.push(`Claude: ${result.sources.claude}`);
+      if (result.sources.codex > 0) deltaParts.push(`Codex: ${result.sources.codex}`);
       if (result.sources.gemini > 0) deltaParts.push(`Gemini: ${result.sources.gemini}`);
       if (result.sources.opencode > 0) deltaParts.push(`OpenCode: ${result.sources.opencode}`);
       if (result.sources.openclaw > 0) deltaParts.push(`OpenClaw: ${result.sources.openclaw}`);
@@ -107,6 +109,7 @@ const syncCommand = defineCommand({
     const fs = result.filesScanned;
     const scanParts: string[] = [];
     if (fs.claude > 0) scanParts.push(`Claude: ${fs.claude}`);
+    if (fs.codex > 0) scanParts.push(`Codex: ${fs.codex}`);
     if (fs.gemini > 0) scanParts.push(`Gemini: ${fs.gemini}`);
     if (fs.opencode > 0) scanParts.push(`OpenCode: ${fs.opencode}`);
     if (fs.openclaw > 0) scanParts.push(`OpenClaw: ${fs.openclaw}`);
@@ -121,6 +124,7 @@ const syncCommand = defineCommand({
     const sessionResult = await executeSessionSync({
       stateDir: paths.stateDir,
       claudeDir: paths.claudeDir,
+      codexSessionsDir: paths.codexSessionsDir,
       geminiDir: paths.geminiDir,
       openCodeMessageDir: paths.openCodeMessageDir,
       openCodeDbPath: ENABLE_OPENCODE_SQLITE ? paths.openCodeDbPath : undefined,
@@ -150,6 +154,7 @@ const syncCommand = defineCommand({
       );
       const sessParts: string[] = [];
       if (sessionResult.sources.claude > 0) sessParts.push(`Claude: ${sessionResult.sources.claude}`);
+      if (sessionResult.sources.codex > 0) sessParts.push(`Codex: ${sessionResult.sources.codex}`);
       if (sessionResult.sources.gemini > 0) sessParts.push(`Gemini: ${sessionResult.sources.gemini}`);
       if (sessionResult.sources.opencode > 0) sessParts.push(`OpenCode: ${sessionResult.sources.opencode}`);
       if (sessionResult.sources.openclaw > 0) sessParts.push(`OpenClaw: ${sessionResult.sources.openclaw}`);
