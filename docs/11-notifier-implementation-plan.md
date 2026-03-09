@@ -9,15 +9,15 @@
 - [x] Step 4: Claude Code Hook 安装器
 - [x] Step 5: Gemini CLI Hook 安装器
 - [x] Step 6: OpenCode Plugin 安装器
-- [ ] Step 7: OpenClaw Hook 安装器
+- [x] Step 7: OpenClaw Hook 安装器
 - [x] Step 8: Codex Notifier（TOML notify 字段）
-- [ ] Step 9: Notifier Registry
-- [ ] Step 10: `pew notify` CLI 命令
-- [ ] Step 11: `pew init` CLI 命令
+- [x] Step 9: Notifier Registry
+- [x] Step 10: `pew notify` CLI 命令
+- [x] Step 11: `pew init` CLI 命令
 
 ### 当前状态
 
-- 当前进行中：Step 7
+- 当前进行中：收尾验证与后续增强项整理
 - 参考来源：`~/workspace/personal/vibeusage` 的安装器与插件生成逻辑可复用；Coordinator/notify 并发模型按本计划重写
 - 提交策略：按步骤原子化提交，每完成一块同步更新本节
 
