@@ -180,7 +180,16 @@ const statusCommand = defineCommand({
   },
   async run() {
     const paths = resolveDefaultPaths();
-    const result = await executeStatus({ stateDir: paths.stateDir });
+    const result = await executeStatus({
+      stateDir: paths.stateDir,
+      sourceDirs: {
+        claudeDir: paths.claudeDir,
+        codexSessionsDir: paths.codexSessionsDir,
+        geminiDir: paths.geminiDir,
+        openCodeMessageDir: paths.openCodeMessageDir,
+        openclawDir: paths.openclawDir,
+      },
+    });
 
     consola.log("");
     consola.log(pc.bold("Pew Status"));

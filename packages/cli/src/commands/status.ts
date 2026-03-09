@@ -1,7 +1,14 @@
-import { stat } from "node:fs/promises";
 import { CursorStore } from "../storage/cursor-store.js";
 import { LocalQueue } from "../storage/local-queue.js";
-import type { CursorState, QueueRecord } from "@pew/core";
+
+/** Resolved source directory paths used for file classification */
+export interface SourceDirs {
+  claudeDir: string;
+  codexSessionsDir: string;
+  geminiDir: string;
+  openCodeMessageDir: string;
+  openclawDir: string;
+}
 
 /** Status summary for display */
 export interface StatusResult {
@@ -16,13 +23,29 @@ export interface StatusResult {
 }
 
 /**
+ * Classify a cursor file path into a source label.
+ *
+ * Uses resolved source directories (startsWith) so that custom paths
+ * like $CODEX_HOME are classified correctly.
+ */
+function classifySource(filePath: string, dirs: SourceDirs): string {
+  if (filePath.startsWith(dirs.claudeDir)) return "claude-code";
+  if (filePath.startsWith(dirs.codexSessionsDir)) return "codex";
+  if (filePath.startsWith(dirs.geminiDir)) return "gemini-cli";
+  if (filePath.startsWith(dirs.openCodeMessageDir)) return "opencode";
+  if (filePath.startsWith(dirs.openclawDir)) return "openclaw";
+  return "unknown";
+}
+
+/**
  * Compute the current sync status.
  * Pure logic — no CLI I/O.
  */
 export async function executeStatus(opts: {
   stateDir: string;
+  sourceDirs: SourceDirs;
 }): Promise<StatusResult> {
-  const { stateDir } = opts;
+  const { stateDir, sourceDirs } = opts;
 
   const cursorStore = new CursorStore(stateDir);
   const queue = new LocalQueue(stateDir);
@@ -31,16 +54,10 @@ export async function executeStatus(opts: {
   const offset = await queue.loadOffset();
   const { records } = await queue.readFromOffset(offset);
 
-  // Count files by source based on path patterns
+  // Count files by source using resolved directory paths
   const sources: Record<string, number> = {};
   for (const filePath of Object.keys(cursors.files)) {
-    let source = "unknown";
-    if (filePath.includes(".claude")) source = "claude-code";
-    else if (filePath.includes(".codex")) source = "codex";
-    else if (filePath.includes(".gemini")) source = "gemini-cli";
-    else if (filePath.includes("opencode")) source = "opencode";
-    else if (filePath.includes(".openclaw")) source = "openclaw";
-
+    const source = classifySource(filePath, sourceDirs);
     sources[source] = (sources[source] || 0) + 1;
   }
 

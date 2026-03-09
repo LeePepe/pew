@@ -2,10 +2,23 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { executeStatus, type StatusResult } from "../commands/status.js";
+import {
+  executeStatus,
+  type StatusResult,
+  type SourceDirs,
+} from "../commands/status.js";
 import { CursorStore } from "../storage/cursor-store.js";
 import { LocalQueue } from "../storage/local-queue.js";
 import type { QueueRecord } from "@pew/core";
+
+/** Default source dirs matching the paths used in cursor fixtures below */
+const defaultDirs: SourceDirs = {
+  claudeDir: "/home/.claude",
+  codexSessionsDir: "/home/.codex/sessions",
+  geminiDir: "/home/.gemini",
+  openCodeMessageDir: "/home/.local/share/opencode/storage/message",
+  openclawDir: "/home/.openclaw",
+};
 
 describe("executeStatus", () => {
   let tempDir: string;
@@ -21,7 +34,10 @@ describe("executeStatus", () => {
   });
 
   it("should return zero counts when no state exists", async () => {
-    const result = await executeStatus({ stateDir });
+    const result = await executeStatus({
+      stateDir,
+      sourceDirs: defaultDirs,
+    });
     expect(result.trackedFiles).toBe(0);
     expect(result.lastSync).toBeNull();
     expect(result.pendingRecords).toBe(0);
@@ -50,12 +66,15 @@ describe("executeStatus", () => {
       updatedAt: "2026-03-07T10:00:00.000Z",
     });
 
-    const result = await executeStatus({ stateDir });
+    const result = await executeStatus({
+      stateDir,
+      sourceDirs: defaultDirs,
+    });
     expect(result.trackedFiles).toBe(2);
     expect(result.lastSync).toBe("2026-03-07T10:00:00.000Z");
   });
 
-  it("should categorize files by source from path patterns", async () => {
+  it("should categorize files by source from resolved directories", async () => {
     const cursorStore = new CursorStore(stateDir);
     await cursorStore.save({
       files: {
@@ -82,7 +101,13 @@ describe("executeStatus", () => {
         },
         "/home/.local/share/opencode/storage/message/ses_001/msg_001.json": {
           type: "opencode",
-          tokens: { total: 100, input: 80, output: 20, reasoning: 0, cache: { read: 0, write: 0 } },
+          tokens: {
+            total: 100,
+            input: 80,
+            output: 20,
+            reasoning: 0,
+            cache: { read: 0, write: 0 },
+          },
           inode: 4,
           size: 300,
           mtimeMs: 3000,
@@ -107,13 +132,43 @@ describe("executeStatus", () => {
       updatedAt: "2026-03-07T12:00:00.000Z",
     });
 
-    const result = await executeStatus({ stateDir });
+    const result = await executeStatus({
+      stateDir,
+      sourceDirs: defaultDirs,
+    });
     expect(result.trackedFiles).toBe(6);
     expect(result.sources["claude-code"]).toBe(2);
     expect(result.sources["gemini-cli"]).toBe(1);
     expect(result.sources["opencode"]).toBe(1);
     expect(result.sources["openclaw"]).toBe(1);
     expect(result.sources["codex"]).toBe(1);
+  });
+
+  it("should classify codex files under custom CODEX_HOME", async () => {
+    const customCodexDir = "/opt/ai/codex/sessions";
+    const cursorStore = new CursorStore(stateDir);
+    await cursorStore.save({
+      files: {
+        "/opt/ai/codex/sessions/2026/03/07/rollout-xyz.jsonl": {
+          type: "codex",
+          offset: 300,
+          inode: 10,
+          size: 300,
+          mtimeMs: 6000,
+          lastTotals: null,
+          lastModel: null,
+        },
+      },
+      updatedAt: "2026-03-08T10:00:00.000Z",
+    });
+
+    const result = await executeStatus({
+      stateDir,
+      sourceDirs: { ...defaultDirs, codexSessionsDir: customCodexDir },
+    });
+    expect(result.trackedFiles).toBe(1);
+    expect(result.sources["codex"]).toBe(1);
+    expect(result.sources["unknown"]).toBeUndefined();
   });
 
   it("should count pending records from queue", async () => {
@@ -135,7 +190,10 @@ describe("executeStatus", () => {
     };
     await queue.append([record]);
 
-    const result = await executeStatus({ stateDir });
+    const result = await executeStatus({
+      stateDir,
+      sourceDirs: defaultDirs,
+    });
     expect(result.pendingRecords).toBe(1);
   });
 
@@ -161,7 +219,10 @@ describe("executeStatus", () => {
     const { records, newOffset } = await queue.readFromOffset(offset);
     await queue.saveOffset(newOffset);
 
-    const result = await executeStatus({ stateDir });
+    const result = await executeStatus({
+      stateDir,
+      sourceDirs: defaultDirs,
+    });
     expect(result.pendingRecords).toBe(0);
   });
 
@@ -180,7 +241,10 @@ describe("executeStatus", () => {
       updatedAt: null,
     });
 
-    const result = await executeStatus({ stateDir });
+    const result = await executeStatus({
+      stateDir,
+      sourceDirs: defaultDirs,
+    });
     expect(result.trackedFiles).toBe(1);
     expect(result.lastSync).toBeNull();
   });

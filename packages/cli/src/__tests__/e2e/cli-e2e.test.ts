@@ -313,7 +313,16 @@ describe("CLI E2E: status after sync", () => {
   });
 
   it("should return clean status with no prior sync", async () => {
-    const result = await executeStatus({ stateDir });
+    const result = await executeStatus({
+      stateDir,
+      sourceDirs: {
+        claudeDir: join(dataDir, ".claude"),
+        codexSessionsDir: join(dataDir, ".codex", "sessions"),
+        geminiDir: join(dataDir, ".gemini"),
+        openCodeMessageDir: join(dataDir, ".local", "share", "opencode", "storage", "message"),
+        openclawDir: join(dataDir, ".openclaw"),
+      },
+    });
     expect(result.trackedFiles).toBe(0);
     expect(result.lastSync).toBeNull();
     expect(result.pendingRecords).toBe(0);
@@ -345,7 +354,16 @@ describe("CLI E2E: status after sync", () => {
       geminiDir: join(dataDir, ".gemini"),
     });
 
-    const result = await executeStatus({ stateDir });
+    const result = await executeStatus({
+      stateDir,
+      sourceDirs: {
+        claudeDir: join(dataDir, ".claude"),
+        codexSessionsDir: join(dataDir, ".codex", "sessions"),
+        geminiDir: join(dataDir, ".gemini"),
+        openCodeMessageDir: join(dataDir, ".local", "share", "opencode", "storage", "message"),
+        openclawDir: join(dataDir, ".openclaw"),
+      },
+    });
     expect(result.trackedFiles).toBe(3); // 2 Claude + 1 Gemini
     expect(result.lastSync).toBeTruthy();
     expect(result.pendingRecords).toBeGreaterThan(0);
