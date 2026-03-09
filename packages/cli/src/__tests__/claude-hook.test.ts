@@ -133,6 +133,17 @@ describe("Claude hook installer", () => {
     expect(result.changed).toBe(false);
   });
 
+  it("returns skip for invalid settings during install and uninstall", async () => {
+    await writeFile(settingsPath, "{invalid-json}\n", "utf8");
+
+    const installResult = await installClaudeHook({ settingsPath, notifyPath });
+    const uninstallResult = await uninstallClaudeHook({ settingsPath, notifyPath });
+
+    expect(installResult.action).toBe("skip");
+    expect(uninstallResult.action).toBe("skip");
+    expect(uninstallResult.detail).toContain("Invalid Claude settings.json");
+  });
+
   it("reports installed and not-installed status", async () => {
     expect(await getClaudeHookStatus({ settingsPath, notifyPath })).toBe("not-installed");
 
@@ -141,11 +152,47 @@ describe("Claude hook installer", () => {
     expect(await getClaudeHookStatus({ settingsPath, notifyPath })).toBe("installed");
   });
 
+  it("reports error status for invalid settings JSON", async () => {
+    await writeFile(settingsPath, "{invalid-json}\n", "utf8");
+
+    expect(await getClaudeHookStatus({ settingsPath, notifyPath })).toBe("error");
+  });
+
+  it("returns skip when the settings file has no pew hook to remove", async () => {
+    await writeFile(
+      settingsPath,
+      `${JSON.stringify(
+        {
+          hooks: {
+            SessionEnd: [{ hooks: [{ type: "command", command: "echo existing" }] }],
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+
+    const result = await uninstallClaudeHook({ settingsPath, notifyPath });
+
+    expect(result.action).toBe("skip");
+    expect(result.changed).toBe(false);
+  });
+
   it("creates a backup file before rewriting an existing settings file", async () => {
     await writeFile(settingsPath, "{}\n", "utf8");
 
     const result = await installClaudeHook({ settingsPath, notifyPath });
 
     expect(result.backupPath).toContain(".bak.");
+  });
+
+  it("quotes notify paths that contain spaces", async () => {
+    const spacedPath = join(tempDir, "notify dir", "notify.cjs");
+
+    await installClaudeHook({ settingsPath, notifyPath: spacedPath });
+    const saved = JSON.parse(await readFile(settingsPath, "utf8"));
+
+    expect(saved.hooks.SessionEnd[0].hooks[0].command).toContain(`"${spacedPath}"`);
   });
 });

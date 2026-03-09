@@ -49,9 +49,6 @@ export async function executeInit(opts: InitOptions): Promise<InitResult> {
   const pewBin = opts.pewBin ?? (await resolvePewBinFn());
   const paths = resolveNotifierPathsFn(opts.home, opts.env);
 
-  await mkdirFn(paths.stateDir, { recursive: true });
-  await mkdirFn(paths.binDir, { recursive: true });
-
   if (opts.dryRun) {
     const selectedSources = opts.sources ?? getAllDriversFn().map((driver) => driver.source);
     return {
@@ -65,6 +62,9 @@ export async function executeInit(opts: InitOptions): Promise<InitResult> {
       })),
     };
   }
+
+  await mkdirFn(paths.stateDir, { recursive: true });
+  await mkdirFn(paths.binDir, { recursive: true });
 
   const notifySource = buildNotifyHandler({
     stateDir: paths.stateDir,
@@ -97,7 +97,17 @@ export async function executeInit(opts: InitOptions): Promise<InitResult> {
 
     hooks = [];
     for (const source of opts.sources) {
-      hooks.push(await installDriverFn(source, paths, { spawn: opts.spawn }));
+      try {
+        hooks.push(await installDriverFn(source, paths, { spawn: opts.spawn }));
+      } catch (error) {
+        hooks.push({
+          source,
+          action: "skip",
+          changed: false,
+          detail: error instanceof Error ? error.message : String(error),
+          warnings: ["Driver install failed"],
+        });
+      }
     }
   }
 

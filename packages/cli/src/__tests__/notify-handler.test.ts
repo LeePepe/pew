@@ -1,6 +1,17 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import vm from "node:vm";
-import { buildNotifyHandler, writeNotifyHandler } from "../notifier/notify-handler.js";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  buildNotifyHandler,
+  resolvePewBin,
+  writeNotifyHandler,
+} from "../notifier/notify-handler.js";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("buildNotifyHandler", () => {
   it("includes the PEW_NOTIFY_HANDLER marker", () => {
@@ -124,5 +135,67 @@ describe("writeNotifyHandler", () => {
     expect(result.backupPath).toBe(
       "/tmp/pew/bin/notify.cjs.bak.2026-03-09T10-00-00-000Z",
     );
+  });
+});
+
+describe("resolvePewBin", () => {
+  it("resolves the pew binary from PATH", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "pew-bin-"));
+    const binPath = join(tempDir, "pew");
+    const prevPath = process.env.PATH;
+    const prevArgv = process.argv.slice();
+
+    try {
+      await writeFile(binPath, "#!/bin/sh\nexit 0\n", "utf8");
+      await chmod(binPath, 0o755);
+
+      process.env.PATH = `${tempDir}:${prevPath ?? ""}`;
+      process.argv = [prevArgv[0] ?? "node", "/tmp/pew"];
+
+      const resolved = await resolvePewBin();
+      expect(resolved).toBe(binPath);
+    } finally {
+      process.argv = prevArgv;
+      process.env.PATH = prevPath;
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("prefers the sibling pew binary next to argv[1]", async () => {
+    const prevArgv = process.argv.slice();
+    const tempDir = await mkdtemp(join(tmpdir(), "pew-argv-bin-"));
+    const binDir = join(tempDir, "bin");
+    const argvEntry = join(binDir, "entry.js");
+    const siblingPew = join(binDir, "pew");
+
+    try {
+      await mkdir(binDir, { recursive: true });
+      await writeFile(argvEntry, "", "utf8");
+      await writeFile(siblingPew, "#!/bin/sh\nexit 0\n", "utf8");
+      await chmod(siblingPew, 0o755);
+      process.argv = ["bun", argvEntry];
+
+      await expect(resolvePewBin()).resolves.toBe(siblingPew);
+    } finally {
+      process.argv = prevArgv;
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("throws when no argv sibling or PATH binary is executable", async () => {
+    const prevArgv = process.argv.slice();
+    const prevPath = process.env.PATH;
+    const tempDir = await mkdtemp(join(tmpdir(), "pew-missing-bin-"));
+
+    try {
+      process.argv = ["bun", join(tempDir, "missing-entry.js")];
+      process.env.PATH = tempDir;
+
+      await expect(resolvePewBin()).rejects.toThrow("Unable to resolve pew binary");
+    } finally {
+      process.argv = prevArgv;
+      process.env.PATH = prevPath;
+      await rm(tempDir, { recursive: true, force: true });
+    }
   });
 });

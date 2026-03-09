@@ -1,3 +1,4 @@
+import { spawnSync, type SpawnSyncOptions } from "node:child_process";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import type { NotifierOperationResult, NotifierStatus } from "@pew/core";
@@ -18,7 +19,7 @@ export interface OpenClawHookOptions {
   notifyPath: string;
   openclawConfigPath: string;
   fs?: OpenClawHookFs;
-  spawn?: (cmd: string, args: string[], opts?: object) => SpawnResult;
+  spawn?: (cmd: string, args: string[], opts?: SpawnSyncOptions) => SpawnResult;
 }
 
 const SOURCE = "openclaw";
@@ -34,7 +35,11 @@ export async function installOpenClawHook(
   await fs.mkdir(pluginDir, { recursive: true });
   await fs.writeFile(join(pluginDir, "package.json"), buildPackageJson(), "utf8");
   await fs.writeFile(join(pluginDir, "openclaw.plugin.json"), buildPluginMeta(), "utf8");
-  await fs.writeFile(join(pluginDir, "index.js"), buildPluginIndex(opts.notifyPath), "utf8");
+  await fs.writeFile(
+    join(pluginDir, "index.js"),
+    buildPluginIndex(opts.notifyPath, dirname(opts.pluginBaseDir)),
+    "utf8",
+  );
 
   try {
     const installResult = spawn(
@@ -81,8 +86,8 @@ export async function uninstallOpenClawHook(
 ): Promise<NotifierOperationResult> {
   const fs = opts.fs ?? { readFile, writeFile, mkdir, rm };
   const pluginDir = join(opts.pluginBaseDir, PLUGIN_ID);
-  const config = await loadConfig(opts.openclawConfigPath, fs);
-  if (!config) {
+  const loaded = await loadConfig(opts.openclawConfigPath, fs);
+  if (loaded.status === "missing") {
     await fs.rm(pluginDir, { recursive: true, force: true });
     return {
       source: SOURCE,
@@ -91,7 +96,16 @@ export async function uninstallOpenClawHook(
       detail: "OpenClaw config not found",
     };
   }
+  if (loaded.status === "invalid") {
+    return {
+      source: SOURCE,
+      action: "skip",
+      changed: false,
+      detail: "Invalid OpenClaw config",
+    };
+  }
 
+  const config = loaded.config;
   let changed = false;
   const plugins = normalizeObject(config.plugins);
   const entries = normalizeObject(plugins.entries);
@@ -149,9 +163,11 @@ export async function getOpenClawHookStatus(
 ): Promise<NotifierStatus> {
   const fs = opts.fs ?? { readFile, writeFile, mkdir, rm };
   const pluginDir = join(opts.pluginBaseDir, PLUGIN_ID);
-  const config = await loadConfig(opts.openclawConfigPath, fs);
-  if (!config) return "not-installed";
+  const loaded = await loadConfig(opts.openclawConfigPath, fs);
+  if (loaded.status === "missing") return "not-installed";
+  if (loaded.status === "invalid") return "error";
 
+  const config = loaded.config;
   const plugins = normalizeObject(config.plugins);
   const entries = normalizeObject(plugins.entries);
   const load = normalizeObject(plugins.load);
@@ -171,16 +187,24 @@ export async function getOpenClawHookStatus(
 async function loadConfig(
   configPath: string,
   fs: OpenClawHookFs,
-): Promise<Record<string, unknown> | null> {
+): Promise<
+  | { status: "missing" }
+  | { status: "invalid" }
+  | { status: "ok"; config: Record<string, unknown> }
+> {
   try {
     const raw = await fs.readFile(configPath, "utf8");
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null;
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? { status: "ok", config: parsed as Record<string, unknown> }
+        : { status: "invalid" };
+    } catch {
+      return { status: "invalid" };
+    }
   } catch (err) {
-    if ((err as NodeJS.ErrnoException | undefined)?.code === "ENOENT") return null;
-    return null;
+    if ((err as NodeJS.ErrnoException | undefined)?.code === "ENOENT") return { status: "missing" };
+    throw err;
   }
 }
 
@@ -227,27 +251,31 @@ function buildPluginMeta(): string {
   )}\n`;
 }
 
-function buildPluginIndex(notifyPath: string): string {
+function buildPluginIndex(notifyPath: string, stateDir: string): string {
   return `import { spawn } from "node:child_process";
+import { readFile, writeFile } from "node:fs/promises";
 
 const NOTIFY_PATH = ${JSON.stringify(notifyPath)};
+const THROTTLE_STATE_PATH = ${JSON.stringify(join(stateDir, "openclaw.session-sync.trigger-state.json"))};
+const SESSION_TRIGGER_THROTTLE_MS = 15_000;
 
 export default function register(api) {
   api.on("agent_end", async () => {
-    triggerSync();
+    await triggerSync();
   });
 
   api.on("gateway_start", async () => {
-    triggerSync();
+    await triggerSync();
   });
 
   api.on("gateway_stop", async () => {
-    triggerSync();
+    await triggerSync();
   });
 }
 
-function triggerSync() {
+async function triggerSync() {
   try {
+    if (await isThrottled()) return;
     const child = spawn("/usr/bin/env", ["node", NOTIFY_PATH, "--source=openclaw"], {
       detached: true,
       stdio: "ignore",
@@ -255,6 +283,35 @@ function triggerSync() {
     });
     child.unref();
   } catch (_) {}
+}
+
+async function isThrottled() {
+  const now = Date.now();
+  let lastTriggeredAt = 0;
+
+  try {
+    const raw = await readFile(THROTTLE_STATE_PATH, "utf8");
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.lastTriggeredAt === "number") {
+      lastTriggeredAt = parsed.lastTriggeredAt;
+    }
+  } catch (error) {
+    if (error?.code !== "ENOENT") return false;
+  }
+
+  if (now - lastTriggeredAt < SESSION_TRIGGER_THROTTLE_MS) {
+    return true;
+  }
+
+  try {
+    await writeFile(
+      THROTTLE_STATE_PATH,
+      JSON.stringify({ lastTriggeredAt: now }) + "\\n",
+      "utf8",
+    );
+  } catch (_) {}
+
+  return false;
 }
 `;
 }
@@ -265,6 +322,12 @@ function normalizeObject(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function defaultSpawn(cmd: string, args: string[]): SpawnResult {
-  throw new Error(`openclaw spawn not configured for ${cmd} ${args.join(" ")}`);
+function defaultSpawn(cmd: string, args: string[], opts?: SpawnSyncOptions): SpawnResult {
+  const result = spawnSync(cmd, args, {
+    timeout: 30_000,
+    stdio: "ignore",
+    ...opts,
+  });
+  if (result.error) throw result.error;
+  return { status: result.status };
 }

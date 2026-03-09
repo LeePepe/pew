@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { CoordinatorRunResult, SyncTrigger } from "@pew/core";
 
 interface LockHandle {
-  lock(mode?: string, options?: { nonBlocking?: boolean }): Promise<void>;
+  lock?(mode?: string, options?: { nonBlocking?: boolean }): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -61,7 +61,12 @@ export async function coordinatedSync(
   let waitedForLock = false;
 
   try {
-    handle = await fs.open(lockPath, "w");
+    handle = await fs.open(lockPath, "a+");
+    if (typeof handle.lock !== "function") {
+      await handle.close().catch(() => {});
+      closeHandled = true;
+      return runUnlocked(baseResult, trigger, opts.executeSyncFn);
+    }
     await handle.lock("exclusive", { nonBlocking: true });
     acquiredLock = true;
   } catch (error) {
@@ -74,6 +79,9 @@ export async function coordinatedSync(
       waitedForLock = true;
       await appendSignal(opts.stateDir, fs);
       try {
+        if (typeof lockHandle.lock !== "function") {
+          throw new Error("lock unsupported");
+        }
         await withTimeout(lockHandle.lock("exclusive"), lockTimeoutMs);
       } catch {
         await lockHandle.close();

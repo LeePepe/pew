@@ -68,4 +68,35 @@ describe("OpenCode plugin installer", () => {
     expect(result.changed).toBe(false);
     expect(result.warnings).toContain("File does not contain pew marker");
   });
+
+  it("returns skip when uninstalling a missing plugin file", async () => {
+    const result = await uninstallOpenCodePlugin({ pluginDir, notifyPath });
+
+    expect(result.action).toBe("skip");
+    expect(result.detail).toContain("not found");
+  });
+
+  it("reports error status when the plugin file exists without the pew marker", async () => {
+    await mkdir(pluginDir, { recursive: true });
+    await writeFile(join(pluginDir, "pew-tracker.js"), "// user file", "utf8");
+
+    expect(await getOpenCodePluginStatus({ pluginDir, notifyPath })).toBe("error");
+  });
+
+  it("reports error status when the plugin file is unreadable", async () => {
+    const status = await getOpenCodePluginStatus({
+      pluginDir,
+      notifyPath,
+      fs: {
+        readFile: async () => {
+          throw Object.assign(new Error("denied"), { code: "EACCES" });
+        },
+        writeFile: async () => {},
+        mkdir: async () => {},
+        unlink: async () => {},
+      },
+    });
+
+    expect(status).toBe("error");
+  });
 });

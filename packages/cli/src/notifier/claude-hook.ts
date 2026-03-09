@@ -240,9 +240,7 @@ function hasCommand(entries: Record<string, unknown>[], command: string): boolea
 }
 
 function commandMatches(value: unknown, command: string): boolean {
-  return typeof value === "string" && value.includes("notify.cjs --source=claude-code")
-    ? value === command
-    : value === command;
+  return value === command;
 }
 
 async function writeSettings(

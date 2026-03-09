@@ -4,7 +4,7 @@ import { coordinatedSync } from "../notifier/coordinator.js";
 
 interface FakeLockHandle {
   close: ReturnType<typeof vi.fn>;
-  lock: ReturnType<typeof vi.fn>;
+  lock?: ReturnType<typeof vi.fn>;
 }
 
 interface FakeFsState {
@@ -227,6 +227,126 @@ describe("coordinatedSync", () => {
     expect(result.error).toBeUndefined();
   });
 
+  it("degrades to an unlocked sync when the runtime file handle has no lock method", async () => {
+    const handle: FakeLockHandle = {
+      close: vi.fn(async () => {}),
+    };
+    const fake = createFakeFs(handle, { signalSize: 1 });
+    const executeSyncFn = vi.fn(async () => {});
+
+    const result = await coordinatedSync(createTrigger(), {
+      stateDir: "/tmp/pew",
+      executeSyncFn,
+      fs: fake.fs,
+    });
+
+    expect(executeSyncFn).toHaveBeenCalledTimes(1);
+    expect(handle.close).toHaveBeenCalledTimes(1);
+    expect(result.waitedForLock).toBe(false);
+    expect(result.skippedSync).toBe(false);
+  });
+
+  it("degrades to an unlocked sync when fs.open fails before a handle is created", async () => {
+    const executeSyncFn = vi.fn(async () => {});
+
+    const result = await coordinatedSync(createTrigger(), {
+      stateDir: "/tmp/pew",
+      executeSyncFn,
+      fs: {
+        ...createFakeFs(createHandle(vi.fn(async () => {}))).fs,
+        open: vi.fn(async () => {
+          throw new Error("open failed");
+        }),
+      },
+    });
+
+    expect(executeSyncFn).toHaveBeenCalledTimes(1);
+    expect(result.error).toBeUndefined();
+  });
+
+  it("treats a missing signal file as size zero", async () => {
+    const handle = createHandle(vi.fn(async () => {}));
+    const fake = createFakeFs(handle, { signalExists: false });
+    const executeSyncFn = vi.fn(async () => {});
+
+    const result = await coordinatedSync(createTrigger(), {
+      stateDir: "/tmp/pew",
+      executeSyncFn,
+      fs: fake.fs,
+    });
+
+    expect(executeSyncFn).toHaveBeenCalledTimes(1);
+    expect(result.hadFollowUp).toBe(false);
+  });
+
+  it("rethrows unexpected signal stat errors while holding the lock", async () => {
+    const handle = createHandle(vi.fn(async () => {}));
+    const fake = createFakeFs(handle, { signalSize: 1 });
+    fake.fs.stat = vi.fn(async () => {
+      throw Object.assign(new Error("denied"), { code: "EACCES" });
+    });
+
+    await expect(
+      coordinatedSync(createTrigger(), {
+        stateDir: "/tmp/pew",
+        executeSyncFn: vi.fn(async () => {}),
+        fs: fake.fs,
+      }),
+    ).rejects.toThrow("denied");
+    expect(handle.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats EWOULDBLOCK like EAGAIN", async () => {
+    const busyErr = new Error("busy") as NodeJS.ErrnoException;
+    busyErr.code = "EWOULDBLOCK";
+    const handle = createHandle(
+      vi.fn(async (_mode?: string, opts?: { nonBlocking?: boolean }) => {
+        if (opts?.nonBlocking) throw busyErr;
+      }),
+    );
+    const fake = createFakeFs(handle, { signalSize: 1 });
+    const executeSyncFn = vi.fn(async () => {});
+
+    const result = await coordinatedSync(createTrigger(), {
+      stateDir: "/tmp/pew",
+      executeSyncFn,
+      fs: fake.fs,
+    });
+
+    expect(result.waitedForLock).toBe(true);
+    expect(executeSyncFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns sync errors in unlocked mode", async () => {
+    const result = await coordinatedSync(createTrigger(), {
+      stateDir: "/tmp/pew",
+      executeSyncFn: vi.fn(async () => {
+        throw new Error("sync failed");
+      }),
+      fs: {
+        ...createFakeFs(createHandle(vi.fn(async () => {}))).fs,
+        open: vi.fn(async () => {
+          throw new Error("open failed");
+        }),
+      },
+    });
+
+    expect(result.error).toContain("sync failed");
+  });
+
+  it("closes the lock handle after a successful run", async () => {
+    const handle = createHandle(vi.fn(async () => {}));
+    const fake = createFakeFs(handle, { signalSize: 0 });
+
+    await coordinatedSync(createTrigger(), {
+      stateDir: "/tmp/pew",
+      executeSyncFn: vi.fn(async () => {}),
+      fs: fake.fs,
+    });
+
+    expect(handle.close).toHaveBeenCalledTimes(1);
+  });
+
   it("times out while waiting for a blocking lock and closes the file handle", async () => {
     const busyErr = new Error("busy") as NodeJS.ErrnoException;
     busyErr.code = "EAGAIN";
@@ -250,5 +370,27 @@ describe("coordinatedSync", () => {
     expect(handle.close).toHaveBeenCalledTimes(1);
     expect(result.skippedSync).toBe(true);
     expect(result.error).toContain("lock timeout");
+  });
+
+  it("returns a timeout-style error when the blocking lock promise rejects", async () => {
+    const busyErr = new Error("busy") as NodeJS.ErrnoException;
+    busyErr.code = "EAGAIN";
+    const handle = createHandle(
+      vi.fn(async (_mode?: string, opts?: { nonBlocking?: boolean }) => {
+        if (opts?.nonBlocking) throw busyErr;
+        throw new Error("lock failed");
+      }),
+    );
+    const fake = createFakeFs(handle, { signalSize: 1 });
+
+    const result = await coordinatedSync(createTrigger(), {
+      stateDir: "/tmp/pew",
+      executeSyncFn: vi.fn(async () => {}),
+      fs: fake.fs,
+    });
+
+    expect(result.skippedSync).toBe(true);
+    expect(result.error).toContain("lock timeout");
+    expect(handle.close).toHaveBeenCalledTimes(1);
   });
 });

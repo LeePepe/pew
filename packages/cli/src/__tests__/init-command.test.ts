@@ -63,6 +63,7 @@ describe("executeInit", () => {
   it("does not write files during dry-run", async () => {
     const writeNotifyHandlerFn = vi.fn();
     const installAllFn = vi.fn();
+    const mkdirFn = vi.fn();
 
     const result = await executeInit({
       stateDir: "/tmp/pew",
@@ -76,9 +77,10 @@ describe("executeInit", () => {
         { source: "claude-code", displayName: "Claude Code" },
         { source: "codex", displayName: "Codex" },
       ] as Array<{ source: Source; displayName: string }>,
-      mkdirFn: vi.fn(async () => {}),
+      mkdirFn,
     });
 
+    expect(mkdirFn).not.toHaveBeenCalled();
     expect(writeNotifyHandlerFn).not.toHaveBeenCalled();
     expect(installAllFn).not.toHaveBeenCalled();
     expect(result.hooks).toHaveLength(2);
@@ -112,5 +114,59 @@ describe("executeInit", () => {
       spawn: undefined,
     });
     expect(result.hooks).toHaveLength(1);
+  });
+
+  it("continues filtering installs when one selected source throws", async () => {
+    const installDriverFn = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValueOnce({
+        source: "gemini-cli",
+        action: "install",
+        changed: true,
+        detail: "ok",
+      });
+
+    const result = await executeInit({
+      stateDir: "/tmp/pew",
+      home: "/tmp",
+      pewBin: "/tmp/bin/pew",
+      sources: ["codex", "gemini-cli"],
+      resolveNotifierPathsFn: createPaths,
+      writeNotifyHandlerFn: vi.fn(async () => ({
+        changed: true,
+        path: "/tmp/pew/bin/notify.cjs",
+      })),
+      installDriverFn,
+      mkdirFn: vi.fn(async () => {}),
+    });
+
+    expect(result.hooks).toHaveLength(2);
+    expect(result.hooks[0]?.action).toBe("skip");
+    expect(result.hooks[1]?.source).toBe("gemini-cli");
+  });
+
+  it("returns skip for an unknown source when using the built-in driver lookup", async () => {
+    const result = await executeInit({
+      stateDir: "/tmp/pew",
+      home: "/tmp",
+      pewBin: "/tmp/bin/pew",
+      sources: ["unknown-source" as Source],
+      resolveNotifierPathsFn: createPaths,
+      writeNotifyHandlerFn: vi.fn(async () => ({
+        changed: true,
+        path: "/tmp/pew/bin/notify.cjs",
+      })),
+      mkdirFn: vi.fn(async () => {}),
+    });
+
+    expect(result.hooks).toEqual([
+      {
+        source: "unknown-source",
+        action: "skip",
+        changed: false,
+        detail: "Unknown source",
+      },
+    ]);
   });
 });

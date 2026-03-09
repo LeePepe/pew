@@ -85,6 +85,17 @@ describe("Codex notifier installer", () => {
     expect(result.changed).toBe(false);
   });
 
+  it("skips install when config.toml is missing", async () => {
+    const result = await installCodexNotifier({
+      configPath,
+      notifyPath,
+      originalBackupPath,
+    });
+
+    expect(result.action).toBe("skip");
+    expect(result.detail).toContain("not found");
+  });
+
   it("restores the original notify from backup on uninstall", async () => {
     await writeFile(
       configPath,
@@ -133,6 +144,19 @@ describe("Codex notifier installer", () => {
     expect(updated).not.toContain("notify =");
   });
 
+  it("skips uninstall when the pew notify is not installed", async () => {
+    await writeFile(configPath, 'notify = ["/usr/bin/env", "node", "/tmp/original.js"]\n', "utf8");
+
+    const result = await uninstallCodexNotifier({
+      configPath,
+      notifyPath,
+      originalBackupPath,
+    });
+
+    expect(result.action).toBe("skip");
+    expect(result.detail).toContain("not installed");
+  });
+
   it("reports installed and not-installed status", async () => {
     expect(
       await getCodexNotifierStatus({ configPath, notifyPath, originalBackupPath }),
@@ -147,5 +171,42 @@ describe("Codex notifier installer", () => {
     expect(
       await getCodexNotifierStatus({ configPath, notifyPath, originalBackupPath }),
     ).toBe("installed");
+  });
+
+  it("preserves an explicit empty notify array", async () => {
+    await writeFile(configPath, "notify = []\n", "utf8");
+
+    await installCodexNotifier({
+      configPath,
+      notifyPath,
+      originalBackupPath,
+    });
+
+    const backup = await readFile(originalBackupPath, "utf8").catch(() => null);
+    expect(backup).toBeNull();
+  });
+
+  it("replaces a malformed multiline notify array without crashing", async () => {
+    await writeFile(
+      configPath,
+      [
+        'model = "gpt-5"',
+        "notify = [",
+        '  "/usr/bin/env",',
+        '  "node",',
+        '  "/tmp/broken-notify.js"',
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = await installCodexNotifier({
+      configPath,
+      notifyPath,
+      originalBackupPath,
+    });
+    const updated = await readFile(configPath, "utf8");
+
+    expect(result.changed).toBe(true);
+    expect(updated).toContain('"/tmp/pew/bin/notify.cjs"');
   });
 });

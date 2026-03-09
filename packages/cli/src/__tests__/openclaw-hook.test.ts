@@ -57,6 +57,8 @@ describe("OpenClaw hook installer", () => {
     expect(index).toContain("gateway_start");
     expect(index).toContain("gateway_stop");
     expect(index).toContain("--source=openclaw");
+    expect(index).toContain("SESSION_TRIGGER_THROTTLE_MS = 15_000");
+    expect(index).toContain("openclaw.session-sync.trigger-state.json");
   });
 
   it("skips installation when the openclaw CLI is missing", async () => {
@@ -75,6 +77,44 @@ describe("OpenClaw hook installer", () => {
 
     expect(result.action).toBe("skip");
     expect(result.warnings?.[0]).toContain("openclaw CLI not found");
+  });
+
+  it("skips installation when default spawn cannot find openclaw", async () => {
+    const originalPath = process.env.PATH;
+
+    try {
+      process.env.PATH = "";
+      const result = await installOpenClawHook({
+        pluginBaseDir,
+        notifyPath,
+        openclawConfigPath,
+      });
+
+      expect(result.action).toBe("skip");
+      expect(result.warnings?.[0]).toContain("openclaw CLI not found");
+    } finally {
+      process.env.PATH = originalPath;
+    }
+  });
+
+  it("returns warnings when install or enable exits non-zero", async () => {
+    const spawn = vi
+      .fn()
+      .mockReturnValueOnce({ status: 1 })
+      .mockReturnValueOnce({ status: 2 });
+
+    const result = await installOpenClawHook({
+      pluginBaseDir,
+      notifyPath,
+      openclawConfigPath,
+      spawn,
+    });
+
+    expect(result.action).toBe("skip");
+    expect(result.warnings).toEqual([
+      "openclaw plugin install failed",
+      "openclaw plugin enable failed",
+    ]);
   });
 
   it("reports installed status when config and files are present", async () => {
@@ -107,6 +147,44 @@ describe("OpenClaw hook installer", () => {
     expect(
       await getOpenClawHookStatus({ pluginBaseDir, notifyPath, openclawConfigPath }),
     ).toBe("installed");
+  });
+
+  it("reports not-installed status when config exists but plugin files are incomplete", async () => {
+    const pluginDir = join(pluginBaseDir, "pew-session-sync");
+    await mkdir(pluginDir, { recursive: true });
+    await writeFile(join(pluginDir, "package.json"), "{}\n", "utf8");
+    await writeFile(
+      openclawConfigPath,
+      `${JSON.stringify(
+        {
+          plugins: {
+            entries: { "pew-session-sync": { enabled: true } },
+            load: { paths: [pluginDir] },
+            installs: {
+              "pew-session-sync": {
+                sourcePath: pluginDir,
+                installPath: pluginDir,
+              },
+            },
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+
+    expect(
+      await getOpenClawHookStatus({ pluginBaseDir, notifyPath, openclawConfigPath }),
+    ).toBe("not-installed");
+  });
+
+  it("reports error status for an invalid config file", async () => {
+    await writeFile(openclawConfigPath, "{invalid-json}\n", "utf8");
+
+    expect(
+      await getOpenClawHookStatus({ pluginBaseDir, notifyPath, openclawConfigPath }),
+    ).toBe("error");
   });
 
   it("removes plugin references from config and deletes the plugin directory", async () => {
@@ -151,5 +229,35 @@ describe("OpenClaw hook installer", () => {
     expect(saved.plugins.entries.keep).toBeDefined();
     expect(saved.plugins.entries["pew-session-sync"]).toBeUndefined();
     expect(saved.plugins.load.paths).toEqual(["/tmp/keep"]);
+  });
+
+  it("skips uninstall when the config file is missing", async () => {
+    const pluginDir = join(pluginBaseDir, "pew-session-sync");
+    await mkdir(pluginDir, { recursive: true });
+    await writeFile(join(pluginDir, "package.json"), "{}\n", "utf8");
+
+    const result = await uninstallOpenClawHook({
+      pluginBaseDir,
+      notifyPath,
+      openclawConfigPath,
+    });
+
+    expect(result.action).toBe("skip");
+    await expect(readFile(join(pluginDir, "package.json"), "utf8")).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
+  it("skips uninstall when the config file is invalid", async () => {
+    await writeFile(openclawConfigPath, "{invalid-json}\n", "utf8");
+
+    const result = await uninstallOpenClawHook({
+      pluginBaseDir,
+      notifyPath,
+      openclawConfigPath,
+    });
+
+    expect(result.action).toBe("skip");
+    expect(result.detail).toContain("Invalid OpenClaw config");
   });
 });

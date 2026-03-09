@@ -97,7 +97,12 @@ export async function getOpenCodePluginStatus(
 ): Promise<NotifierStatus> {
   const fs = opts.fs ?? { readFile, writeFile, mkdir, unlink };
   const pluginName = opts.pluginName ?? DEFAULT_PLUGIN_NAME;
-  const existing = await readOptional(join(opts.pluginDir, pluginName), fs);
+  let existing: string | null;
+  try {
+    existing = await readOptional(join(opts.pluginDir, pluginName), fs);
+  } catch {
+    return "error";
+  }
 
   if (existing === null) return "not-installed";
   return existing.includes(PLUGIN_MARKER) ? "installed" : "error";
