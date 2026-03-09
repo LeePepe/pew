@@ -14,6 +14,7 @@
 - [x] Step 9: Notifier Registry
 - [x] Step 10: `pew notify` CLI 命令
 - [x] Step 11: `pew init` CLI 命令
+- [x] Step 12: `pew uninstall` CLI 命令
 
 ### 当前状态
 
@@ -59,6 +60,7 @@ packages/cli/src/notifier/codex-notifier.ts         # Codex TOML notify 安装�
 packages/cli/src/notifier/registry.ts               # Notifier 注册表
 packages/cli/src/commands/notify.ts                 # pew notify 命令
 packages/cli/src/commands/init.ts                   # pew init 命令
+packages/cli/src/commands/uninstall.ts              # pew uninstall 命令
 packages/cli/src/__tests__/coordinator.test.ts      # Coordinator 测试
 packages/cli/src/__tests__/notify-handler.test.ts   # notify-handler 测试
 packages/cli/src/__tests__/notifier-paths.test.ts   # 路径解析器测试
@@ -70,6 +72,7 @@ packages/cli/src/__tests__/codex-notifier.test.ts   # Codex notifier 测试
 packages/cli/src/__tests__/registry.test.ts         # Registry 测试
 packages/cli/src/__tests__/notify-command.test.ts   # pew notify 命令测试
 packages/cli/src/__tests__/init-command.test.ts     # pew init 命令测试
+packages/cli/src/__tests__/uninstall-command.test.ts # pew uninstall 命令测试
 ```
 
 ---

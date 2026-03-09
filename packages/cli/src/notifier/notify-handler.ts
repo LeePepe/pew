@@ -1,4 +1,4 @@
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { execFile } from "node:child_process";
 import { dirname, join } from "node:path";
@@ -17,6 +17,11 @@ interface WriteNotifyHandlerFs {
   mkdir: (path: string, options: { recursive: boolean }) => Promise<unknown>;
 }
 
+interface RemoveNotifyHandlerFs {
+  readFile: (path: string, encoding: BufferEncoding) => Promise<string>;
+  unlink: (path: string) => Promise<unknown>;
+}
+
 export interface WriteNotifyHandlerOptions {
   binDir: string;
   source: string;
@@ -24,11 +29,18 @@ export interface WriteNotifyHandlerOptions {
   now?: () => string;
 }
 
+export interface RemoveNotifyHandlerOptions {
+  notifyPath: string;
+  fs?: RemoveNotifyHandlerFs;
+}
+
+export const NOTIFY_HANDLER_MARKER = "PEW_NOTIFY_HANDLER";
+
 export function buildNotifyHandler(opts: BuildNotifyHandlerOptions): string {
   const { stateDir, pewBin } = opts;
 
   return `#!/usr/bin/env node
-// PEW_NOTIFY_HANDLER — Auto-generated, do not edit
+// ${NOTIFY_HANDLER_MARKER} — Auto-generated, do not edit
 "use strict";
 
 const { appendFileSync, readFileSync, mkdirSync, existsSync } = require("node:fs");
@@ -137,6 +149,42 @@ export async function writeNotifyHandler(
 
   await fs.writeFile(notifyPath, opts.source, "utf8");
   return { changed: true, path: notifyPath, backupPath };
+}
+
+export async function removeNotifyHandler(
+  opts: RemoveNotifyHandlerOptions,
+): Promise<{ changed: boolean; path: string; detail: string; warnings?: string[] }> {
+  const fs = opts.fs ?? { readFile, unlink };
+  let existing: string;
+
+  try {
+    existing = await fs.readFile(opts.notifyPath, "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException | undefined)?.code === "ENOENT") {
+      return {
+        changed: false,
+        path: opts.notifyPath,
+        detail: "notify.cjs not found",
+      };
+    }
+    throw err;
+  }
+
+  if (!existing.includes(NOTIFY_HANDLER_MARKER)) {
+    return {
+      changed: false,
+      path: opts.notifyPath,
+      detail: "notify.cjs did not match pew marker",
+      warnings: ["File does not contain pew marker"],
+    };
+  }
+
+  await fs.unlink(opts.notifyPath);
+  return {
+    changed: true,
+    path: opts.notifyPath,
+    detail: "notify.cjs removed",
+  };
 }
 
 export async function resolvePewBin(): Promise<string> {

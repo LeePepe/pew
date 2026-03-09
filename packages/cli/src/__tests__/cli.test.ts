@@ -23,10 +23,11 @@ describe("CLI main command", () => {
     expect(names).toContain("login");
     expect(names).toContain("notify");
     expect(names).toContain("init");
+    expect(names).toContain("uninstall");
   });
 
-  it("should have exactly 5 subcommands", () => {
+  it("should have exactly 6 subcommands", () => {
     const names = Object.keys(main.subCommands!);
-    expect(names).toHaveLength(5);
+    expect(names).toHaveLength(6);
   });
 });

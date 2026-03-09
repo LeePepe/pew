@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   buildNotifyHandler,
+  removeNotifyHandler,
   resolvePewBin,
   writeNotifyHandler,
 } from "../notifier/notify-handler.js";
@@ -135,6 +136,60 @@ describe("writeNotifyHandler", () => {
     expect(result.backupPath).toBe(
       "/tmp/pew/bin/notify.cjs.bak.2026-03-09T10-00-00-000Z",
     );
+  });
+});
+
+describe("removeNotifyHandler", () => {
+  it("removes a generated notify.cjs file", async () => {
+    const fs = {
+      readFile: vi.fn(async () => "#!/usr/bin/env node\n// PEW_NOTIFY_HANDLER — Auto-generated\n"),
+      unlink: vi.fn(async () => {}),
+    };
+
+    const result = await removeNotifyHandler({
+      notifyPath: "/tmp/pew/bin/notify.cjs",
+      fs,
+    });
+
+    expect(fs.unlink).toHaveBeenCalledWith("/tmp/pew/bin/notify.cjs");
+    expect(result.changed).toBe(true);
+    expect(result.detail).toContain("removed");
+  });
+
+  it("skips removal when notify.cjs is missing", async () => {
+    const fs = {
+      readFile: vi.fn(async () => {
+        const err = new Error("missing") as NodeJS.ErrnoException;
+        err.code = "ENOENT";
+        throw err;
+      }),
+      unlink: vi.fn(async () => {}),
+    };
+
+    const result = await removeNotifyHandler({
+      notifyPath: "/tmp/pew/bin/notify.cjs",
+      fs,
+    });
+
+    expect(fs.unlink).not.toHaveBeenCalled();
+    expect(result.changed).toBe(false);
+    expect(result.detail).toContain("not found");
+  });
+
+  it("skips removal when notify.cjs does not match the pew marker", async () => {
+    const fs = {
+      readFile: vi.fn(async () => "#!/usr/bin/env node\n// user script\n"),
+      unlink: vi.fn(async () => {}),
+    };
+
+    const result = await removeNotifyHandler({
+      notifyPath: "/tmp/pew/bin/notify.cjs",
+      fs,
+    });
+
+    expect(fs.unlink).not.toHaveBeenCalled();
+    expect(result.changed).toBe(false);
+    expect(result.warnings).toContain("File does not contain pew marker");
   });
 });
 

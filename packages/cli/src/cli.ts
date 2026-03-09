@@ -12,6 +12,7 @@ import { executeUpload } from "./commands/upload.js";
 import { executeSessionUpload } from "./commands/session-upload.js";
 import { executeNotify } from "./commands/notify.js";
 import { executeInit } from "./commands/init.js";
+import { executeUninstall } from "./commands/uninstall.js";
 
 // ---------------------------------------------------------------------------
 // Dev mode detection (otter pattern)
@@ -387,6 +388,57 @@ const initCommand = defineCommand({
   },
 });
 
+const uninstallCommand = defineCommand({
+  meta: {
+    name: "uninstall",
+    description: "Remove notifier hooks for supported AI tools",
+  },
+  args: {
+    dryRun: {
+      type: "boolean",
+      description: "Preview changes without writing files",
+      default: false,
+    },
+    source: {
+      type: "string",
+      description: "Only uninstall hooks for a specific source",
+      required: false,
+    },
+  },
+  async run({ args }) {
+    const selectedSources =
+      args.source && isSource(args.source) ? [args.source] : undefined;
+    if (args.source && !selectedSources) {
+      consola.error(`Invalid source: ${args.source}`);
+      process.exitCode = 1;
+      return;
+    }
+
+    const result = await executeUninstall({
+      stateDir: resolveDefaultPaths().stateDir,
+      home: homedir(),
+      env: process.env,
+      dryRun: args.dryRun,
+      sources: selectedSources,
+    });
+
+    consola.log("");
+    consola.log(pc.bold(args.dryRun ? "Pew Uninstall (Dry Run)" : "Pew Uninstall"));
+    consola.log(`  notify.cjs: ${pc.dim(result.notifyHandler.path)}  ${result.notifyHandler.detail}`);
+    consola.log(`  codex backup: ${pc.dim(result.codexBackup.path)}  ${result.codexBackup.detail}`);
+    for (const hook of result.hooks) {
+      const symbol = hook.changed ? pc.green("✓") : pc.dim("•");
+      consola.log(`  ${symbol} ${hook.source}  ${hook.detail}`);
+      if (hook.warnings?.length) {
+        for (const warning of hook.warnings) {
+          consola.log(`    ${pc.yellow(warning)}`);
+        }
+      }
+    }
+    consola.log("");
+  },
+});
+
 // ---------------------------------------------------------------------------
 // Upload helper (used by `sync --upload`)
 // ---------------------------------------------------------------------------
@@ -489,5 +541,6 @@ export const main = defineCommand({
     login: loginCommand,
     notify: notifyCommand,
     init: initCommand,
+    uninstall: uninstallCommand,
   },
 });
