@@ -1,5 +1,26 @@
 # 11. Notifier 实现计划
 
+## 实施进度
+
+- [x] Step 1: 核心类型
+- [ ] Step 2: Coordinator（跨进程 file-lock + signal 文件）
+- [ ] Step 3: notify-handler（notify.cjs 生成器）
+- [ ] Step 3.5: 统一 Notifier 路径解析器
+- [ ] Step 4: Claude Code Hook 安装器
+- [ ] Step 5: Gemini CLI Hook 安装器
+- [ ] Step 6: OpenCode Plugin 安装器
+- [ ] Step 7: OpenClaw Hook 安装器
+- [ ] Step 8: Codex Notifier（TOML notify 字段）
+- [ ] Step 9: Notifier Registry
+- [ ] Step 10: `pew notify` CLI 命令
+- [ ] Step 11: `pew init` CLI 命令
+
+### 当前状态
+
+- 当前进行中：Step 2 / Step 3.5 设计与测试
+- 参考来源：`~/workspace/personal/vibeusage` 的安装器与插件生成逻辑可复用；Coordinator/notify 并发模型按本计划重写
+- 提交策略：按步骤原子化提交，每完成一块同步更新本节
+
 ## 概述
 
 本计划覆盖架构计划（`docs/10`）中 **Layer 1（Trigger Layer）** 和 **Layer 2（Coordinator Layer）** 的完整实现，加上 5 个 AI 工具的 hook/plugin 安装器和两个新 CLI 命令。
