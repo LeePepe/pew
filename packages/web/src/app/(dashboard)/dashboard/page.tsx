@@ -7,13 +7,15 @@ import {
   ArrowUpFromLine,
   Database,
   DollarSign,
+  PiggyBank,
 } from "lucide-react";
 import { useUsageData, toHeatmapData } from "@/hooks/use-usage-data";
-import { formatTokens } from "@/lib/utils";
+import { formatTokens, cn } from "@/lib/utils";
 import { usePricingMap, formatCost } from "@/hooks/use-pricing";
-import { computeTotalCost } from "@/lib/cost-helpers";
+import { computeTotalCost, toDailyCostPoints, computeCacheSavings } from "@/lib/cost-helpers";
 import { StatCard, StatGrid } from "@/components/dashboard/stat-card";
 import { UsageTrendChart } from "@/components/dashboard/usage-trend-chart";
+import { CostTrendChart } from "@/components/dashboard/cost-trend-chart";
 import { SourceDonutChart } from "@/components/dashboard/source-donut-chart";
 import { HeatmapCalendar } from "@/components/dashboard/heatmap-calendar";
 import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
@@ -26,8 +28,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 // Page
 // ---------------------------------------------------------------------------
 
+type ChartTab = "tokens" | "cost";
+
 export default function DashboardPage() {
   const [period, setPeriod] = useState<Period>("all");
+  const [chartTab, setChartTab] = useState<ChartTab>("tokens");
   const { from, to } = periodToDateRange(period);
 
   const { data, daily, sources, models, loading, error } = useUsageData({
@@ -42,6 +47,16 @@ export default function DashboardPage() {
   const { pricingMap } = usePricingMap();
 
   const estimatedCost = useMemo(() => computeTotalCost(models, pricingMap), [models, pricingMap]);
+
+  const dailyCostPoints = useMemo(
+    () => (data ? toDailyCostPoints(data.records, pricingMap) : []),
+    [data, pricingMap],
+  );
+
+  const cacheSavings = useMemo(
+    () => computeCacheSavings(models, pricingMap),
+    [models, pricingMap],
+  );
 
   const subtitle = periodLabel(period);
 
@@ -72,7 +87,7 @@ export default function DashboardPage() {
       {!loading && data && (
         <>
           {/* Stat cards */}
-          <StatGrid columns={3}>
+          <StatGrid columns={4}>
             <StatCard
               title="Total Tokens"
               value={formatTokens(data.summary.total_tokens)}
@@ -89,14 +104,21 @@ export default function DashboardPage() {
             />
             <StatCard
               title="Cache Savings"
-              value={
-                data.summary.input_tokens > 0
-                  ? `${Math.round((data.summary.cached_input_tokens / data.summary.input_tokens) * 100)}%`
-                  : "0%"
-              }
-              subtitle={`${formatTokens(data.summary.cached_input_tokens)} cached tokens`}
-              icon={Database}
+              value={formatCost(cacheSavings.netSavings)}
+              subtitle={`${Math.round(cacheSavings.savingsPercent)}% vs full input price`}
+              icon={PiggyBank}
               iconColor="text-success"
+            />
+            <StatCard
+              title="Cached Tokens"
+              value={formatTokens(data.summary.cached_input_tokens)}
+              subtitle={
+                data.summary.input_tokens > 0
+                  ? `${Math.round((data.summary.cached_input_tokens / data.summary.input_tokens) * 100)}% hit rate`
+                  : "0% hit rate"
+              }
+              icon={Database}
+              iconColor="text-muted-foreground"
             />
           </StatGrid>
 
@@ -124,7 +146,31 @@ export default function DashboardPage() {
 
           {/* Charts row */}
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-3 md:gap-4">
-            <UsageTrendChart data={daily} />
+            <div>
+              {/* Tab toggle: Tokens | Cost */}
+              <div className="mb-3 flex items-center gap-1 rounded-lg bg-muted p-1 w-fit">
+                {(["tokens", "cost"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setChartTab(tab)}
+                    className={cn(
+                      "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                      chartTab === tab
+                        ? "bg-secondary text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {tab === "tokens" ? "Tokens" : "Cost"}
+                  </button>
+                ))}
+              </div>
+              {chartTab === "tokens" ? (
+                <UsageTrendChart data={daily} />
+              ) : (
+                <CostTrendChart data={dailyCostPoints} />
+              )}
+            </div>
             <SourceDonutChart data={sources} />
           </div>
 
