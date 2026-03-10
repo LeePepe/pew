@@ -167,7 +167,13 @@ export function LandingContent() {
           <span className="font-mono text-xs text-primary" aria-hidden="true">
             2
           </span>
-          <span>Sign in and grab your API key</span>
+          <span>
+            Run{" "}
+            <code className="rounded bg-foreground/[0.05] px-1.5 py-0.5 font-mono text-xs text-foreground">
+              pew login
+            </code>{" "}
+            to authenticate
+          </span>
         </li>
         <li className="flex items-baseline gap-2">
           <span className="font-mono text-xs text-primary" aria-hidden="true">
