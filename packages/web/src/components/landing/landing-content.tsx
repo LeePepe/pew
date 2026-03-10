@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
   Terminal,
   BarChart3,
@@ -9,6 +10,7 @@ import {
   Shield,
   Copy,
   Check,
+  LogIn,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -133,7 +135,43 @@ export function LandingContent() {
             touching your conversations.
           </p>
 
+          <Link
+            href="/login"
+            className="inline-flex w-full max-w-md items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            <LogIn className="h-4 w-4" strokeWidth={1.5} />
+            Sign in to dashboard
+          </Link>
+
           <InstallCommand />
+
+          {/* Usage steps */}
+          <ol className="max-w-md space-y-1 text-xs text-muted-foreground">
+            <li className="flex items-baseline gap-2">
+              <span className="font-mono text-primary">1.</span>
+              <span>
+                Run{" "}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">
+                  bunx @nocoo/pew
+                </code>{" "}
+                to scan local AI tool logs
+              </span>
+            </li>
+            <li className="flex items-baseline gap-2">
+              <span className="font-mono text-primary">2.</span>
+              <span>Sign in and grab your API key from the dashboard</span>
+            </li>
+            <li className="flex items-baseline gap-2">
+              <span className="font-mono text-primary">3.</span>
+              <span>
+                Run{" "}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">
+                  bunx @nocoo/pew sync
+                </code>{" "}
+                to upload usage data
+              </span>
+            </li>
+          </ol>
         </div>
 
         {/* Right — feature grid */}

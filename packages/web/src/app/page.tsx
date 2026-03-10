@@ -1,28 +1,22 @@
-import Link from "next/link";
-import { Github, LogIn } from "lucide-react";
+import { Github } from "lucide-react";
 import { LandingContent } from "@/components/landing/landing-content";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 export default function LandingPage() {
   return (
     <div className="relative flex h-screen flex-col bg-background overflow-hidden">
       {/* Top-right icons */}
-      <div className="absolute right-6 top-4 z-50 flex items-center gap-3">
+      <div className="absolute right-6 top-4 z-50 flex items-center gap-1">
         <a
           href="https://github.com/nicnocquee/pew"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-muted-foreground hover:text-foreground transition-colors"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground transition-colors"
           aria-label="GitHub"
         >
-          <Github className="h-5 w-5" strokeWidth={1.5} />
+          <Github className="h-4 w-4" strokeWidth={1.5} />
         </a>
-        <Link
-          href="/login"
-          className="text-muted-foreground hover:text-foreground transition-colors"
-          aria-label="Sign in"
-        >
-          <LogIn className="h-5 w-5" strokeWidth={1.5} />
-        </Link>
+        <ThemeToggle />
       </div>
 
       {/* Main — fills remaining space */}
