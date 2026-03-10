@@ -1,0 +1,238 @@
+"use client";
+
+import { useMemo } from "react";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
+import { cn } from "@/lib/utils";
+import { chartAxis, CHART_COLORS } from "@/lib/palette";
+import { shortModel } from "@/lib/model-helpers";
+import type { ModelEra } from "@/lib/model-helpers";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface ModelEvolutionChartProps {
+  data: ModelEra[];
+  className?: string;
+}
+
+/** Flat row for Recharts — one key per model holding its percentage. */
+interface ChartRow {
+  date: string;
+  [model: string]: string | number; // date is string, rest are percentages
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Format date string "2026-03-07" to "Mar 7" */
+function fmtDate(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00Z");
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** Format Y-axis percentage: 0%, 50%, 100% */
+function fmtPct(value: number): string {
+  return `${Math.round(value)}%`;
+}
+
+// ---------------------------------------------------------------------------
+// Custom tooltip
+// ---------------------------------------------------------------------------
+
+function EvolutionTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: Array<{ dataKey: string; value: number; color: string }>;
+  label?: string;
+}) {
+  if (!active || !payload?.length) return null;
+
+  // Reverse to show top model first (matches visual stacking)
+  const items = [...payload].reverse();
+
+  return (
+    <div className="rounded-[var(--radius-widget)] border border-border bg-card p-2.5 shadow-sm">
+      <p className="mb-1.5 text-xs font-medium text-foreground">
+        {label ? fmtDate(label) : ""}
+      </p>
+      {items.map((entry) => (
+        <div key={entry.dataKey} className="flex items-center gap-2 text-xs">
+          <div
+            className="h-2 w-2 rounded-full"
+            style={{ backgroundColor: entry.color }}
+          />
+          <span className="text-muted-foreground">
+            {shortModel(entry.dataKey)}
+          </span>
+          <span className="ml-auto font-medium text-foreground">
+            {entry.value.toFixed(1)}%
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+/**
+ * 100% stacked area chart showing model usage share over time.
+ * Each model is a band; the total always sums to 100%.
+ */
+export function ModelEvolutionChart({
+  data,
+  className,
+}: ModelEvolutionChartProps) {
+  // Extract unique model keys from first data point (all points zero-filled)
+  const modelKeys = useMemo(() => {
+    if (!data.length) return [];
+    return Object.keys(data[0]!.models);
+  }, [data]);
+
+  // Convert absolute counts to percentages for 100% stacking
+  const chartData: ChartRow[] = useMemo(
+    () =>
+      data.map((pt) => {
+        const total = Object.values(pt.models).reduce((s, v) => s + v, 0);
+        const row: ChartRow = { date: pt.date };
+        for (const model of modelKeys) {
+          row[model] = total > 0 ? ((pt.models[model] ?? 0) / total) * 100 : 0;
+        }
+        return row;
+      }),
+    [data, modelKeys]
+  );
+
+  if (!data.length) {
+    return (
+      <div
+        className={cn(
+          "flex items-center justify-center rounded-[var(--radius-card)] bg-secondary p-8 text-sm text-muted-foreground",
+          className
+        )}
+      >
+        No model data yet
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "rounded-[var(--radius-card)] bg-secondary p-4 md:p-5",
+        className
+      )}
+    >
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <p className="text-xs md:text-sm text-muted-foreground">
+            Model Evolution
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          {modelKeys.map((model, i) => (
+            <div key={model} className="flex items-center gap-1.5">
+              <div
+                className="h-2 w-2 rounded-full"
+                style={{
+                  background: CHART_COLORS[i % CHART_COLORS.length]!,
+                }}
+              />
+              <span className="text-xs text-muted-foreground">
+                {shortModel(model)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="h-[240px] md:h-[280px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart
+            data={chartData}
+            margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
+            stackOffset="none"
+          >
+            <defs>
+              {modelKeys.map((model, i) => (
+                <linearGradient
+                  key={model}
+                  id={`gradModel${i}`}
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
+                  <stop
+                    offset="0%"
+                    stopColor={CHART_COLORS[i % CHART_COLORS.length]!}
+                    stopOpacity={0.6}
+                  />
+                  <stop
+                    offset="100%"
+                    stopColor={CHART_COLORS[i % CHART_COLORS.length]!}
+                    stopOpacity={0.2}
+                  />
+                </linearGradient>
+              ))}
+            </defs>
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke={chartAxis}
+              strokeOpacity={0.15}
+              vertical={false}
+            />
+            <XAxis
+              dataKey="date"
+              tickFormatter={fmtDate}
+              tick={{ fill: chartAxis, fontSize: 11 }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              tickFormatter={fmtPct}
+              tick={{ fill: chartAxis, fontSize: 11 }}
+              axisLine={false}
+              tickLine={false}
+              width={44}
+              domain={[0, 100]}
+            />
+            <Tooltip
+              content={<EvolutionTooltip />}
+            />
+            {modelKeys.map((model, i) => (
+              <Area
+                key={model}
+                type="monotone"
+                dataKey={model}
+                stackId="1"
+                stroke={CHART_COLORS[i % CHART_COLORS.length]!}
+                strokeWidth={1.5}
+                fill={`url(#gradModel${i})`}
+              />
+            ))}
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
