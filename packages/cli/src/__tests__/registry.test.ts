@@ -87,4 +87,78 @@ describe("notifier registry", () => {
     expect(statuses.codex).toBe("not-installed");
     expect(statuses["claude-code"]).toBe("not-installed");
   });
+
+  it("installAll catches driver.install errors and returns skip result", async () => {
+    // Mock the claude-hook install to throw
+    const claudeHook = await import("../notifier/claude-hook.js");
+    const spy = vi
+      .spyOn(claudeHook, "installClaudeHook")
+      .mockRejectedValue(new Error("Claude install boom"));
+
+    try {
+      const results = await installAll(paths);
+      const claudeResult = results.find((r) => r.source === "claude-code");
+
+      expect(claudeResult).toBeDefined();
+      expect(claudeResult!.action).toBe("skip");
+      expect(claudeResult!.changed).toBe(false);
+      expect(claudeResult!.detail).toBe("Claude install boom");
+      expect(claudeResult!.warnings).toContain("Driver install failed");
+
+      // Other drivers should still have completed
+      expect(results).toHaveLength(5);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("uninstallAll catches driver.uninstall errors and returns skip result", async () => {
+    // First install so there's something to uninstall
+    const spawn = vi.fn(() => {
+      const err = new Error("missing") as NodeJS.ErrnoException;
+      err.code = "ENOENT";
+      throw err;
+    });
+    await installAll(paths, { spawn });
+
+    // Mock gemini-hook uninstall to throw
+    const geminiHook = await import("../notifier/gemini-hook.js");
+    const spy = vi
+      .spyOn(geminiHook, "uninstallGeminiHook")
+      .mockRejectedValue(new Error("Gemini uninstall crash"));
+
+    try {
+      const results = await uninstallAll(paths, { spawn });
+      const geminiResult = results.find((r) => r.source === "gemini-cli");
+
+      expect(geminiResult).toBeDefined();
+      expect(geminiResult!.action).toBe("skip");
+      expect(geminiResult!.changed).toBe(false);
+      expect(geminiResult!.detail).toBe("Gemini uninstall crash");
+      expect(geminiResult!.warnings).toContain("Driver uninstall failed");
+
+      // Other drivers should still have completed
+      expect(results).toHaveLength(5);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("statusAll catches driver.status errors and returns 'error'", async () => {
+    // Mock codex status to throw
+    const codexNotifier = await import("../notifier/codex-notifier.js");
+    const spy = vi
+      .spyOn(codexNotifier, "getCodexNotifierStatus")
+      .mockRejectedValue(new Error("Status check failed"));
+
+    try {
+      const statuses = await statusAll(paths);
+
+      expect(statuses.codex).toBe("error");
+      // Other sources should still report their status normally
+      expect(statuses["claude-code"]).toBe("not-installed");
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });

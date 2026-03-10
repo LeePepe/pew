@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtemp, rm, writeFile, mkdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -977,5 +977,593 @@ describe("executeSessionSync", () => {
     );
     expect(warnEvent).toBeDefined();
     expect(warnEvent!.message).toContain("Failed to open");
+  });
+
+  // ----- Codex parse error branch (lines 528-549) -----
+
+  it("should emit warning and continue when Codex session parser throws", async () => {
+    const codexDir = join(dataDir, ".codex", "sessions", "2026", "03", "07");
+    await mkdir(codexDir, { recursive: true });
+
+    // Good file
+    const goodContent = [
+      codexSessionMeta("2026-03-07T10:00:00.000Z"),
+      codexResponseItem("2026-03-07T10:01:00.000Z", "user"),
+      codexResponseItem("2026-03-07T10:02:00.000Z", "assistant"),
+    ].join("\n") + "\n";
+    await writeFile(join(codexDir, "rollout-good.jsonl"), goodContent);
+
+    // Bad file — valid JSONL content but will be forced to throw via spy
+    await writeFile(join(codexDir, "rollout-bad.jsonl"), goodContent);
+
+    // Spy on the parser to throw for the bad file
+    const codexParser = await import("../parsers/codex-session.js");
+    const origCollect = codexParser.collectCodexSessions;
+    const spy = vi
+      .spyOn(codexParser, "collectCodexSessions")
+      .mockImplementation(async (filePath) => {
+        if (filePath.includes("rollout-bad")) {
+          throw new Error("Simulated codex session parser crash");
+        }
+        return origCollect(filePath);
+      });
+
+    const events: Array<{ source: string; phase: string; message?: string }> = [];
+
+    try {
+      const result = await executeSessionSync({
+        stateDir,
+        codexSessionsDir: join(dataDir, ".codex", "sessions"),
+        onProgress: (e) =>
+          events.push({ source: e.source, phase: e.phase, message: e.message }),
+      });
+
+      // The good file's data should still be synced
+      expect(result.sources.codex).toBeGreaterThanOrEqual(1);
+
+      // Verify a warning was emitted for the bad file
+      const warnEvents = events.filter(
+        (e) => e.source === "codex" && e.phase === "warn",
+      );
+      expect(warnEvents).toHaveLength(1);
+      expect(warnEvents[0].message).toContain("Simulated codex session parser crash");
+
+      // Verify parse progress was still reported for both files
+      const parseEvents = events.filter(
+        (e) => e.source === "codex" && e.phase === "parse" && e.message === undefined,
+      );
+      expect(parseEvents.length).toBeGreaterThanOrEqual(2);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  // ===== Comprehensive onProgress coverage for ALL sources =====
+
+  it("should call onProgress for all phases across all sources", async () => {
+    // --- Claude ---
+    const claudeDir = join(dataDir, ".claude", "projects", "proj-prog");
+    await mkdir(claudeDir, { recursive: true });
+    await writeFile(
+      join(claudeDir, "session.jsonl"),
+      [
+        claudeUserLine("2026-03-07T10:00:00.000Z"),
+        claudeAssistantLine("2026-03-07T10:05:00.000Z"),
+      ].join("\n") + "\n",
+    );
+
+    // --- Gemini ---
+    const geminiDir = join(dataDir, ".gemini", "tmp", "proj-gem-prog", "chats");
+    await mkdir(geminiDir, { recursive: true });
+    await writeFile(
+      join(geminiDir, "session-prog.json"),
+      geminiSession({
+        sessionId: "gem-prog-001",
+        messages: [
+          { type: "user", timestamp: "2026-03-07T11:00:00.000Z" },
+          { type: "gemini", timestamp: "2026-03-07T11:05:00.000Z", model: "gemini-2.5-pro" },
+        ],
+      }),
+    );
+
+    // --- OpenCode ---
+    const ocDir = join(dataDir, "opencode-prog", "message", "ses_prog001");
+    await mkdir(ocDir, { recursive: true });
+    await writeFile(
+      join(ocDir, "msg_001.json"),
+      opencodeMsg({ sessionID: "ses_prog001", role: "user", created: 1741320000000 }),
+    );
+    await writeFile(
+      join(ocDir, "msg_002.json"),
+      opencodeMsg({ sessionID: "ses_prog001", role: "assistant", created: 1741320300000 }),
+    );
+
+    // --- OpenClaw ---
+    const openclawAgentDir = join(dataDir, ".openclaw-prog", "agents", "agent-prog", "sessions");
+    await mkdir(openclawAgentDir, { recursive: true });
+    await writeFile(
+      join(openclawAgentDir, "session-prog.jsonl"),
+      [
+        openclawLine("2026-03-07T12:00:00.000Z", "system"),
+        openclawLine("2026-03-07T12:01:00.000Z", "message"),
+        openclawLine("2026-03-07T12:05:00.000Z", "message"),
+      ].join("\n") + "\n",
+    );
+
+    // --- Codex ---
+    const codexDir = join(dataDir, ".codex-prog", "sessions", "2026", "03", "07");
+    await mkdir(codexDir, { recursive: true });
+    await writeFile(
+      join(codexDir, "rollout-prog.jsonl"),
+      [
+        codexSessionMeta("2026-03-07T13:00:00.000Z", "ses-codex-prog"),
+        codexResponseItem("2026-03-07T13:01:00.000Z", "user"),
+        codexResponseItem("2026-03-07T13:02:00.000Z", "assistant"),
+      ].join("\n") + "\n",
+    );
+
+    const events: Array<{ source: string; phase: string; current?: number; total?: number; message?: string }> = [];
+
+    const result = await executeSessionSync({
+      stateDir,
+      claudeDir: join(dataDir, ".claude"),
+      geminiDir: join(dataDir, ".gemini"),
+      openCodeMessageDir: join(dataDir, "opencode-prog", "message"),
+      openclawDir: join(dataDir, ".openclaw-prog"),
+      codexSessionsDir: join(dataDir, ".codex-prog", "sessions"),
+      onProgress: (e) => events.push({
+        source: e.source,
+        phase: e.phase,
+        current: e.current,
+        total: e.total,
+        message: e.message,
+      }),
+    });
+
+    // Verify all sources produced snapshots
+    expect(result.sources.claude).toBeGreaterThanOrEqual(1);
+    expect(result.sources.gemini).toBe(1);
+    expect(result.sources.opencode).toBe(1);
+    expect(result.sources.openclaw).toBe(1);
+    expect(result.sources.codex).toBe(1);
+
+    // Verify progress events were emitted for each source
+    for (const source of ["claude-code", "gemini-cli", "opencode", "openclaw", "codex"]) {
+      const sourceEvents = events.filter((e) => e.source === source);
+      expect(sourceEvents.some((e) => e.phase === "discover"), `${source} should have discover`).toBe(true);
+      expect(sourceEvents.some((e) => e.phase === "parse"), `${source} should have parse`).toBe(true);
+
+      // Verify parse events have current/total for the file loop
+      const parseWithProgress = sourceEvents.filter(
+        (e) => e.phase === "parse" && e.current !== undefined,
+      );
+      expect(parseWithProgress.length, `${source} should have parse with current`).toBeGreaterThanOrEqual(1);
+    }
+
+    // Verify dedup and done events
+    expect(events.some((e) => e.source === "all" && e.phase === "dedup")).toBe(true);
+    expect(events.some((e) => e.source === "all" && e.phase === "done")).toBe(true);
+  });
+
+  // ===== onProgress for unchanged-file skip across all file-based sources =====
+
+  it("should emit parse progress for skipped unchanged files (all sources with onProgress)", async () => {
+    // --- Claude ---
+    const claudeDir = join(dataDir, ".claude", "projects", "proj-skip");
+    await mkdir(claudeDir, { recursive: true });
+    await writeFile(
+      join(claudeDir, "session.jsonl"),
+      [
+        claudeUserLine("2026-03-07T10:00:00.000Z"),
+        claudeAssistantLine("2026-03-07T10:05:00.000Z"),
+      ].join("\n") + "\n",
+    );
+
+    // --- Gemini ---
+    const geminiDir = join(dataDir, ".gemini", "tmp", "proj-gem-skip", "chats");
+    await mkdir(geminiDir, { recursive: true });
+    await writeFile(
+      join(geminiDir, "session-skip.json"),
+      geminiSession({
+        sessionId: "gem-skip-001",
+        messages: [
+          { type: "user", timestamp: "2026-03-07T11:00:00.000Z" },
+          { type: "gemini", timestamp: "2026-03-07T11:05:00.000Z" },
+        ],
+      }),
+    );
+
+    // --- OpenCode ---
+    const ocDir = join(dataDir, "opencode-skip", "message", "ses_skip001");
+    await mkdir(ocDir, { recursive: true });
+    await writeFile(
+      join(ocDir, "msg_001.json"),
+      opencodeMsg({ sessionID: "ses_skip001", role: "user", created: 1741320000000 }),
+    );
+
+    // --- OpenClaw ---
+    const openclawAgentDir = join(dataDir, ".openclaw-skip", "agents", "agent-skip", "sessions");
+    await mkdir(openclawAgentDir, { recursive: true });
+    await writeFile(
+      join(openclawAgentDir, "session-skip.jsonl"),
+      [
+        openclawLine("2026-03-07T12:00:00.000Z", "system"),
+        openclawLine("2026-03-07T12:01:00.000Z", "message"),
+      ].join("\n") + "\n",
+    );
+
+    // --- Codex ---
+    const codexDir = join(dataDir, ".codex-skip", "sessions", "2026", "03", "07");
+    await mkdir(codexDir, { recursive: true });
+    await writeFile(
+      join(codexDir, "rollout-skip.jsonl"),
+      [
+        codexSessionMeta("2026-03-07T13:00:00.000Z", "ses-codex-skip"),
+        codexResponseItem("2026-03-07T13:01:00.000Z", "user"),
+        codexResponseItem("2026-03-07T13:02:00.000Z", "assistant"),
+      ].join("\n") + "\n",
+    );
+
+    // First sync (no onProgress) — establishes cursors
+    await executeSessionSync({
+      stateDir,
+      claudeDir: join(dataDir, ".claude"),
+      geminiDir: join(dataDir, ".gemini"),
+      openCodeMessageDir: join(dataDir, "opencode-skip", "message"),
+      openclawDir: join(dataDir, ".openclaw-skip"),
+      codexSessionsDir: join(dataDir, ".codex-skip", "sessions"),
+    });
+
+    // Second sync WITH onProgress — files unchanged → skip branches fire
+    const events: Array<{ source: string; phase: string; current?: number; total?: number }> = [];
+    const r2 = await executeSessionSync({
+      stateDir,
+      claudeDir: join(dataDir, ".claude"),
+      geminiDir: join(dataDir, ".gemini"),
+      openCodeMessageDir: join(dataDir, "opencode-skip", "message"),
+      openclawDir: join(dataDir, ".openclaw-skip"),
+      codexSessionsDir: join(dataDir, ".codex-skip", "sessions"),
+      onProgress: (e) => events.push({
+        source: e.source,
+        phase: e.phase,
+        current: e.current,
+        total: e.total,
+      }),
+    });
+
+    // No new snapshots since files are unchanged
+    expect(r2.totalSnapshots).toBe(0);
+
+    // Verify skip-path parse progress was emitted for each file-based source
+    for (const source of ["claude-code", "gemini-cli", "openclaw", "codex"]) {
+      const skipParseEvents = events.filter(
+        (e) => e.source === source && e.phase === "parse" && e.current !== undefined,
+      );
+      expect(
+        skipParseEvents.length,
+        `${source} should emit parse progress for unchanged files`,
+      ).toBeGreaterThanOrEqual(1);
+    }
+
+    // OpenCode uses mtime-only check for dirs — verify skip progress
+    const ocSkipEvents = events.filter(
+      (e) => e.source === "opencode" && e.phase === "parse" && e.current !== undefined,
+    );
+    expect(ocSkipEvents.length).toBeGreaterThanOrEqual(1);
+  });
+
+  // ===== Parse error tests for Gemini, OpenCode, OpenClaw =====
+
+  it("should emit warning and continue when Gemini session parser throws", async () => {
+    const geminiDir = join(dataDir, ".gemini", "tmp", "proj-gem-err", "chats");
+    await mkdir(geminiDir, { recursive: true });
+
+    // Good file
+    await writeFile(
+      join(geminiDir, "session-good.json"),
+      geminiSession({
+        sessionId: "gem-good",
+        messages: [
+          { type: "user", timestamp: "2026-03-07T11:00:00.000Z" },
+          { type: "gemini", timestamp: "2026-03-07T11:05:00.000Z" },
+        ],
+      }),
+    );
+
+    // Bad file — will be forced to throw via spy
+    await writeFile(
+      join(geminiDir, "session-bad.json"),
+      geminiSession({
+        sessionId: "gem-bad",
+        messages: [
+          { type: "user", timestamp: "2026-03-07T12:00:00.000Z" },
+          { type: "gemini", timestamp: "2026-03-07T12:05:00.000Z" },
+        ],
+      }),
+    );
+
+    const geminiParser = await import("../parsers/gemini-session.js");
+    const origCollect = geminiParser.collectGeminiSessions;
+    const spy = vi
+      .spyOn(geminiParser, "collectGeminiSessions")
+      .mockImplementation(async (filePath) => {
+        if (filePath.includes("session-bad")) {
+          throw new Error("Simulated gemini parser crash");
+        }
+        return origCollect(filePath);
+      });
+
+    const events: Array<{ source: string; phase: string; message?: string }> = [];
+
+    try {
+      const result = await executeSessionSync({
+        stateDir,
+        geminiDir: join(dataDir, ".gemini"),
+        onProgress: (e) =>
+          events.push({ source: e.source, phase: e.phase, message: e.message }),
+      });
+
+      // Good file's data should still be synced
+      expect(result.sources.gemini).toBeGreaterThanOrEqual(1);
+
+      // Verify a warning was emitted for the bad file
+      const warnEvents = events.filter(
+        (e) => e.source === "gemini-cli" && e.phase === "warn",
+      );
+      expect(warnEvents).toHaveLength(1);
+      expect(warnEvents[0].message).toContain("Simulated gemini parser crash");
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("should emit warning and continue when OpenCode session parser throws", async () => {
+    const msgDir = join(dataDir, "opencode-err", "message");
+
+    // Good dir
+    const goodDir = join(msgDir, "ses_good");
+    await mkdir(goodDir, { recursive: true });
+    await writeFile(
+      join(goodDir, "msg_001.json"),
+      opencodeMsg({ sessionID: "ses_good", role: "user", created: 1741320000000 }),
+    );
+    await writeFile(
+      join(goodDir, "msg_002.json"),
+      opencodeMsg({ sessionID: "ses_good", role: "assistant", created: 1741320300000 }),
+    );
+
+    // Bad dir — will be forced to throw via spy
+    const badDir = join(msgDir, "ses_bad");
+    await mkdir(badDir, { recursive: true });
+    await writeFile(
+      join(badDir, "msg_001.json"),
+      opencodeMsg({ sessionID: "ses_bad", role: "user", created: 1741321000000 }),
+    );
+
+    const ocParser = await import("../parsers/opencode-session.js");
+    const origCollect = ocParser.collectOpenCodeSessions;
+    const spy = vi
+      .spyOn(ocParser, "collectOpenCodeSessions")
+      .mockImplementation(async (dirPath) => {
+        if (dirPath.includes("ses_bad")) {
+          throw new Error("Simulated opencode parser crash");
+        }
+        return origCollect(dirPath);
+      });
+
+    const events: Array<{ source: string; phase: string; message?: string }> = [];
+
+    try {
+      const result = await executeSessionSync({
+        stateDir,
+        openCodeMessageDir: msgDir,
+        onProgress: (e) =>
+          events.push({ source: e.source, phase: e.phase, message: e.message }),
+      });
+
+      // Good dir's data should still be synced
+      expect(result.sources.opencode).toBeGreaterThanOrEqual(1);
+
+      // Verify a warning was emitted for the bad dir
+      const warnEvents = events.filter(
+        (e) => e.source === "opencode" && e.phase === "warn",
+      );
+      expect(warnEvents).toHaveLength(1);
+      expect(warnEvents[0].message).toContain("Simulated opencode parser crash");
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("should emit warning and continue when OpenClaw session parser throws", async () => {
+    const agentDir = join(dataDir, ".openclaw-err", "agents", "agent-err", "sessions");
+    await mkdir(agentDir, { recursive: true });
+
+    // Good file
+    await writeFile(
+      join(agentDir, "session-good.jsonl"),
+      [
+        openclawLine("2026-03-07T14:00:00.000Z", "system"),
+        openclawLine("2026-03-07T14:01:00.000Z", "message"),
+        openclawLine("2026-03-07T14:05:00.000Z", "message"),
+      ].join("\n") + "\n",
+    );
+
+    // Bad file — will be forced to throw via spy
+    await writeFile(
+      join(agentDir, "session-bad.jsonl"),
+      [
+        openclawLine("2026-03-07T15:00:00.000Z", "system"),
+        openclawLine("2026-03-07T15:01:00.000Z", "message"),
+      ].join("\n") + "\n",
+    );
+
+    const ocParser = await import("../parsers/openclaw-session.js");
+    const origCollect = ocParser.collectOpenClawSessions;
+    const spy = vi
+      .spyOn(ocParser, "collectOpenClawSessions")
+      .mockImplementation(async (filePath) => {
+        if (filePath.includes("session-bad")) {
+          throw new Error("Simulated openclaw parser crash");
+        }
+        return origCollect(filePath);
+      });
+
+    const events: Array<{ source: string; phase: string; message?: string }> = [];
+
+    try {
+      const result = await executeSessionSync({
+        stateDir,
+        openclawDir: join(dataDir, ".openclaw-err"),
+        onProgress: (e) =>
+          events.push({ source: e.source, phase: e.phase, message: e.message }),
+      });
+
+      // Good file's data should still be synced
+      expect(result.sources.openclaw).toBeGreaterThanOrEqual(1);
+
+      // Verify a warning was emitted for the bad file
+      const warnEvents = events.filter(
+        (e) => e.source === "openclaw" && e.phase === "warn",
+      );
+      expect(warnEvents).toHaveLength(1);
+      expect(warnEvents[0].message).toContain("Simulated openclaw parser crash");
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  // ===== OpenCode SQLite onProgress coverage =====
+
+  it("should emit progress for SQLite session parse with found sessions", async () => {
+    const sessions = [
+      { id: "ses_prog_sql", project_id: "proj_1", title: "Test", time_created: 1739600000000, time_updated: 1739600600000 },
+    ];
+    const messages = [
+      { session_id: "ses_prog_sql", role: "user", time_created: 1739600000000, data: sqliteMsgData({ role: "user", timeCreated: 1739600000000 }) },
+      { session_id: "ses_prog_sql", role: "assistant", time_created: 1739600100000, data: sqliteMsgData({ role: "assistant", timeCreated: 1739600100000 }) },
+    ];
+
+    const dbDir = join(dataDir, "opencode-sqlprog");
+    await mkdir(dbDir, { recursive: true });
+    const dbPath = join(dbDir, "opencode.db");
+    await writeFile(dbPath, "dummy");
+
+    const events: Array<{ source: string; phase: string; message?: string }> = [];
+
+    await executeSessionSync({
+      stateDir,
+      openCodeDbPath: dbPath,
+      openSessionDb: mockOpenSessionDb(sessions, messages),
+      onProgress: (e) => events.push({ source: e.source, phase: e.phase, message: e.message }),
+    });
+
+    // Verify discover event
+    const discoverEvents = events.filter(
+      (e) => e.source === "opencode-sqlite" && e.phase === "discover",
+    );
+    expect(discoverEvents).toHaveLength(1);
+
+    // Verify parse event with session count details
+    const parseEvents = events.filter(
+      (e) => e.source === "opencode-sqlite" && e.phase === "parse",
+    );
+    expect(parseEvents).toHaveLength(1);
+    expect(parseEvents[0].message).toContain("Collected 1 sessions");
+  });
+
+  it("should emit 'No new SQLite sessions found' progress when no new sessions", async () => {
+    const sessions = [
+      { id: "ses_empty_sql", project_id: null, title: null, time_created: 1739600000000, time_updated: 1739600600000 },
+    ];
+    const messages = [
+      { session_id: "ses_empty_sql", role: "user", time_created: 1739600000000, data: sqliteMsgData({ role: "user", timeCreated: 1739600000000 }) },
+    ];
+
+    const dbDir = join(dataDir, "opencode-sqlempty");
+    await mkdir(dbDir, { recursive: true });
+    const dbPath = join(dbDir, "opencode.db");
+    await writeFile(dbPath, "dummy");
+
+    // First sync to establish cursor
+    await executeSessionSync({
+      stateDir,
+      openCodeDbPath: dbPath,
+      openSessionDb: mockOpenSessionDb(sessions, messages),
+    });
+
+    // Second sync with onProgress — no new sessions
+    const events: Array<{ source: string; phase: string; message?: string }> = [];
+    await executeSessionSync({
+      stateDir,
+      openCodeDbPath: dbPath,
+      openSessionDb: mockOpenSessionDb(sessions, messages),
+      onProgress: (e) => events.push({ source: e.source, phase: e.phase, message: e.message }),
+    });
+
+    const parseEvents = events.filter(
+      (e) => e.source === "opencode-sqlite" && e.phase === "parse",
+    );
+    expect(parseEvents).toHaveLength(1);
+    expect(parseEvents[0].message).toBe("No new SQLite sessions found");
+  });
+
+  // ===== Claude parse error with onProgress =====
+
+  it("should emit warning and continue when Claude session parser throws", async () => {
+    const claudeDir = join(dataDir, ".claude", "projects", "proj-err");
+    await mkdir(claudeDir, { recursive: true });
+
+    // Good file
+    await writeFile(
+      join(claudeDir, "session-good.jsonl"),
+      [
+        claudeUserLine("2026-03-07T10:00:00.000Z", "ses-good"),
+        claudeAssistantLine("2026-03-07T10:05:00.000Z", "ses-good"),
+      ].join("\n") + "\n",
+    );
+
+    // Bad file — will be forced to throw via spy
+    await writeFile(
+      join(claudeDir, "session-bad.jsonl"),
+      [
+        claudeUserLine("2026-03-07T11:00:00.000Z", "ses-bad"),
+        claudeAssistantLine("2026-03-07T11:05:00.000Z", "ses-bad"),
+      ].join("\n") + "\n",
+    );
+
+    const claudeParser = await import("../parsers/claude-session.js");
+    const origCollect = claudeParser.collectClaudeSessions;
+    const spy = vi
+      .spyOn(claudeParser, "collectClaudeSessions")
+      .mockImplementation(async (filePath) => {
+        if (filePath.includes("session-bad")) {
+          throw new Error("Simulated claude session parser crash");
+        }
+        return origCollect(filePath);
+      });
+
+    const events: Array<{ source: string; phase: string; message?: string }> = [];
+
+    try {
+      const result = await executeSessionSync({
+        stateDir,
+        claudeDir: join(dataDir, ".claude"),
+        onProgress: (e) =>
+          events.push({ source: e.source, phase: e.phase, message: e.message }),
+      });
+
+      // Good file should still be synced
+      expect(result.sources.claude).toBeGreaterThanOrEqual(1);
+
+      // Verify warning for the bad file
+      const warnEvents = events.filter(
+        (e) => e.source === "claude-code" && e.phase === "warn",
+      );
+      expect(warnEvents).toHaveLength(1);
+      expect(warnEvents[0].message).toContain("Simulated claude session parser crash");
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

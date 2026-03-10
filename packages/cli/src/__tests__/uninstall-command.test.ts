@@ -176,4 +176,114 @@ describe("executeUninstall", () => {
       },
     ]);
   });
+
+  it("uses real removeOptionalFile to remove codex backup file", async () => {
+    // Create a temporary file to serve as the codex backup
+    const { mkdtemp, rm, writeFile } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const tmpDir = await mkdtemp(join(tmpdir(), "pew-uninstall-ro-"));
+
+    try {
+      const backupPath = join(tmpDir, "codex_notify_original.json");
+      await writeFile(backupPath, '{"original": true}', "utf8");
+
+      const pathsWithRealBackup = {
+        ...createPaths(),
+        codexNotifyOriginalPath: backupPath,
+      };
+
+      const result = await executeUninstall({
+        stateDir: "/tmp/pew",
+        home: "/tmp",
+        sources: ["codex"],
+        resolveNotifierPathsFn: () => pathsWithRealBackup,
+        uninstallDriverFn: vi.fn(async () => ({
+          source: "codex" as Source,
+          action: "uninstall" as const,
+          changed: true,
+          detail: "ok",
+        })),
+        removeNotifyHandlerFn: vi.fn(),
+        // NOT providing removeCodexBackupFn — exercises the real removeOptionalFile
+      });
+
+      expect(result.codexBackup.changed).toBe(true);
+      expect(result.codexBackup.detail).toBe("artifact removed");
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("real removeOptionalFile returns 'not found' for missing file", async () => {
+    const pathsWithMissing = {
+      ...createPaths(),
+      codexNotifyOriginalPath: "/tmp/nonexistent-codex-backup-12345.json",
+    };
+
+    const result = await executeUninstall({
+      stateDir: "/tmp/pew",
+      home: "/tmp",
+      sources: ["codex"],
+      resolveNotifierPathsFn: () => pathsWithMissing,
+      uninstallDriverFn: vi.fn(async () => ({
+        source: "codex" as Source,
+        action: "uninstall" as const,
+        changed: true,
+        detail: "ok",
+      })),
+      removeNotifyHandlerFn: vi.fn(),
+      // NOT providing removeCodexBackupFn
+    });
+
+    expect(result.codexBackup.changed).toBe(false);
+    expect(result.codexBackup.detail).toBe("artifact not found");
+  });
+
+  it("real removeOptionalFile rethrows non-ENOENT errors", async () => {
+    const pathsWithDir = {
+      ...createPaths(),
+      // Use a path that will throw a permission error or EISDIR
+      codexNotifyOriginalPath: "/",
+    };
+
+    await expect(
+      executeUninstall({
+        stateDir: "/tmp/pew",
+        home: "/tmp",
+        sources: ["codex"],
+        resolveNotifierPathsFn: () => pathsWithDir,
+        uninstallDriverFn: vi.fn(async () => ({
+          source: "codex" as Source,
+          action: "uninstall" as const,
+          changed: true,
+          detail: "ok",
+        })),
+        removeNotifyHandlerFn: vi.fn(),
+        // NOT providing removeCodexBackupFn
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("does not remove codex backup when codex is not selected", async () => {
+    const removeCodexBackupFn = vi.fn();
+
+    const result = await executeUninstall({
+      stateDir: "/tmp/pew",
+      home: "/tmp",
+      sources: ["claude-code"],
+      resolveNotifierPathsFn: createPaths,
+      uninstallDriverFn: vi.fn(async () => ({
+        source: "claude-code" as Source,
+        action: "uninstall" as const,
+        changed: true,
+        detail: "ok",
+      })),
+      removeNotifyHandlerFn: vi.fn(),
+      removeCodexBackupFn,
+    });
+
+    expect(removeCodexBackupFn).not.toHaveBeenCalled();
+    expect(result.codexBackup.detail).toBe("not selected");
+  });
 });

@@ -1136,4 +1136,112 @@ describe("executeSync", () => {
     expect(warnEvent).toBeDefined();
     expect(warnEvent!.message).toContain("Failed to open");
   });
+
+  // ===== OpenClaw parse error branch (lines 446-454) =====
+
+  it("should emit warning and continue when OpenClaw parser throws", async () => {
+    // Good OpenClaw file
+    const goodDir = join(dataDir, ".openclaw", "agents", "a1", "sessions");
+    await mkdir(goodDir, { recursive: true });
+    await writeFile(
+      join(goodDir, "session-good.jsonl"),
+      openclawLine("2026-03-07T10:15:00.000Z", 5000, 800) + "\n",
+    );
+
+    // Bad OpenClaw file
+    const badDir = join(dataDir, ".openclaw", "agents", "a2", "sessions");
+    await mkdir(badDir, { recursive: true });
+    await writeFile(
+      join(badDir, "session-bad.jsonl"),
+      openclawLine("2026-03-07T10:15:00.000Z", 3000, 400) + "\n",
+    );
+
+    // Spy on the parser to throw for the bad file
+    const openclawParser = await import("../parsers/openclaw.js");
+    const origParse = openclawParser.parseOpenClawFile;
+    const spy = vi
+      .spyOn(openclawParser, "parseOpenClawFile")
+      .mockImplementation(async (opts) => {
+        if (opts.filePath.includes("session-bad")) {
+          throw new Error("Simulated openclaw parser crash");
+        }
+        return origParse(opts);
+      });
+
+    const events: Array<{ source: string; phase: string; message?: string }> = [];
+
+    try {
+      const result = await executeSync({
+        stateDir,
+        openclawDir: join(dataDir, ".openclaw"),
+        onProgress: (e) =>
+          events.push({ source: e.source, phase: e.phase, message: e.message }),
+      });
+
+      // Good file data should still be synced
+      expect(result.sources.openclaw).toBe(1);
+
+      // Verify a warning was emitted for the bad file
+      const warnEvents = events.filter(
+        (e) => e.source === "openclaw" && e.phase === "warn",
+      );
+      expect(warnEvents).toHaveLength(1);
+      expect(warnEvents[0].message).toContain("Simulated openclaw parser crash");
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  // ===== Codex parse error branch (lines 510-517) =====
+
+  it("should emit warning and continue when Codex parser throws", async () => {
+    // Good Codex file
+    const goodDir = join(dataDir, ".codex", "sessions", "2026", "03", "07");
+    await mkdir(goodDir, { recursive: true });
+    await writeFile(
+      join(goodDir, "rollout-good.jsonl"),
+      codexLines("2026-03-07T10:15:00.000Z", 5000, 800) + "\n",
+    );
+
+    // Bad Codex file
+    await writeFile(
+      join(goodDir, "rollout-bad.jsonl"),
+      codexLines("2026-03-07T10:16:00.000Z", 3000, 400) + "\n",
+    );
+
+    // Spy on the parser to throw for the bad file
+    const codexParser = await import("../parsers/codex.js");
+    const origParse = codexParser.parseCodexFile;
+    const spy = vi
+      .spyOn(codexParser, "parseCodexFile")
+      .mockImplementation(async (opts) => {
+        if (opts.filePath.includes("rollout-bad")) {
+          throw new Error("Simulated codex parser crash");
+        }
+        return origParse(opts);
+      });
+
+    const events: Array<{ source: string; phase: string; message?: string }> = [];
+
+    try {
+      const result = await executeSync({
+        stateDir,
+        codexSessionsDir: join(dataDir, ".codex", "sessions"),
+        onProgress: (e) =>
+          events.push({ source: e.source, phase: e.phase, message: e.message }),
+      });
+
+      // Good file data should still be synced
+      expect(result.sources.codex).toBe(1);
+
+      // Verify a warning was emitted for the bad file
+      const warnEvents = events.filter(
+        (e) => e.source === "codex" && e.phase === "warn",
+      );
+      expect(warnEvents).toHaveLength(1);
+      expect(warnEvents[0].message).toContain("Simulated codex parser crash");
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });

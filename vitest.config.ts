@@ -28,6 +28,9 @@ export default defineConfig({
         "**/bin.ts",
         "**/cli.ts",
         "**/types.ts",
+        // bun:sqlite adapter — untestable in vitest (Node runtime).
+        // All logic is exercised through DI in sync.test.ts / session-sync.test.ts.
+        "**/opencode-sqlite-db.ts",
       ],
       thresholds: {
         statements: 90,

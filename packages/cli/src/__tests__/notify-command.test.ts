@@ -1,6 +1,28 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CoordinatorRunResult, SyncCycleResult, SyncTrigger } from "@pew/core";
+
+// Mock the real sync modules so the default executeSyncFn can be tested
+vi.mock("../commands/sync.js", () => ({
+  executeSync: vi.fn(async () => ({
+    totalDeltas: 7,
+    totalRecords: 4,
+    filesScanned: { claude: 3, codex: 0, gemini: 0, opencode: 0, openclaw: 0 },
+    sources: { claude: 4, codex: 0, gemini: 0, opencode: 0, openclaw: 0 },
+  })),
+}));
+
+vi.mock("../commands/session-sync.js", () => ({
+  executeSessionSync: vi.fn(async () => ({
+    totalSnapshots: 3,
+    totalRecords: 3,
+    filesScanned: { claude: 2, codex: 0, gemini: 0, opencode: 0, openclaw: 0 },
+    sources: { claude: 3, codex: 0, gemini: 0, opencode: 0, openclaw: 0 },
+  })),
+}));
+
 import { executeNotify } from "../commands/notify.js";
+import { executeSync } from "../commands/sync.js";
+import { executeSessionSync } from "../commands/session-sync.js";
 
 function makeResult(overrides: Partial<CoordinatorRunResult> = {}): CoordinatorRunResult {
   return {
@@ -176,5 +198,178 @@ describe("executeNotify", () => {
     expect(result.cycles[0].sessionSync?.totalSnapshots).toBe(5);
     expect(result.cycles[0].tokenSyncError).toBeUndefined();
     expect(result.cycles[0].sessionSyncError).toBeUndefined();
+  });
+
+  // ===== Default executeSyncFn (exercises the real lambda on lines 29-77) =====
+
+  it("default executeSyncFn calls executeSync and executeSessionSync", async () => {
+    vi.mocked(executeSync).mockResolvedValueOnce({
+      totalDeltas: 7,
+      totalRecords: 4,
+      filesScanned: { claude: 3, codex: 0, gemini: 0, opencode: 0, openclaw: 0 },
+      sources: { claude: 4, codex: 0, gemini: 0, opencode: 0, openclaw: 0 },
+    });
+    vi.mocked(executeSessionSync).mockResolvedValueOnce({
+      totalSnapshots: 3,
+      totalRecords: 3,
+      filesScanned: { claude: 2, codex: 0, gemini: 0, opencode: 0, openclaw: 0 },
+      sources: { claude: 3, codex: 0, gemini: 0, opencode: 0, openclaw: 0 },
+    });
+
+    let capturedCycle: SyncCycleResult | undefined;
+    const result = await executeNotify({
+      source: "claude-code",
+      stateDir: "/tmp/pew",
+      // NO executeSyncFn — uses the default
+      coordinatedSyncFn: async (trigger, opts) => {
+        capturedCycle = await opts.executeSyncFn([trigger]);
+        return makeResult({ cycles: [capturedCycle] });
+      },
+    });
+
+    // Verify both sync functions were called
+    expect(executeSync).toHaveBeenCalledTimes(1);
+    expect(executeSessionSync).toHaveBeenCalledTimes(1);
+
+    // Verify cycle contains token sync results
+    expect(capturedCycle?.tokenSync).toEqual({
+      totalDeltas: 7,
+      totalRecords: 4,
+      filesScanned: { claude: 3, codex: 0, gemini: 0, opencode: 0, openclaw: 0 },
+      sources: { claude: 4, codex: 0, gemini: 0, opencode: 0, openclaw: 0 },
+    });
+
+    // Verify cycle contains session sync results
+    expect(capturedCycle?.sessionSync).toEqual({
+      totalSnapshots: 3,
+      totalRecords: 3,
+      filesScanned: { claude: 2, codex: 0, gemini: 0, opencode: 0, openclaw: 0 },
+      sources: { claude: 3, codex: 0, gemini: 0, opencode: 0, openclaw: 0 },
+    });
+
+    expect(result.cycles).toHaveLength(1);
+  });
+
+  it("default executeSyncFn captures tokenSyncError when executeSync throws", async () => {
+    vi.mocked(executeSync).mockRejectedValueOnce(new Error("cursor corrupted"));
+    vi.mocked(executeSessionSync).mockResolvedValueOnce({
+      totalSnapshots: 1,
+      totalRecords: 1,
+      filesScanned: { claude: 1, codex: 0, gemini: 0, opencode: 0, openclaw: 0 },
+      sources: { claude: 1, codex: 0, gemini: 0, opencode: 0, openclaw: 0 },
+    });
+
+    let capturedCycle: SyncCycleResult | undefined;
+    await executeNotify({
+      source: "opencode",
+      stateDir: "/tmp/pew",
+      coordinatedSyncFn: async (trigger, opts) => {
+        capturedCycle = await opts.executeSyncFn([trigger]);
+        return makeResult({ cycles: [capturedCycle] });
+      },
+    });
+
+    expect(capturedCycle?.tokenSyncError).toBe("cursor corrupted");
+    expect(capturedCycle?.tokenSync).toBeUndefined();
+    // Session sync should still succeed
+    expect(capturedCycle?.sessionSync?.totalSnapshots).toBe(1);
+    expect(capturedCycle?.sessionSyncError).toBeUndefined();
+  });
+
+  it("default executeSyncFn captures sessionSyncError when executeSessionSync throws", async () => {
+    vi.mocked(executeSync).mockResolvedValueOnce({
+      totalDeltas: 5,
+      totalRecords: 3,
+      filesScanned: { claude: 2, codex: 0, gemini: 0, opencode: 0, openclaw: 0 },
+      sources: { claude: 3, codex: 0, gemini: 0, opencode: 0, openclaw: 0 },
+    });
+    vi.mocked(executeSessionSync).mockRejectedValueOnce(new Error("session db locked"));
+
+    let capturedCycle: SyncCycleResult | undefined;
+    await executeNotify({
+      source: "gemini-cli",
+      stateDir: "/tmp/pew",
+      coordinatedSyncFn: async (trigger, opts) => {
+        capturedCycle = await opts.executeSyncFn([trigger]);
+        return makeResult({ cycles: [capturedCycle] });
+      },
+    });
+
+    expect(capturedCycle?.tokenSync?.totalDeltas).toBe(5);
+    expect(capturedCycle?.tokenSyncError).toBeUndefined();
+    expect(capturedCycle?.sessionSyncError).toBe("session db locked");
+    expect(capturedCycle?.sessionSync).toBeUndefined();
+  });
+
+  it("default executeSyncFn captures both errors when both throw", async () => {
+    vi.mocked(executeSync).mockRejectedValueOnce(new Error("disk full"));
+    vi.mocked(executeSessionSync).mockRejectedValueOnce("non-error rejection");
+
+    let capturedCycle: SyncCycleResult | undefined;
+    await executeNotify({
+      source: "codex",
+      stateDir: "/tmp/pew",
+      coordinatedSyncFn: async (trigger, opts) => {
+        capturedCycle = await opts.executeSyncFn([trigger]);
+        return makeResult({ cycles: [capturedCycle] });
+      },
+    });
+
+    expect(capturedCycle?.tokenSyncError).toBe("disk full");
+    expect(capturedCycle?.sessionSyncError).toBe("non-error rejection");
+    expect(capturedCycle?.tokenSync).toBeUndefined();
+    expect(capturedCycle?.sessionSync).toBeUndefined();
+  });
+
+  it("default executeSyncFn passes stateDir and source dirs to executeSync", async () => {
+    vi.mocked(executeSync).mockResolvedValueOnce({
+      totalDeltas: 0, totalRecords: 0,
+      filesScanned: { claude: 0, codex: 0, gemini: 0, opencode: 0, openclaw: 0 },
+      sources: { claude: 0, codex: 0, gemini: 0, opencode: 0, openclaw: 0 },
+    });
+    vi.mocked(executeSessionSync).mockResolvedValueOnce({
+      totalSnapshots: 0, totalRecords: 0,
+      filesScanned: { claude: 0, codex: 0, gemini: 0, opencode: 0, openclaw: 0 },
+      sources: { claude: 0, codex: 0, gemini: 0, opencode: 0, openclaw: 0 },
+    });
+
+    await executeNotify({
+      source: "claude-code",
+      stateDir: "/tmp/pew-state",
+      claudeDir: "/home/.claude",
+      geminiDir: "/home/.gemini",
+      openCodeMessageDir: "/home/.local/share/opencode/storage/message",
+      openCodeDbPath: "/home/.local/share/opencode/opencode.db",
+      openclawDir: "/home/.openclaw",
+      codexSessionsDir: "/home/.codex/sessions",
+      coordinatedSyncFn: async (trigger, opts) => {
+        const cycle = await opts.executeSyncFn([trigger]);
+        return makeResult({ cycles: [cycle] });
+      },
+    });
+
+    expect(executeSync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stateDir: "/tmp/pew-state",
+        claudeDir: "/home/.claude",
+        geminiDir: "/home/.gemini",
+        openCodeMessageDir: "/home/.local/share/opencode/storage/message",
+        openCodeDbPath: "/home/.local/share/opencode/opencode.db",
+        openclawDir: "/home/.openclaw",
+        codexSessionsDir: "/home/.codex/sessions",
+      }),
+    );
+
+    expect(executeSessionSync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stateDir: "/tmp/pew-state",
+        claudeDir: "/home/.claude",
+        geminiDir: "/home/.gemini",
+        openCodeMessageDir: "/home/.local/share/opencode/storage/message",
+        openCodeDbPath: "/home/.local/share/opencode/opencode.db",
+        openclawDir: "/home/.openclaw",
+        codexSessionsDir: "/home/.codex/sessions",
+      }),
+    );
   });
 });

@@ -92,4 +92,51 @@ describe("Gemini hook installer", () => {
 
     expect(await getGeminiHookStatus({ settingsPath, notifyPath })).toBe("installed");
   });
+
+  it("uninstall keeps other hooks when only pew hook is removed", async () => {
+    // Write a settings file with the pew hook AND a custom hook in the same entry
+    await writeFile(
+      settingsPath,
+      `${JSON.stringify(
+        {
+          tools: { enableHooks: true },
+          hooks: {
+            SessionEnd: [
+              {
+                matcher: "exit|clear|logout|prompt_input_exit|other",
+                hooks: [
+                  { name: "pew-tracker", type: "command", command: `/usr/bin/env node ${notifyPath} --source=gemini-cli` },
+                  { name: "custom-hook", type: "command", command: "echo done" },
+                ],
+              },
+            ],
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf8",
+    );
+
+    const result = await uninstallGeminiHook({ settingsPath, notifyPath });
+    const saved = JSON.parse(await readFile(settingsPath, "utf8"));
+
+    expect(result.changed).toBe(true);
+    // The entry should still exist with the custom hook
+    expect(saved.hooks.SessionEnd).toHaveLength(1);
+    expect(saved.hooks.SessionEnd[0].hooks).toHaveLength(1);
+    expect(saved.hooks.SessionEnd[0].hooks[0].name).toBe("custom-hook");
+  });
+
+  it("quotes notifyPath containing special characters", async () => {
+    const specialNotifyPath = "/tmp/my pew dir/bin/notify.cjs";
+    const result = await installGeminiHook({ settingsPath, notifyPath: specialNotifyPath });
+    const saved = JSON.parse(await readFile(settingsPath, "utf8"));
+
+    expect(result.changed).toBe(true);
+    // The command should have quoted the path due to the space
+    const command = saved.hooks.SessionEnd[0].hooks[0].command as string;
+    expect(command).toContain('"');
+    expect(command).toContain("my pew dir");
+  });
 });
