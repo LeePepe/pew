@@ -15,7 +15,9 @@ import { formatTokens, cn } from "@/lib/utils";
 import { usePricingMap, formatCost } from "@/hooks/use-pricing";
 import { computeTotalCost, toDailyCostPoints, computeCacheSavings, forecastMonthlyCost, toDailyCacheRates } from "@/lib/cost-helpers";
 import { compareWeekdayWeekend, computeMoMGrowth, computeStreak } from "@/lib/usage-helpers";
+import { computeBudgetStatus } from "@/lib/budget-helpers";
 import { generateInsights } from "@/lib/insights";
+import { useBudget } from "@/hooks/use-budget";
 import { StatCard, StatGrid } from "@/components/dashboard/stat-card";
 import { InsightCards } from "@/components/dashboard/insight-cards";
 import { UsageTrendChart } from "@/components/dashboard/usage-trend-chart";
@@ -26,6 +28,9 @@ import { SourceDonutChart } from "@/components/dashboard/source-donut-chart";
 import { HeatmapCalendar } from "@/components/dashboard/heatmap-calendar";
 import { WeekdayWeekendChart } from "@/components/dashboard/weekday-weekend-chart";
 import { StreakBadge } from "@/components/dashboard/streak-badge";
+import { BudgetProgress } from "@/components/dashboard/budget-progress";
+import { BudgetAlert } from "@/components/dashboard/budget-alert";
+import { BudgetDialog } from "@/components/dashboard/budget-dialog";
 import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
 import { PeriodSelector } from "@/components/dashboard/period-selector";
 import { periodToDateRange, periodLabel } from "@/lib/date-helpers";
@@ -63,6 +68,13 @@ export default function DashboardPage() {
 
   const { pricingMap } = usePricingMap();
 
+  // Budget tracking — always fetch current month
+  const currentMonth = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  }, []);
+  const { budget, saveBudget } = useBudget(currentMonth);
+
   const estimatedCost = useMemo(() => computeTotalCost(models, pricingMap), [models, pricingMap]);
 
   const dailyCostPoints = useMemo(
@@ -79,6 +91,18 @@ export default function DashboardPage() {
     () => forecastMonthlyCost(dailyCostPoints),
     [dailyCostPoints],
   );
+
+  // Budget status (only meaningful when budget exists + forecast available)
+  const budgetStatus = useMemo(() => {
+    if (!budget || !costForecast) return null;
+    if (budget.budget_usd === null && budget.budget_tokens === null) return null;
+    return computeBudgetStatus(
+      budget,
+      costForecast.currentMonthCost,
+      data?.summary.total_tokens ?? 0,
+      costForecast,
+    );
+  }, [budget, costForecast, data]);
 
   const dailyCacheRates = useMemo(
     () => (data ? toDailyCacheRates(data.records) : []),
@@ -126,11 +150,14 @@ export default function DashboardPage() {
     <div className="space-y-4 md:space-y-6">
       {/* Header + period selector */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold font-display">Dashboard</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Token usage overview for your AI coding tools.
-          </p>
+        <div className="flex items-center gap-2">
+          <div>
+            <h1 className="text-2xl font-bold font-display">Dashboard</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Token usage overview for your AI coding tools.
+            </p>
+          </div>
+          <BudgetDialog budget={budget} saveBudget={saveBudget} className="self-start mt-1" />
         </div>
         <PeriodSelector value={period} onChange={setPeriod} />
       </div>
@@ -148,6 +175,10 @@ export default function DashboardPage() {
       {/* Content */}
       {!loading && data && (
         <>
+          {/* Budget progress + alert (above stat grid when budget is active) */}
+          {budgetStatus && <BudgetProgress status={budgetStatus} />}
+          {budgetStatus && <BudgetAlert status={budgetStatus} />}
+
           {/* Stat cards */}
           <StatGrid columns={4}>
             <StatCard
