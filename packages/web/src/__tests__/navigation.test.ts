@@ -76,6 +76,21 @@ describe("sidebar navigation", () => {
       expect(groups[3]).toEqual(ADMIN_NAV_GROUP);
     });
   });
+  describe("ADMIN_NAV_GROUP", () => {
+    it("should include Invite Codes nav item", () => {
+      const items = ADMIN_NAV_GROUP.items.map((i) => i.label);
+      expect(items).toContain("Invite Codes");
+    });
+
+    it("should link Invite Codes to /admin/invites", () => {
+      const inviteItem = ADMIN_NAV_GROUP.items.find(
+        (i) => i.label === "Invite Codes"
+      );
+      expect(inviteItem).toBeDefined();
+      expect(inviteItem!.href).toBe("/admin/invites");
+      expect(inviteItem!.icon).toBe("Ticket");
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
