@@ -48,29 +48,6 @@ function InstallCommand() {
 }
 
 // ---------------------------------------------------------------------------
-// Feature list — NO cards, NO grid. Varied typography, inline.
-// ---------------------------------------------------------------------------
-
-const FEATURES = [
-  {
-    label: "Zero config",
-    detail: "reads your AI tools' log files directly",
-  },
-  {
-    label: "Usage dashboard",
-    detail: "tokens by day, model, app, and session",
-  },
-  {
-    label: "Instant sync",
-    detail: "one command, incremental uploads",
-  },
-  {
-    label: "Privacy first",
-    detail: "only token counts — never conversations",
-  },
-] as const;
-
-// ---------------------------------------------------------------------------
 // Main landing — single viewport, centered, no scroll
 // ---------------------------------------------------------------------------
 
@@ -96,59 +73,36 @@ export function LandingContent() {
             PEW
           </h1>
           <p className="font-display text-sm font-medium text-muted-foreground">
-            AI token usage tracker
+            Know what your AI tools cost
           </p>
         </div>
       </div>
 
-      {/* Row 2: Description with tools inline */}
+      {/* Row 2: One-liner description */}
       <p
-        className="mt-6 text-base leading-relaxed text-foreground/80 animate-fade-up"
-        style={{ animationDelay: "80ms", textWrap: "balance" }}
+        className="mt-5 text-sm leading-relaxed text-muted-foreground animate-fade-up"
+        style={{ animationDelay: "80ms" }}
       >
-        Track token consumption and costs from{" "}
-        <span className="font-medium text-foreground">
+        Zero-config token tracking for{" "}
+        <span className="text-foreground">
           Claude Code, Codex, Gemini CLI, OpenCode
         </span>{" "}
-        &amp;{" "}
-        <span className="font-medium text-foreground">OpenClaw</span> — without
-        reading your conversations.
+        &amp; <span className="text-foreground">OpenClaw</span>.
+        Only counts — never conversations.
       </p>
 
-      {/* Row 3: Features — compact list, no cards */}
-      <ul
-        className="mt-5 flex flex-wrap gap-x-5 gap-y-1.5 text-sm animate-fade-up"
-        style={{ animationDelay: "160ms" }}
-        aria-label="Features"
-      >
-        {FEATURES.map((f) => (
-          <li key={f.label} className="flex items-baseline gap-1.5">
-            <span
-              className="text-primary text-xs leading-none"
-              aria-hidden="true"
-            >
-              ●
-            </span>
-            <span>
-              <span className="font-semibold text-foreground">{f.label}</span>
-              <span className="text-muted-foreground"> — {f.detail}</span>
-            </span>
-          </li>
-        ))}
-      </ul>
-
-      {/* Row 4: Install command — PRIMARY action */}
+      {/* Row 3: Install command — PRIMARY action */}
       <div
-        className="mt-8 animate-fade-up"
-        style={{ animationDelay: "240ms" }}
+        className="mt-7 animate-fade-up"
+        style={{ animationDelay: "160ms" }}
       >
         <InstallCommand />
       </div>
 
-      {/* Row 5: Steps */}
+      {/* Row 4: Steps */}
       <ol
         className="mt-4 space-y-1 text-sm text-muted-foreground animate-fade-up"
-        style={{ animationDelay: "320ms" }}
+        style={{ animationDelay: "240ms" }}
         aria-label="Getting started steps"
       >
         <li className="flex items-baseline gap-2">
@@ -189,10 +143,10 @@ export function LandingContent() {
         </li>
       </ol>
 
-      {/* Row 6: Sign In — secondary action */}
+      {/* Row 5: Sign In — secondary action */}
       <div
         className="mt-6 animate-fade-up"
-        style={{ animationDelay: "400ms" }}
+        style={{ animationDelay: "320ms" }}
       >
         <Link
           href="/login"
