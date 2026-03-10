@@ -52,20 +52,25 @@ export function resolveProxyAction(
 }
 
 // Next.js 16 proxy convention (replaces middleware.ts)
-const authHandler = auth((req) => {
-  const action = resolveProxyAction(
-    req.nextUrl.pathname,
-    !!req.auth,
-    SKIP_AUTH,
-  );
-
-  if (action === "next") return NextResponse.next();
-  const target = action === "redirect:/" ? "/" : "/login";
-  return NextResponse.redirect(buildRedirectUrl(req, target));
-});
-
-// Export as named 'proxy' function for Next.js 16
+//
+// The auth() wrapper is called inside proxy() rather than at module scope.
+// With NextAuth's lazy-init pattern (`NextAuth((req) => config)`), calling
+// `auth(callback)` at the top level can return a non-function value in
+// Turbopack production builds due to module evaluation order differences.
+// Deferring the call to request time avoids this.
 export function proxy(request: NextRequest) {
+  const authHandler = auth((req) => {
+    const action = resolveProxyAction(
+      req.nextUrl.pathname,
+      !!req.auth,
+      SKIP_AUTH,
+    );
+
+    if (action === "next") return NextResponse.next();
+    const target = action === "redirect:/" ? "/" : "/login";
+    return NextResponse.redirect(buildRedirectUrl(req, target));
+  });
+
   return authHandler(request, {} as never);
 }
 
