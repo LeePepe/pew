@@ -50,7 +50,8 @@ describe("GET /api/leaderboard", () => {
 
     it("should accept valid periods", async () => {
       for (const period of ["week", "month", "all"]) {
-        mockClient.query.mockResolvedValueOnce({ results: [] });
+        mockClient.query
+          .mockResolvedValueOnce({ results: [] })  // leaderboard query
         const res = await GET(makeRequest({ period }));
         expect(res.status).toBe(200);
       }
@@ -95,31 +96,39 @@ describe("GET /api/leaderboard", () => {
   });
 
   describe("successful response", () => {
-    it("should return ranked entries with user info", async () => {
-      mockClient.query.mockResolvedValueOnce({
-        results: [
-          {
-            user_id: "u1",
-            name: "Alice",
-            image: "https://example.com/alice.jpg",
-            slug: "alice",
-            total_tokens: 5000000,
-            input_tokens: 3000000,
-            output_tokens: 1500000,
-            cached_input_tokens: 500000,
-          },
-          {
-            user_id: "u2",
-            name: "Bob",
-            image: null,
-            slug: "bob",
-            total_tokens: 3000000,
-            input_tokens: 2000000,
-            output_tokens: 800000,
-            cached_input_tokens: 200000,
-          },
-        ],
-      });
+    it("should return ranked entries with user info and teams", async () => {
+      mockClient.query
+        .mockResolvedValueOnce({
+          results: [
+            {
+              user_id: "u1",
+              name: "Alice",
+              image: "https://example.com/alice.jpg",
+              slug: "alice",
+              total_tokens: 5000000,
+              input_tokens: 3000000,
+              output_tokens: 1500000,
+              cached_input_tokens: 500000,
+            },
+            {
+              user_id: "u2",
+              name: "Bob",
+              image: null,
+              slug: "bob",
+              total_tokens: 3000000,
+              input_tokens: 2000000,
+              output_tokens: 800000,
+              cached_input_tokens: 200000,
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          results: [
+            { user_id: "u1", team_id: "t1", team_name: "Team Alpha" },
+            { user_id: "u2", team_id: "t1", team_name: "Team Alpha" },
+            { user_id: "u2", team_id: "t2", team_name: "Team Beta" },
+          ],
+        });
 
       const res = await GET(makeRequest({ period: "month" }));
       const body = await res.json();
@@ -135,6 +144,7 @@ describe("GET /api/leaderboard", () => {
           image: "https://example.com/alice.jpg",
           slug: "alice",
         },
+        teams: [{ id: "t1", name: "Team Alpha" }],
         total_tokens: 5000000,
         input_tokens: 3000000,
         output_tokens: 1500000,
@@ -143,6 +153,10 @@ describe("GET /api/leaderboard", () => {
 
       expect(body.entries[1].rank).toBe(2);
       expect(body.entries[1].user.name).toBe("Bob");
+      expect(body.entries[1].teams).toEqual([
+        { id: "t1", name: "Team Alpha" },
+        { id: "t2", name: "Team Beta" },
+      ]);
     });
 
     it("should not include date filter for period=all", async () => {
@@ -154,13 +168,13 @@ describe("GET /api/leaderboard", () => {
       expect(sqlCall[0]).not.toContain("ur.hour_start >= ?");
     });
 
-    it("should only include users with slugs", async () => {
+    it("should not filter by slug — all logged-in users are visible", async () => {
       mockClient.query.mockResolvedValueOnce({ results: [] });
 
       await GET(makeRequest());
 
       const sqlCall = mockClient.query.mock.calls[0]!;
-      expect(sqlCall[0]).toContain("u.slug IS NOT NULL");
+      expect(sqlCall[0]).not.toContain("u.slug IS NOT NULL");
     });
 
     it("should pass limit to SQL", async () => {
@@ -244,21 +258,23 @@ describe("GET /api/leaderboard", () => {
     });
 
     it("should use nickname when available", async () => {
-      mockClient.query.mockResolvedValueOnce({
-        results: [
-          {
-            user_id: "u1",
-            name: "Alice Smith",
-            nickname: "alice",
-            image: null,
-            slug: "alice-s",
-            total_tokens: 1000,
-            input_tokens: 500,
-            output_tokens: 400,
-            cached_input_tokens: 100,
-          },
-        ],
-      });
+      mockClient.query
+        .mockResolvedValueOnce({
+          results: [
+            {
+              user_id: "u1",
+              name: "Alice Smith",
+              nickname: "alice",
+              image: null,
+              slug: "alice-s",
+              total_tokens: 1000,
+              input_tokens: 500,
+              output_tokens: 400,
+              cached_input_tokens: 100,
+            },
+          ],
+        })
+        .mockResolvedValueOnce({ results: [] }); // teams query
 
       const res = await GET(makeRequest());
       const body = await res.json();
@@ -267,21 +283,23 @@ describe("GET /api/leaderboard", () => {
     });
 
     it("should fall back to name when nickname is null", async () => {
-      mockClient.query.mockResolvedValueOnce({
-        results: [
-          {
-            user_id: "u1",
-            name: "Bob Jones",
-            nickname: null,
-            image: null,
-            slug: "bob",
-            total_tokens: 1000,
-            input_tokens: 500,
-            output_tokens: 400,
-            cached_input_tokens: 100,
-          },
-        ],
-      });
+      mockClient.query
+        .mockResolvedValueOnce({
+          results: [
+            {
+              user_id: "u1",
+              name: "Bob Jones",
+              nickname: null,
+              image: null,
+              slug: "bob",
+              total_tokens: 1000,
+              input_tokens: 500,
+              output_tokens: 400,
+              cached_input_tokens: 100,
+            },
+          ],
+        })
+        .mockResolvedValueOnce({ results: [] }); // teams query
 
       const res = await GET(makeRequest());
       const body = await res.json();
@@ -299,6 +317,75 @@ describe("GET /api/leaderboard", () => {
       expect(res.status).toBe(200);
       const fallbackSql = mockClient.query.mock.calls[1]![0] as string;
       expect(fallbackSql).toContain("ur.hour_start >= ?");
+    });
+  });
+
+  describe("teams in response", () => {
+    it("should return empty teams array when teams query fails", async () => {
+      mockClient.query
+        .mockResolvedValueOnce({
+          results: [
+            {
+              user_id: "u1",
+              name: "Alice",
+              image: null,
+              slug: null,
+              total_tokens: 1000,
+              input_tokens: 500,
+              output_tokens: 400,
+              cached_input_tokens: 100,
+            },
+          ],
+        })
+        .mockRejectedValueOnce(new Error("no such table: team_members"));
+
+      const res = await GET(makeRequest());
+      const body = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(body.entries[0].teams).toEqual([]);
+    });
+
+    it("should return empty teams array when no results", async () => {
+      mockClient.query.mockResolvedValueOnce({ results: [] });
+
+      const res = await GET(makeRequest());
+      const body = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(body.entries).toEqual([]);
+    });
+
+    it("should fetch teams for leaderboard users", async () => {
+      mockClient.query
+        .mockResolvedValueOnce({
+          results: [
+            {
+              user_id: "u1",
+              name: "Alice",
+              image: null,
+              slug: null,
+              total_tokens: 1000,
+              input_tokens: 500,
+              output_tokens: 400,
+              cached_input_tokens: 100,
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          results: [
+            { user_id: "u1", team_id: "t1", team_name: "Eng" },
+          ],
+        });
+
+      const res = await GET(makeRequest());
+      const body = await res.json();
+
+      expect(body.entries[0].teams).toEqual([{ id: "t1", name: "Eng" }]);
+      // Second query should be the teams lookup
+      const teamsSql = mockClient.query.mock.calls[1]![0] as string;
+      expect(teamsSql).toContain("team_members");
+      expect(teamsSql).toContain("IN (?)");
     });
   });
 });

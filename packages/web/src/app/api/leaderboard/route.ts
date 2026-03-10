@@ -36,6 +36,12 @@ interface LeaderboardRow {
   cached_input_tokens: number;
 }
 
+interface UserTeamRow {
+  user_id: string;
+  team_id: string;
+  team_name: string;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -101,9 +107,6 @@ export async function GET(request: Request) {
     teamJoin = "JOIN team_members tm ON tm.user_id = ur.user_id";
     conditions.push("tm.team_id = ?");
     params.push(teamId);
-  } else {
-    // Public leaderboard only shows users with slugs
-    conditions.push("u.slug IS NOT NULL");
   }
 
   params.push(limit);
@@ -144,7 +147,6 @@ export async function GET(request: Request) {
           fallbackConditions.push("ur.hour_start >= ?");
           fallbackParams.push(fromDate);
         }
-        fallbackConditions.push("u.slug IS NOT NULL");
         fallbackParams.push(limit);
 
         const fallbackSql = `
@@ -170,6 +172,30 @@ export async function GET(request: Request) {
       }
     }
 
+    // Fetch teams for all users in the leaderboard
+    const userIds = result.results.map((r) => r.user_id);
+    const teamsByUser = new Map<string, { id: string; name: string }[]>();
+
+    if (userIds.length > 0) {
+      try {
+        const placeholders = userIds.map(() => "?").join(",");
+        const teamResult = await client.query<UserTeamRow>(
+          `SELECT tm.user_id, t.id AS team_id, t.name AS team_name
+           FROM team_members tm
+           JOIN teams t ON t.id = tm.team_id
+           WHERE tm.user_id IN (${placeholders})`,
+          userIds,
+        );
+        for (const row of teamResult.results) {
+          const list = teamsByUser.get(row.user_id) ?? [];
+          list.push({ id: row.team_id, name: row.team_name });
+          teamsByUser.set(row.user_id, list);
+        }
+      } catch {
+        // Silently skip if teams tables don't exist yet
+      }
+    }
+
     const entries = result.results.map((row, index) => ({
       rank: index + 1,
       user: {
@@ -177,6 +203,7 @@ export async function GET(request: Request) {
         image: row.image,
         slug: row.slug,
       },
+      teams: teamsByUser.get(row.user_id) ?? [],
       total_tokens: row.total_tokens,
       input_tokens: row.input_tokens,
       output_tokens: row.output_tokens,

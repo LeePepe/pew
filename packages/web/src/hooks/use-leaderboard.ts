@@ -15,6 +15,7 @@ export interface LeaderboardEntry {
     image: string | null;
     slug: string | null;
   };
+  teams: { id: string; name: string }[];
   total_tokens: number;
   input_tokens: number;
   output_tokens: number;

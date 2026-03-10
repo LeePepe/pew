@@ -59,7 +59,7 @@ function RankBadge({ rank }: { rank: number }) {
 // ---------------------------------------------------------------------------
 
 function LeaderboardRow({ entry }: { entry: LeaderboardEntry }) {
-  const { rank, user, total_tokens, input_tokens, output_tokens } = entry;
+  const { rank, user, teams, total_tokens, input_tokens, output_tokens } = entry;
   const displayName = user.name ?? "Anonymous";
   const initial = displayName[0]?.toUpperCase() ?? "?";
 
@@ -76,7 +76,7 @@ function LeaderboardRow({ entry }: { entry: LeaderboardEntry }) {
         <RankBadge rank={rank} />
       </div>
 
-      {/* Avatar + Name */}
+      {/* Avatar + Name + Teams */}
       <div className="flex flex-1 items-center gap-3 min-w-0">
         <Avatar className="h-8 w-8 shrink-0">
           {user.image && (
@@ -86,9 +86,23 @@ function LeaderboardRow({ entry }: { entry: LeaderboardEntry }) {
             {initial}
           </AvatarFallback>
         </Avatar>
-        <span className="text-sm font-medium text-foreground truncate">
-          {displayName}
-        </span>
+        <div className="flex flex-col min-w-0">
+          <span className="text-sm font-medium text-foreground truncate">
+            {displayName}
+          </span>
+          {teams.length > 0 && (
+            <div className="flex gap-1 flex-wrap">
+              {teams.map((team) => (
+                <span
+                  key={team.id}
+                  className="text-[10px] leading-tight text-muted-foreground bg-muted px-1.5 py-0.5 rounded"
+                >
+                  {team.name}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Token breakdown (hidden on mobile) */}
