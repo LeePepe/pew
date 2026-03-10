@@ -16,6 +16,9 @@ vi.mock("@/lib/auth-adapter", () => ({
 vi.mock("@/lib/d1", () => ({
   getD1Client: vi.fn(),
 }));
+vi.mock("@/lib/invite", () => ({
+  handleInviteGate: vi.fn(() => true),
+}));
 
 import {
   shouldUseSecureCookies,
