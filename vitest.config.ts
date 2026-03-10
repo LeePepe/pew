@@ -5,6 +5,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": resolve(__dirname, "packages/web/src"),
+      "@pew/core": resolve(__dirname, "packages/core/src/index.ts"),
     },
   },
   test: {
@@ -31,6 +32,8 @@ export default defineConfig({
         // bun:sqlite adapter — untestable in vitest (Node runtime).
         // All logic is exercised through DI in sync.test.ts / session-sync.test.ts.
         "**/opencode-sqlite-db.ts",
+        // NextAuth catch-all route — pure re-export, no custom logic.
+        "**/\\[...nextauth\\]/route.ts",
       ],
       thresholds: {
         statements: 90,
