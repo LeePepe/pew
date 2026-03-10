@@ -165,3 +165,47 @@ export function forecastMonthlyCost(
 
   return { currentMonthCost, projectedMonthCost, daysElapsed, daysInMonth, dailyAverage };
 }
+
+// ---------------------------------------------------------------------------
+// Cost-per-token comparison
+// ---------------------------------------------------------------------------
+
+/** Effective cost efficiency for a single model/source pair. */
+export interface ModelCostEfficiency {
+  model: string;
+  source: string;
+  totalCost: number;
+  totalTokens: number;
+  costPer1K: number; // totalCost / totalTokens * 1000
+}
+
+/**
+ * Compute cost-per-1K-tokens for each model aggregate.
+ *
+ * Filters out models with zero total tokens, computes estimated cost via
+ * `lookupPricing` + `estimateCost`, and returns sorted by `costPer1K`
+ * descending (most expensive first).
+ */
+export function computeCostPerToken(
+  models: ModelAggregate[],
+  pricingMap: PricingMap,
+): ModelCostEfficiency[] {
+  const results: ModelCostEfficiency[] = [];
+
+  for (const m of models) {
+    if (m.total === 0) continue;
+
+    const pricing = lookupPricing(pricingMap, m.model, m.source);
+    const cost = estimateCost(m.input, m.output, m.cached, pricing);
+
+    results.push({
+      model: m.model,
+      source: m.source,
+      totalCost: cost.totalCost,
+      totalTokens: m.total,
+      costPer1K: (cost.totalCost / m.total) * 1000,
+    });
+  }
+
+  return results.sort((a, b) => b.costPer1K - a.costPer1K);
+}

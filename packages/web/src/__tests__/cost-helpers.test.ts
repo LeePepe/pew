@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeTotalCost, toDailyCostPoints, computeCacheSavings, forecastMonthlyCost } from "@/lib/cost-helpers";
+import { computeTotalCost, toDailyCostPoints, computeCacheSavings, forecastMonthlyCost, computeCostPerToken } from "@/lib/cost-helpers";
 import type { DailyCostPoint } from "@/lib/cost-helpers";
 import type { ModelAggregate, UsageRow } from "@/hooks/use-usage-data";
 import { getDefaultPricingMap } from "@/lib/pricing";
@@ -293,5 +293,72 @@ describe("forecastMonthlyCost", () => {
     expect(result).not.toBeNull();
     expect(result!.currentMonthCost).toBeCloseTo(50, 1);
     expect(result!.daysElapsed).toBe(5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeCostPerToken
+// ---------------------------------------------------------------------------
+
+describe("computeCostPerToken", () => {
+  const pm = makePricingMap();
+
+  it("returns empty array for empty model list", () => {
+    expect(computeCostPerToken([], pm)).toEqual([]);
+  });
+
+  it("computes cost-per-1K for a single model", () => {
+    // claude-sonnet-4-20250514: input=$3/M, output=$15/M, cached=$0.3/M
+    // Non-cached input = 1M - 200k = 800k → 800k/1M * $3 = $2.40
+    // Output = 500k → 500k/1M * $15 = $7.50
+    // Cached = 200k → 200k/1M * $0.3 = $0.06
+    // totalCost = $9.96, totalTokens = 1_500_000, costPer1K = 9.96 / 1_500_000 * 1000 = 0.00664
+    const models = [makeAggregate()];
+    const result = computeCostPerToken(models, pm);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.model).toBe("claude-sonnet-4-20250514");
+    expect(result[0]!.source).toBe("claude-code");
+    expect(result[0]!.totalCost).toBeCloseTo(9.96, 2);
+    expect(result[0]!.totalTokens).toBe(1_500_000);
+    expect(result[0]!.costPer1K).toBeCloseTo(0.00664, 4);
+  });
+
+  it("sorts by costPer1K descending (most expensive first)", () => {
+    // sonnet-4 is more expensive per token than gemini-2.5-pro
+    const models = [
+      makeAggregate({
+        model: "gemini-2.5-pro",
+        source: "gemini-cli",
+        input: 1_000_000,
+        output: 0,
+        cached: 0,
+        total: 1_000_000,
+      }),
+      makeAggregate({
+        model: "claude-sonnet-4-20250514",
+        source: "claude-code",
+        input: 1_000_000,
+        output: 0,
+        cached: 0,
+        total: 1_000_000,
+      }),
+    ];
+    const result = computeCostPerToken(models, pm);
+    expect(result).toHaveLength(2);
+    // sonnet-4: $3/M input → costPer1K = 3/1_000_000*1000 = 0.003
+    // gemini: $1.25/M input → costPer1K = 1.25/1_000_000*1000 = 0.00125
+    expect(result[0]!.model).toBe("claude-sonnet-4-20250514");
+    expect(result[1]!.model).toBe("gemini-2.5-pro");
+    expect(result[0]!.costPer1K).toBeGreaterThan(result[1]!.costPer1K);
+  });
+
+  it("filters out models with zero total tokens", () => {
+    const models = [
+      makeAggregate({ total: 0, input: 0, output: 0, cached: 0 }),
+      makeAggregate({ model: "gemini-2.5-pro", source: "gemini-cli", total: 1_000_000, input: 1_000_000, output: 0, cached: 0 }),
+    ];
+    const result = computeCostPerToken(models, pm);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.model).toBe("gemini-2.5-pro");
   });
 });
