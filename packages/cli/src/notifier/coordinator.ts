@@ -65,7 +65,7 @@ export async function coordinatedSync(
   } catch (err) {
     result = { ...baseResult, error: toErrorMessage(err) };
   }
-  await writeRunLog(result, trigger, startTime, now, opts.version ?? "unknown", opts.stateDir, fs);
+  await writeRunLog(result, startTime, now, opts.version ?? "unknown", opts.stateDir, fs);
   return result;
 }
 
@@ -240,7 +240,6 @@ function deriveStatus(result: CoordinatorRunResult): RunLogEntry["status"] {
 
 async function writeRunLog(
   result: CoordinatorRunResult,
-  trigger: SyncTrigger,
   startTime: number,
   now: () => number,
   version: string,
@@ -252,7 +251,7 @@ async function writeRunLog(
     const entry: RunLogEntry = {
       runId: result.runId,
       version,
-      trigger,
+      triggers: result.triggers,
       startedAt: new Date(startTime).toISOString(),
       completedAt: new Date(completedAt).toISOString(),
       durationMs: completedAt - startTime,

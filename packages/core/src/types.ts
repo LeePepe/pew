@@ -307,8 +307,8 @@ export interface RunLogEntry {
   runId: string;
   /** pew CLI version (e.g. "0.7.0") */
   version: string;
-  /** Original trigger that initiated this run */
-  trigger: SyncTrigger;
+  /** Triggers that were coalesced into this run */
+  triggers: SyncTrigger[];
 
   /** ISO 8601 timestamps */
   startedAt: string;

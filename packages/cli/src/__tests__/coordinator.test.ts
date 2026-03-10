@@ -593,7 +593,7 @@ describe("run log writing", () => {
 
     expect(lastRun!.runId).toBe(result.runId);
     expect(lastRun!.version).toBe("0.7.0");
-    expect(lastRun!.trigger).toEqual(createTrigger());
+    expect(lastRun!.triggers).toEqual([createTrigger()]);
     expect(lastRun!.startedAt).toBe("2026-03-10T12:00:00.000Z");
     expect(lastRun!.completedAt).toBe("2026-03-10T12:00:00.000Z");
     expect(lastRun!.durationMs).toBe(0);

@@ -17,6 +17,7 @@ import type {
   OpenCodeCursor,
   QueueRecord,
   PewConfig,
+  RunLogEntry,
   SessionCursorState,
   SessionFileCursor,
   SessionKind,
@@ -246,6 +247,31 @@ describe("Notifier types", () => {
     };
     expect(result.waitedForLock).toBe(true);
     expect(result.triggers).toHaveLength(1);
+  });
+
+  it("should represent run log entries with triggers array", () => {
+    const entry: RunLogEntry = {
+      runId: "2026-03-10T10:00:00.000Z-xyz789",
+      version: "0.7.0",
+      triggers: [
+        { kind: "notify", source: "codex", fileHint: "/tmp/rollout.jsonl" },
+        { kind: "notify", source: "gemini-cli" },
+      ],
+      startedAt: "2026-03-10T10:00:00.000Z",
+      completedAt: "2026-03-10T10:00:01.000Z",
+      durationMs: 1000,
+      coordination: {
+        waitedForLock: false,
+        skippedSync: false,
+        hadFollowUp: false,
+        followUpCount: 0,
+        degradedToUnlocked: false,
+      },
+      cycles: [],
+      status: "success",
+    };
+    expect(entry.triggers).toHaveLength(2);
+    expect(entry.triggers[0].kind).toBe("notify");
   });
 
   it("should constrain notifier status values", () => {
