@@ -132,6 +132,19 @@ Recommended implementation order for maximum impact:
 > Data flows: `usage_records` → `GET /api/usage` → `useUsageData` hook → pure helper functions → Recharts components.
 > Existing UI conventions: `"use client"` pages, `PeriodSelector` for time range, `StatCard`/`StatGrid` for metrics, `bg-secondary rounded-[var(--radius-card)]` card wrapper, colors via `palette.ts`.
 
+#### Timezone Strategy
+
+All timestamps in the database and API are **UTC ISO 8601** (e.g., `2026-03-10T21:00:00.000Z`). The existing codebase consistently uses UTC for storage, queries (`route.ts` uses `.toISOString()`), and the working-hours heatmap (`session-helpers.ts` uses `getUTCDay()`/`getUTCHours()`).
+
+**Rule: store/query UTC, render local.** All new time-based features must:
+
+1. **Helpers** accept raw UTC strings and a `timezoneOffset` parameter (minutes, from `new Date().getTimezoneOffset()`), or use the browser's `Intl.DateTimeFormat` for display formatting.
+2. **Day bucketing** for user-facing labels (peak hours, weekday/weekend, streaks) must convert UTC → local before extracting day-of-week or hour-of-day. Use `new Date(utcString)` which auto-converts to local in the browser, then call `getDay()`/`getHours()` (NOT `getUTCDay()`/`getUTCHours()`).
+3. **Pure helper functions** under test must accept an optional `tzOffset` parameter (default `0` for UTC in tests, real offset injected from the UI layer) so tests remain deterministic.
+4. The existing `toWorkingHoursGrid()` in `session-helpers.ts` currently uses `getUTCDay()`/`getUTCHours()` — this is a pre-existing bug that should be fixed in a separate commit as part of Category 3 work.
+
+This ensures "Wednesday 9–10 PM" means the user's local Wednesday 9–10 PM, not UTC.
+
 ### Category 1: Cost Insights — Detailed Design
 
 #### 1a. Cost Trend Chart
@@ -252,23 +265,23 @@ function computeCostPerToken(
 
 **What**: A metric showing average tokens consumed per coding hour, derived by cross-referencing `usage_records` (tokens) with `session_records` (duration).
 
-**Data pipeline**: Requires data from **both** `/api/usage` and `/api/sessions`. The sessions page already fetches both via `useSessionData`.
+**Data pipeline**: Requires data from **both** `/api/usage` and `/api/sessions`. Currently the sessions page (`sessions/page.tsx`) only calls `useSessionData()` (which fetches `/api/sessions`). To compute tokens/hour, the sessions page must **additionally** call `useUsageData()` for token totals. This is new wiring work.
 
 **New function** (`packages/web/src/lib/session-helpers.ts`):
 ```ts
 interface EfficiencyMetrics {
   tokensPerHour: number;         // totalTokens / totalHours
-  totalCodingHours: number;      // sum(duration_seconds) / 3600
+  totalCodingHours: number;      // from SessionOverview.totalHours
   totalTokens: number;
 }
 
 function computeTokensPerHour(
-  usageSummary: UsageSummary,    // from /api/usage response
-  sessionOverview: SessionOverviewData,
+  totalTokens: number,           // from UsageSummary.total_tokens (snake_case)
+  sessionOverview: SessionOverview,  // actual type, has totalHours (not totalDurationSeconds)
 ): EfficiencyMetrics;
 ```
 
-**Algorithm**: `tokensPerHour = usageSummary.totalTokens / (sessionOverview.totalDurationSeconds / 3600)`. Guard against division by zero.
+**Algorithm**: `tokensPerHour = totalTokens / sessionOverview.totalHours`. Guard against division by zero (totalHours === 0 → return 0).
 
 **UI**: `StatCard` on Sessions page. Icon: `Zap`. Value: `12.3K tok/hr`. This naturally pairs with the existing session overview stats.
 
@@ -305,7 +318,7 @@ function toDailyCacheRates(rows: UsageRow[]): DailyCacheRate[];
 
 **What**: A simple pie/donut chart showing the split between input and output tokens.
 
-**Data pipeline**: Already available from `usageSummary` in the `/api/usage` response (server-side aggregation returns `totalInputTokens`, `totalOutputTokens`).
+**Data pipeline**: Already available from `usageSummary` in the `/api/usage` response (server-side aggregation returns `input_tokens`, `output_tokens` — snake_case, matching the `UsageSummary` interface).
 
 **New function**: None needed — data is already in `UsageSummary`. Just format for the chart.
 
@@ -341,22 +354,25 @@ function computeReasoningRatio(summary: UsageSummary): {
 
 **Data pipeline**: Requires half-hour granularity data. Use `GET /api/usage?granularity=half-hour`.
 
+> **Prerequisite**: The current `useUsageData` hook hardcodes `granularity: "day"` (line ~208 in `use-usage-data.ts`). To support peak hour detection, either (a) add a `granularity` parameter to `useUsageData` so callers can request `"half-hour"` data, or (b) create a dedicated `usePeakHourData` hook that fetches with half-hour granularity. Option (a) is preferred — it's a single-line change to make the existing hook more flexible. This hook change must be a separate commit **before** the `detectPeakHours` helper commit (see Atomic Commit Plan, Category 3 commit 0).
+
 **New function** (`packages/web/src/lib/date-helpers.ts`):
 ```ts
 interface PeakSlot {
   hourStart: string;        // ISO 8601 half-hour boundary
-  dayOfWeek: string;        // "Monday", "Tuesday", ...
-  timeSlot: string;         // "9:00 PM – 9:30 PM"
+  dayOfWeek: string;        // "Monday", "Tuesday", ... (local time)
+  timeSlot: string;         // "9:00 PM – 9:30 PM" (local time)
   totalTokens: number;
 }
 
 function detectPeakHours(
   rows: UsageRow[],
   topN?: number,            // default 3
+  tzOffset?: number,        // minutes, from new Date().getTimezoneOffset()
 ): PeakSlot[];
 ```
 
-**Algorithm**: Group rows by `(dayOfWeek, halfHourSlot)` — e.g., all "Wednesday 21:00" records across the period. Sum `total_tokens` per group. Return top N sorted by total descending.
+**Algorithm**: For each row, convert `hour_start` to local time via `new Date(hour_start)` then extract day-of-week with `getDay()` and hour with `getHours()` (local, NOT `getUTCDay()`/`getUTCHours()`). Group by `(localDayOfWeek, localHalfHourSlot)`. Sum `total_tokens` per group. Return top N sorted by total descending. For deterministic tests, accept `tzOffset` and apply manual offset: `new Date(new Date(utc).getTime() - tzOffset * 60000)`.
 
 **UI**: A small "Peak Hours" card with a ranked list. Icon: `Flame`. Each slot shows day + time + a mini bar representing relative activity. Placement: Sessions page, near the working hours heatmap (contextually related).
 
@@ -376,11 +392,14 @@ interface WeekdayWeekendStats {
 
 function compareWeekdayWeekend(
   dailyPoints: DailyPoint[],
+  dateRange: { from: string; to: string },  // period boundaries for calendar fill
   dailyCosts?: DailyCostPoint[],
 ): WeekdayWeekendStats;
 ```
 
-**Algorithm**: Partition `DailyPoint[]` by `new Date(date).getDay()` — 0/6 = weekend, 1-5 = weekday. Compute averages.
+**Algorithm**: First, generate a complete calendar of dates between `dateRange.from` and `dateRange.to` (inclusive). Left-join with `dailyPoints` — dates with no usage records get `totalTokens = 0`. This prevents sparse-user bias where "average daily usage" would otherwise mean "average active-day usage." Then partition the filled calendar by `new Date(date).getDay()` (local time, NOT UTC) — 0/6 = weekend, 1-5 = weekday. Compute averages dividing by **calendar days** (not active days).
+
+**Why calendar fill matters**: Without it, a user who codes only on weekdays would show "0 weekend days" instead of the correct weekend count. The `/api/usage` endpoint only returns rows for days with actual usage (`GROUP BY` omits zero-usage days), so the client must fill the gaps.
 
 **UI component** (`packages/web/src/components/dashboard/weekday-weekend-chart.tsx`):
 - Grouped `BarChart` with 2 groups (Weekday, Weekend), 2 bars each (Tokens, Cost)
@@ -423,7 +442,7 @@ function computeMoMGrowth(
 ```ts
 interface StreakInfo {
   currentStreak: number;       // consecutive days ending today (or yesterday)
-  longestStreak: number;       // all-time longest
+  longestStreak: number;       // longest within available data (up to 365 days from heatmap)
   longestStreakStart: string;  // start date of longest streak
   longestStreakEnd: string;    // end date of longest streak
   isActiveToday: boolean;      // has usage today
@@ -544,7 +563,7 @@ function generateInsights(
   summary: UsageSummary,
   models: ModelAggregate[],
   dailyPoints: DailyPoint[],
-  sessions?: SessionOverviewData,
+  sessions?: SessionOverview,
   pricingMap?: PricingMap,
 ): Insight[];
 ```
@@ -578,7 +597,7 @@ function generateInsights(
 
 This is the only feature requiring a **new database table** and new API endpoints, since user budget preferences must be persisted server-side.
 
-#### Database Migration (`scripts/migrations/006-user-budgets.sql`)
+#### Database Migration (`scripts/migrations/005-user-budgets.sql`)
 
 ```sql
 CREATE TABLE IF NOT EXISTS user_budgets (
@@ -705,14 +724,15 @@ function useBudget(month: string): {
 | 6 | `feat: integrate tokens/hour + reasoning ratio on sessions page` | `sessions/page.tsx` | No unit test (wiring). |
 | 7 | `feat: integrate cache rate chart + io ratio on dashboard` | `dashboard/page.tsx` | No unit test (wiring). |
 
-### Category 3: Time Analysis (8 commits)
+### Category 3: Time Analysis (9 commits)
 
 | # | Commit | Files Changed | Tests |
 |---|--------|---------------|-------|
+| 0 | `feat: add granularity param to useUsageData hook` | `use-usage-data.ts` | No unit test (hook). Existing tests unaffected (default remains "day"). |
 | 1 | `feat: add detectPeakHours helper` | `date-helpers.ts` | `date-helpers.test.ts` — 4+ cases: clear winner, tie-breaking, single record, topN param |
 | 2 | `feat: add compareWeekdayWeekend helper` | `usage-helpers.ts` | `usage-helpers.test.ts` — 4+ cases: all weekdays, all weekends, mixed, empty data |
 | 3 | `feat: add computeMoMGrowth helper` | `usage-helpers.ts` | `usage-helpers.test.ts` — 4+ cases: growth, decline, first month (no previous), same cost |
-| 4 | `feat: add computeStreak helper` | `usage-helpers.ts` | `usage-helpers.test.ts` — 6+ cases: active today, ended yesterday, no data, gap in middle, all-time contiguous, single day |
+| 4 | `feat: add computeStreak helper` | `usage-helpers.ts` | `usage-helpers.test.ts` — 6+ cases: active today, ended yesterday, no data, gap in middle, longest within 365 days, single day |
 | 5 | `feat: add PeakHoursCard component` | `peak-hours-card.tsx` | No unit test (presentational). |
 | 6 | `feat: add WeekdayWeekendChart component` | `weekday-weekend-chart.tsx` | No unit test (presentational). |
 | 7 | `feat: add StreakBadge component` | `streak-badge.tsx` | No unit test (presentational). |
@@ -742,7 +762,7 @@ function useBudget(month: string): {
 
 | # | Commit | Files Changed | Tests |
 |---|--------|---------------|-------|
-| 1 | `feat: add user_budgets migration` | `scripts/migrations/006-user-budgets.sql` | No test (DDL). Manual D1 verification. |
+| 1 | `feat: add user_budgets migration` | `scripts/migrations/005-user-budgets.sql` | No test (DDL). Manual D1 verification. |
 | 2 | `feat: add budget API route (GET + PUT)` | `api/budgets/route.ts` | `budgets.test.ts` (new) — 6+ cases: GET empty, GET existing, PUT create, PUT update, invalid month format, negative values |
 | 3 | `feat: add budget validation in @pew/core` | `core/src/validation.ts` | `core/validation.test.ts` — 4+ cases: valid budget, zero budget, negative, invalid month |
 | 4 | `feat: add computeBudgetStatus helper` | `budget-helpers.ts` (new) | `budget-helpers.test.ts` (new) — 6+ cases: under budget, at budget, over budget, projected overage, null budget (no limit), tokens-only budget |
@@ -752,21 +772,21 @@ function useBudget(month: string): {
 | 8 | `feat: add BudgetAlert component` | `budget-alert.tsx` | No unit test (presentational). |
 | 9 | `feat: integrate budget tracking on dashboard` | `dashboard/page.tsx` | No unit test (wiring). |
 
-### Total: 42 atomic commits
+### Total: 43 atomic commits
 
 | Category | Helper commits (tested) | Component commits | Integration commits | Total |
 |----------|------------------------|-------------------|---------------------|-------|
 | 1. Cost Insights | 4 | 2 | 2 | 8 |
 | 2. Efficiency Metrics | 3 | 2 | 2 | 7 |
-| 3. Time Analysis | 4 | 3 | 1 | 8 |
+| 3. Time Analysis | 5 | 3 | 1 | 9 |
 | 4. Model/Tool Comparison | 3 | 2 | 1 | 6 |
 | 5. Personal Insights | 2 | 1 | 1 | 4 |
 | 6. Goal Tracking | 3 | 3 | 3 | 9 |
-| **Total** | **19** | **13** | **10** | **42** |
+| **Total** | **20** | **13** | **10** | **43** |
 
 ### Test Coverage Summary
 
-- **19 helper commits** each include L1 unit tests (pure functions, vitest)
+- **20 helper commits** each include L1 unit tests (pure functions, vitest)
 - **13 component commits** are presentational React (deferred to L4 Playwright)
 - **10 integration commits** are page wiring (deferred to L3/L4 E2E)
 - Estimated **70+ new test cases** across existing and new test files
