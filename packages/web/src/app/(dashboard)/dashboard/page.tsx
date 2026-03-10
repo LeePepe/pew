@@ -13,10 +13,12 @@ import {
 import { useUsageData, toHeatmapData } from "@/hooks/use-usage-data";
 import { formatTokens, cn } from "@/lib/utils";
 import { usePricingMap, formatCost } from "@/hooks/use-pricing";
-import { computeTotalCost, toDailyCostPoints, computeCacheSavings, forecastMonthlyCost } from "@/lib/cost-helpers";
+import { computeTotalCost, toDailyCostPoints, computeCacheSavings, forecastMonthlyCost, toDailyCacheRates } from "@/lib/cost-helpers";
 import { StatCard, StatGrid } from "@/components/dashboard/stat-card";
 import { UsageTrendChart } from "@/components/dashboard/usage-trend-chart";
 import { CostTrendChart } from "@/components/dashboard/cost-trend-chart";
+import { CacheRateChart } from "@/components/dashboard/cache-rate-chart";
+import { IoRatioChart } from "@/components/dashboard/io-ratio-chart";
 import { SourceDonutChart } from "@/components/dashboard/source-donut-chart";
 import { HeatmapCalendar } from "@/components/dashboard/heatmap-calendar";
 import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
@@ -62,6 +64,11 @@ export default function DashboardPage() {
   const costForecast = useMemo(
     () => forecastMonthlyCost(dailyCostPoints),
     [dailyCostPoints],
+  );
+
+  const dailyCacheRates = useMemo(
+    () => (data ? toDailyCacheRates(data.records) : []),
+    [data],
   );
 
   const showForecast = (period === "month" || period === "all") && costForecast !== null;
@@ -199,8 +206,17 @@ export default function DashboardPage() {
                 <CostTrendChart data={dailyCostPoints} />
               )}
             </div>
-            <SourceDonutChart data={sources} />
+            <div className="flex flex-col gap-3 md:gap-4">
+              <SourceDonutChart data={sources} />
+              <IoRatioChart
+                inputTokens={data.summary.input_tokens}
+                outputTokens={data.summary.output_tokens}
+              />
+            </div>
           </div>
+
+          {/* Efficiency row: cache rate trend */}
+          <CacheRateChart data={dailyCacheRates} />
 
           {/* Activity heatmap */}
           <div className="rounded-[var(--radius-card)] bg-secondary p-4 md:p-5">
