@@ -1,6 +1,6 @@
 # 10. Phase 1: Tracker / Coordinator Architecture (COMPLETED)
 
-> **Status**: Phase 1 completed (2026-03-10). Run Log deferred to Phase 2 (docs/11).
+> **Status**: Phase 1 completed (2026-03-10). Phase 2 (Run Log + notify session sync fix) also completed — see docs/11.
 > **Implementation**: docs/10b (notifier hooks, all 12 steps complete).
 
 ## Background
@@ -57,10 +57,10 @@ Triggers do not call parsers or write cursors directly. They only submit events 
 | runId generation | DONE | `ISO-timestamp-randomSuffix` format |
 | Graceful degradation | DONE | Falls back to unlocked sync when `FileHandle.lock()` unavailable |
 | Lock timeout | DONE | Configurable (default 60s), returns `skippedSync: true` on timeout |
-| **Run Log** | **DEFERRED** | Moved to Phase 2 (docs/11) |
+| **Run Log** | **DONE** | Phase 2 (docs/11): `writeRunLog` + `deriveStatus` + `last-run.json` |
 
 **Files**: `packages/cli/src/notifier/coordinator.ts`
-**Tests**: `packages/cli/src/__tests__/coordinator.test.ts` (16 tests)
+**Tests**: `packages/cli/src/__tests__/coordinator.test.ts` (30 tests)
 
 ### Notifier Hooks — DONE (all 5 sources)
 
@@ -89,7 +89,7 @@ Full implementation details: docs/11.
 | `pew sync` | Full token + session sync, optional auto-upload | DONE |
 | `pew status` | Show tracked files, last sync, pending uploads, hook status | DONE |
 | `pew login` | Browser-based OAuth, saves API key | DONE |
-| `pew notify` | Coordinated sync from AI tool hooks | DONE (session sync gap — see docs/11) |
+| `pew notify` | Coordinated sync from AI tool hooks | DONE |
 | `pew init` | Install notifier hooks for all/specific sources | DONE |
 | `pew uninstall` | Remove notifier hooks | DONE |
 
@@ -119,9 +119,9 @@ Shared discovery functions in `discovery/sources.ts` used by both token and sess
 - Next.js 16 dashboard with all pages (overview, apps, models, details, sessions, leaderboard, settings, admin)
 - Cloudflare Worker with D1 bindings for token + session ingest with upsert semantics
 
-## Known Gaps Carried to Phase 2
+## Known Gaps Carried to Phase 2 (ALL RESOLVED)
 
-These issues were identified during Phase 1 and are addressed in docs/11:
+These issues were identified during Phase 1 and have been resolved in docs/11 (Phase 2):
 
 1. **No persistent Run Log** — `CoordinatorRunResult` is returned to caller but never written to disk. Cannot debug "why did this notify produce nothing?"
 
@@ -135,7 +135,7 @@ Detailed plans will be written when each phase begins.
 
 | Phase | Focus | Status |
 |-------|-------|--------|
-| **Phase 2** | Run Log + notify session sync fix | **Next** (docs/11) |
+| **Phase 2** | Run Log + notify session sync fix | **COMPLETED** (docs/11) |
 | **Phase 3** | Shared Discovery / Plan Builder | Planned |
 | **Phase 4** | Unified Source Registry (`SourceDriver`) | Planned |
 | **Phase 5** | Staged Queue + at-least-once semantics | Planned |
