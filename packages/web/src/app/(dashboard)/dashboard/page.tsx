@@ -8,11 +8,12 @@ import {
   Database,
   DollarSign,
   PiggyBank,
+  TrendingUp,
 } from "lucide-react";
 import { useUsageData, toHeatmapData } from "@/hooks/use-usage-data";
 import { formatTokens, cn } from "@/lib/utils";
 import { usePricingMap, formatCost } from "@/hooks/use-pricing";
-import { computeTotalCost, toDailyCostPoints, computeCacheSavings } from "@/lib/cost-helpers";
+import { computeTotalCost, toDailyCostPoints, computeCacheSavings, forecastMonthlyCost } from "@/lib/cost-helpers";
 import { StatCard, StatGrid } from "@/components/dashboard/stat-card";
 import { UsageTrendChart } from "@/components/dashboard/usage-trend-chart";
 import { CostTrendChart } from "@/components/dashboard/cost-trend-chart";
@@ -57,6 +58,13 @@ export default function DashboardPage() {
     () => computeCacheSavings(models, pricingMap),
     [models, pricingMap],
   );
+
+  const costForecast = useMemo(
+    () => forecastMonthlyCost(dailyCostPoints),
+    [dailyCostPoints],
+  );
+
+  const showForecast = (period === "month" || period === "all") && costForecast !== null;
 
   const subtitle = periodLabel(period);
 
@@ -121,6 +129,26 @@ export default function DashboardPage() {
               iconColor="text-muted-foreground"
             />
           </StatGrid>
+
+          {/* Cost forecast (only when period is month or all, and enough data) */}
+          {showForecast && (
+            <StatGrid columns={2}>
+              <StatCard
+                title="Monthly Forecast"
+                value={formatCost(costForecast.projectedMonthCost)}
+                subtitle={`${formatCost(costForecast.currentMonthCost)} spent so far (${costForecast.daysElapsed} days)`}
+                icon={TrendingUp}
+                iconColor="text-chart-6"
+              />
+              <StatCard
+                title="Daily Average"
+                value={formatCost(costForecast.dailyAverage)}
+                subtitle={`${costForecast.daysInMonth - costForecast.daysElapsed} days remaining`}
+                icon={DollarSign}
+                iconColor="text-muted-foreground"
+              />
+            </StatGrid>
+          )}
 
           {/* Token breakdown (secondary row) */}
           <StatGrid columns={3}>
