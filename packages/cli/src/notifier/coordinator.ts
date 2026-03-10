@@ -1,6 +1,6 @@
 import { open, stat, appendFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { CoordinatorRunResult, SyncCycleResult, SyncTrigger } from "@pew/core";
+import type { CoordinatorRunResult, RunLogEntry, SyncCycleResult, SyncTrigger } from "@pew/core";
 
 interface LockHandle {
   lock?(mode?: string, options?: { nonBlocking?: boolean }): Promise<void>;
@@ -42,9 +42,10 @@ export async function coordinatedSync(
 ): Promise<CoordinatorRunResult> {
   const fs = opts.fs ?? defaultFs;
   const now = opts.now ?? Date.now;
+  const startTime = now();
   const maxFollowUps = opts.maxFollowUps ?? DEFAULT_MAX_FOLLOW_UPS;
   const lockTimeoutMs = opts.lockTimeoutMs ?? DEFAULT_LOCK_TIMEOUT_MS;
-  const runId = `${new Date(now()).toISOString()}-${Math.random().toString(36).slice(2, 8)}`;
+  const runId = `${new Date(startTime).toISOString()}-${Math.random().toString(36).slice(2, 8)}`;
   const baseResult: CoordinatorRunResult = {
     runId,
     triggers: [trigger],
@@ -58,6 +59,20 @@ export async function coordinatedSync(
 
   await fs.mkdir(opts.stateDir, { recursive: true });
 
+  const result = await runCoordinator(trigger, opts, fs, now, maxFollowUps, lockTimeoutMs, baseResult);
+  await writeRunLog(result, trigger, startTime, now, opts.version ?? "unknown", opts.stateDir, fs);
+  return result;
+}
+
+async function runCoordinator(
+  trigger: SyncTrigger,
+  opts: CoordinatorOptions,
+  fs: FsOps,
+  now: () => number,
+  maxFollowUps: number,
+  lockTimeoutMs: number,
+  baseResult: CoordinatorRunResult,
+): Promise<CoordinatorRunResult> {
   const lockPath = join(opts.stateDir, "sync.lock");
   let handle: LockHandle | null = null;
   let closeHandled = false;
@@ -195,6 +210,63 @@ async function runUnlocked(
       cycles: [{}],
       error: toErrorMessage(err),
     };
+  }
+}
+
+function deriveStatus(result: CoordinatorRunResult): RunLogEntry["status"] {
+  if (result.skippedSync) return "skipped";
+  if (result.cycles.length === 0) return "skipped";
+
+  const hasError = result.cycles.some(
+    (c) => c.tokenSyncError != null || c.sessionSyncError != null,
+  ) || result.error != null;
+
+  const hasSuccess = result.cycles.some(
+    (c) => c.tokenSync != null || c.sessionSync != null,
+  );
+
+  if (hasError && hasSuccess) return "partial";
+  if (hasError) return "error";
+  return "success";
+}
+
+async function writeRunLog(
+  result: CoordinatorRunResult,
+  trigger: SyncTrigger,
+  startTime: number,
+  now: () => number,
+  version: string,
+  stateDir: string,
+  fs: FsOps,
+): Promise<void> {
+  try {
+    const completedAt = now();
+    const entry: RunLogEntry = {
+      runId: result.runId,
+      version,
+      trigger,
+      startedAt: new Date(startTime).toISOString(),
+      completedAt: new Date(completedAt).toISOString(),
+      durationMs: completedAt - startTime,
+      coordination: {
+        waitedForLock: result.waitedForLock,
+        skippedSync: result.skippedSync,
+        hadFollowUp: result.hadFollowUp,
+        followUpCount: result.followUpCount,
+        degradedToUnlocked: result.degradedToUnlocked,
+      },
+      cycles: result.cycles,
+      status: deriveStatus(result),
+      ...(result.error != null ? { error: result.error } : {}),
+    };
+
+    const json = JSON.stringify(entry, null, 2);
+    const runsDir = join(stateDir, "runs");
+    await fs.mkdir(runsDir, { recursive: true });
+    await fs.writeFile(join(runsDir, `${result.runId}.json`), json);
+    await fs.writeFile(join(stateDir, "last-run.json"), json);
+  } catch {
+    // Run log write failures are non-fatal
   }
 }
 

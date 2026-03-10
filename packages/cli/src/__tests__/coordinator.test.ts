@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { SyncCycleResult, SyncTrigger } from "@pew/core";
+import type { RunLogEntry, SyncCycleResult, SyncTrigger } from "@pew/core";
 import { coordinatedSync } from "../notifier/coordinator.js";
 
 interface FakeLockHandle {
@@ -67,6 +67,20 @@ function createHandle(lockImpl: FakeLockHandle["lock"]): FakeLockHandle {
   };
 }
 
+/** Extract the RunLogEntry written to last-run.json from the fake fs writeFile calls */
+function extractRunLog(fs: ReturnType<typeof createFakeFs>["fs"]): RunLogEntry | undefined {
+  const calls = fs.writeFile.mock.calls as [string, string][];
+  const logCall = calls.find(([path]) => path.endsWith("last-run.json"));
+  return logCall ? JSON.parse(logCall[1]) : undefined;
+}
+
+/** Extract the RunLogEntry written to runs/<runId>.json from the fake fs writeFile calls */
+function extractRunLogFile(fs: ReturnType<typeof createFakeFs>["fs"]): RunLogEntry | undefined {
+  const calls = fs.writeFile.mock.calls as [string, string][];
+  const logCall = calls.find(([path]) => path.includes("/runs/") && path.endsWith(".json"));
+  return logCall ? JSON.parse(logCall[1]) : undefined;
+}
+
 afterEach(() => {
   vi.useRealTimers();
 });
@@ -93,7 +107,7 @@ describe("coordinatedSync", () => {
     });
 
     expect(executeSyncFn).toHaveBeenCalledTimes(1);
-    expect(fake.state.truncateCalls).toBe(1);
+    expect(fake.state.truncateCalls).toBe(3); // 1 signal truncate + 2 run log writes
     expect(events).toEqual(["lock-nb", "sync"]);
     expect(result.waitedForLock).toBe(false);
     expect(result.skippedSync).toBe(false);
@@ -177,7 +191,7 @@ describe("coordinatedSync", () => {
     expect(result.hadFollowUp).toBe(true);
     expect(result.followUpCount).toBe(1);
     expect(result.cycles).toHaveLength(2);
-    expect(fake.state.truncateCalls).toBe(2);
+    expect(fake.state.truncateCalls).toBe(4); // 2 signal truncates + 2 run log writes
   });
 
   it("stops follow-up runs at the configured cap", async () => {
@@ -513,5 +527,240 @@ describe("coordinatedSync", () => {
     expect(result.cycles[0].sessionSyncError).toBe("session db locked");
     expect(result.cycles[0].sessionSync).toBeUndefined();
     expect(result.error).toBeUndefined();
+  });
+});
+
+describe("run log writing", () => {
+  it("writes run log to runs/<runId>.json and last-run.json with correct schema", async () => {
+    const handle = createHandle(vi.fn(async () => {}));
+    const fake = createFakeFs(handle, { signalSize: 1 });
+    const executeSyncFn = vi.fn(async () => ({}));
+
+    const result = await coordinatedSync(createTrigger(), {
+      stateDir: "/tmp/pew",
+      executeSyncFn,
+      version: "0.7.0",
+      fs: fake.fs,
+      now: () => Date.parse("2026-03-10T12:00:00.000Z"),
+    });
+
+    const lastRun = extractRunLog(fake.fs);
+    const runsFile = extractRunLogFile(fake.fs);
+    expect(lastRun).toBeDefined();
+    expect(runsFile).toBeDefined();
+    expect(lastRun).toEqual(runsFile);
+
+    expect(lastRun!.runId).toBe(result.runId);
+    expect(lastRun!.version).toBe("0.7.0");
+    expect(lastRun!.trigger).toEqual(createTrigger());
+    expect(lastRun!.startedAt).toBe("2026-03-10T12:00:00.000Z");
+    expect(lastRun!.completedAt).toBe("2026-03-10T12:00:00.000Z");
+    expect(lastRun!.durationMs).toBe(0);
+    expect(lastRun!.coordination.waitedForLock).toBe(false);
+    expect(lastRun!.coordination.skippedSync).toBe(false);
+    expect(lastRun!.coordination.hadFollowUp).toBe(false);
+    expect(lastRun!.coordination.followUpCount).toBe(0);
+    expect(lastRun!.coordination.degradedToUnlocked).toBe(false);
+    expect(lastRun!.cycles).toHaveLength(1);
+    expect(lastRun!.status).toBe("success");
+    expect(lastRun!.error).toBeUndefined();
+  });
+
+  it("creates runs/ directory via fs.mkdir", async () => {
+    const handle = createHandle(vi.fn(async () => {}));
+    const fake = createFakeFs(handle, { signalSize: 1 });
+
+    await coordinatedSync(createTrigger(), {
+      stateDir: "/tmp/pew",
+      executeSyncFn: vi.fn(async () => ({})),
+      version: "0.7.0",
+      fs: fake.fs,
+    });
+
+    const mkdirCalls = fake.fs.mkdir.mock.calls as unknown as [string, { recursive: boolean }][];
+    const runsDirCall = mkdirCalls.find(([path]) => path.endsWith("/runs"));
+    expect(runsDirCall).toBeDefined();
+    expect(runsDirCall![1]).toEqual({ recursive: true });
+  });
+
+  it("writes status 'skipped' when sync is skipped", async () => {
+    const busyErr = new Error("busy") as NodeJS.ErrnoException;
+    busyErr.code = "EAGAIN";
+    let fakeState: FakeFsState | null = null;
+    const handle = createHandle(
+      vi.fn(async (_mode?: string, opts?: { nonBlocking?: boolean }) => {
+        if (opts?.nonBlocking) throw busyErr;
+        if (fakeState) fakeState.signalSize = 0;
+      }),
+    );
+    const fake = createFakeFs(handle, { signalSize: 0 });
+    fakeState = fake.state;
+
+    await coordinatedSync(createTrigger(), {
+      stateDir: "/tmp/pew",
+      executeSyncFn: vi.fn(async () => ({})),
+      version: "0.7.0",
+      fs: fake.fs,
+    });
+
+    const log = extractRunLog(fake.fs);
+    expect(log).toBeDefined();
+    expect(log!.status).toBe("skipped");
+    expect(log!.cycles).toHaveLength(0);
+    expect(log!.coordination.skippedSync).toBe(true);
+  });
+
+  it("writes status 'error' when sync throws", async () => {
+    const handle = createHandle(vi.fn(async () => {}));
+    const fake = createFakeFs(handle, { signalSize: 1 });
+
+    await coordinatedSync(createTrigger(), {
+      stateDir: "/tmp/pew",
+      executeSyncFn: vi.fn(async () => {
+        throw new Error("db gone");
+      }),
+      version: "0.7.0",
+      fs: fake.fs,
+    });
+
+    const log = extractRunLog(fake.fs);
+    expect(log).toBeDefined();
+    expect(log!.status).toBe("error");
+    expect(log!.error).toContain("db gone");
+  });
+
+  it("writes status 'skipped' with error on lock timeout", async () => {
+    const busyErr = new Error("busy") as NodeJS.ErrnoException;
+    busyErr.code = "EAGAIN";
+    const handle = createHandle(
+      vi.fn((_mode?: string, opts?: { nonBlocking?: boolean }) => {
+        if (opts?.nonBlocking) return Promise.reject(busyErr);
+        return new Promise<void>(() => {});
+      }),
+    );
+    const fake = createFakeFs(handle, { signalSize: 1 });
+
+    await coordinatedSync(createTrigger(), {
+      stateDir: "/tmp/pew",
+      executeSyncFn: vi.fn(async () => ({})),
+      version: "0.7.0",
+      fs: fake.fs,
+      lockTimeoutMs: 10,
+    });
+
+    const log = extractRunLog(fake.fs);
+    expect(log).toBeDefined();
+    expect(log!.status).toBe("skipped");
+    expect(log!.error).toContain("lock timeout");
+    expect(log!.coordination.skippedSync).toBe(true);
+  });
+
+  it("writes multiple cycles in run log on follow-up", async () => {
+    const handle = createHandle(vi.fn(async () => {}));
+    const fake = createFakeFs(handle, { signalSize: 1 });
+    const executeSyncFn = vi.fn(async () => {
+      if (executeSyncFn.mock.calls.length === 1) {
+        fake.state.signalSize = 1;
+      }
+      return {};
+    });
+
+    await coordinatedSync(createTrigger(), {
+      stateDir: "/tmp/pew",
+      executeSyncFn,
+      version: "0.7.0",
+      fs: fake.fs,
+    });
+
+    const log = extractRunLog(fake.fs);
+    expect(log).toBeDefined();
+    expect(log!.cycles).toHaveLength(2);
+    expect(log!.coordination.hadFollowUp).toBe(true);
+    expect(log!.coordination.followUpCount).toBe(1);
+  });
+
+  it("writes degradedToUnlocked in run log on unlocked degradation", async () => {
+    const handle = createHandle(
+      vi.fn(async () => {
+        throw new Error("lock unsupported");
+      }),
+    );
+    const fake = createFakeFs(handle, { signalSize: 1 });
+
+    await coordinatedSync(createTrigger(), {
+      stateDir: "/tmp/pew",
+      executeSyncFn: vi.fn(async () => ({})),
+      version: "0.7.0",
+      fs: fake.fs,
+    });
+
+    const log = extractRunLog(fake.fs);
+    expect(log).toBeDefined();
+    expect(log!.coordination.degradedToUnlocked).toBe(true);
+    expect(log!.status).toBe("success");
+  });
+
+  it("writes status 'partial' for partial success cycle", async () => {
+    const handle = createHandle(vi.fn(async () => {}));
+    const fake = createFakeFs(handle, { signalSize: 1 });
+    const partialCycle: SyncCycleResult = {
+      tokenSync: { filesScanned: { claude: 2 }, totalDeltas: 1, totalRecords: 1, sources: {} },
+      sessionSyncError: "session db locked",
+    };
+
+    await coordinatedSync(createTrigger(), {
+      stateDir: "/tmp/pew",
+      executeSyncFn: vi.fn(async () => partialCycle),
+      version: "0.7.0",
+      fs: fake.fs,
+    });
+
+    const log = extractRunLog(fake.fs);
+    expect(log).toBeDefined();
+    expect(log!.status).toBe("partial");
+    expect(log!.cycles[0].tokenSync?.totalDeltas).toBe(1);
+    expect(log!.cycles[0].sessionSyncError).toBe("session db locked");
+  });
+
+  it("returns normally when run log write fails (non-fatal)", async () => {
+    const handle = createHandle(vi.fn(async () => {}));
+    const fake = createFakeFs(handle, { signalSize: 1 });
+    let writeCallCount = 0;
+    const originalWriteFile = fake.fs.writeFile;
+    fake.fs.writeFile = vi.fn(async (path: string, content: string) => {
+      writeCallCount += 1;
+      // Let signal truncation through (first call) but fail on run log writes
+      if (path.endsWith(".json")) {
+        throw new Error("disk full");
+      }
+      return originalWriteFile(path, content);
+    });
+
+    const result = await coordinatedSync(createTrigger(), {
+      stateDir: "/tmp/pew",
+      executeSyncFn: vi.fn(async () => ({})),
+      version: "0.7.0",
+      fs: fake.fs,
+    });
+
+    // coordinatedSync should return normally despite run log failure
+    expect(result.runId).toBeDefined();
+    expect(result.cycles).toHaveLength(1);
+    expect(result.error).toBeUndefined();
+  });
+
+  it("uses 'unknown' as version when not provided", async () => {
+    const handle = createHandle(vi.fn(async () => {}));
+    const fake = createFakeFs(handle, { signalSize: 1 });
+
+    await coordinatedSync(createTrigger(), {
+      stateDir: "/tmp/pew",
+      executeSyncFn: vi.fn(async () => ({})),
+      fs: fake.fs,
+    });
+
+    const log = extractRunLog(fake.fs);
+    expect(log).toBeDefined();
+    expect(log!.version).toBe("unknown");
   });
 });
