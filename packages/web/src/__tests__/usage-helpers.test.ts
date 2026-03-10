@@ -7,7 +7,7 @@ import {
   sourceLabel,
   type UsageRow,
 } from "@/hooks/use-usage-data";
-import { toLocalDailyBuckets, compareWeekdayWeekend, computeMoMGrowth, computeStreak } from "@/lib/usage-helpers";
+import { toLocalDailyBuckets, compareWeekdayWeekend, computeMoMGrowth, computeStreak, toSourceTrendPoints } from "@/lib/usage-helpers";
 import { getDefaultPricingMap } from "@/lib/pricing";
 import type { PricingMap } from "@/lib/pricing";
 
@@ -574,5 +574,55 @@ describe("computeStreak", () => {
     expect(result.currentStreak).toBe(0);
     expect(result.longestStreak).toBe(2);
     expect(result.isActiveToday).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// toSourceTrendPoints
+// ---------------------------------------------------------------------------
+
+describe("toSourceTrendPoints", () => {
+  it("should return empty array for empty input", () => {
+    expect(toSourceTrendPoints([])).toEqual([]);
+  });
+
+  it("should group single source by date", () => {
+    const rows = [
+      makeRow({ source: "claude-code", hour_start: "2026-03-07T10:00:00Z", total_tokens: 1000 }),
+      makeRow({ source: "claude-code", hour_start: "2026-03-07T14:00:00Z", total_tokens: 2000 }),
+      makeRow({ source: "claude-code", hour_start: "2026-03-08T09:00:00Z", total_tokens: 500 }),
+    ];
+    const result = toSourceTrendPoints(rows);
+    expect(result).toHaveLength(2);
+    expect(result[0]!.date).toBe("2026-03-07");
+    expect(result[0]!.sources["claude-code"]).toBe(3000);
+    expect(result[1]!.date).toBe("2026-03-08");
+    expect(result[1]!.sources["claude-code"]).toBe(500);
+  });
+
+  it("should handle multiple sources on the same dates", () => {
+    const rows = [
+      makeRow({ source: "claude-code", hour_start: "2026-03-07T10:00:00Z", total_tokens: 1000 }),
+      makeRow({ source: "gemini-cli", hour_start: "2026-03-07T12:00:00Z", total_tokens: 2000 }),
+      makeRow({ source: "claude-code", hour_start: "2026-03-08T09:00:00Z", total_tokens: 300 }),
+    ];
+    const result = toSourceTrendPoints(rows);
+    expect(result).toHaveLength(2);
+    // Day 1: both sources
+    expect(result[0]!.sources["claude-code"]).toBe(1000);
+    expect(result[0]!.sources["gemini-cli"]).toBe(2000);
+    // Day 2: only claude-code, gemini-cli should be 0 (zero-filled)
+    expect(result[1]!.sources["claude-code"]).toBe(300);
+    expect(result[1]!.sources["gemini-cli"]).toBe(0);
+  });
+
+  it("should sort by date ascending", () => {
+    const rows = [
+      makeRow({ source: "claude-code", hour_start: "2026-03-09T10:00:00Z", total_tokens: 100 }),
+      makeRow({ source: "claude-code", hour_start: "2026-03-07T10:00:00Z", total_tokens: 200 }),
+    ];
+    const result = toSourceTrendPoints(rows);
+    expect(result[0]!.date).toBe("2026-03-07");
+    expect(result[1]!.date).toBe("2026-03-09");
   });
 });

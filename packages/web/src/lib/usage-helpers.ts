@@ -98,6 +98,11 @@ export interface StreakInfo {
   isActiveToday: boolean;
 }
 
+export interface SourceTrendPoint {
+  date: string;
+  sources: Record<string, number>;
+}
+
 // ---------------------------------------------------------------------------
 // groupByModel
 // ---------------------------------------------------------------------------
@@ -619,4 +624,46 @@ export function computeStreak(
     longestStreakEnd: longestEnd,
     isActiveToday,
   };
+}
+
+// ---------------------------------------------------------------------------
+// toSourceTrendPoints
+// ---------------------------------------------------------------------------
+
+/**
+ * Group UsageRow[] by (date, source) and pivot into per-date records
+ * with one key per source. Sources missing on a given date are zero-filled
+ * so all dates have the same set of keys (needed for Recharts stacking).
+ */
+export function toSourceTrendPoints(rows: UsageRow[]): SourceTrendPoint[] {
+  if (rows.length === 0) return [];
+
+  // Collect all unique sources and accumulate by (date, source)
+  const allSources = new Set<string>();
+  const byDate = new Map<string, Map<string, number>>();
+
+  for (const r of rows) {
+    const date = r.hour_start.slice(0, 10);
+    allSources.add(r.source);
+
+    let dateMap = byDate.get(date);
+    if (!dateMap) {
+      dateMap = new Map<string, number>();
+      byDate.set(date, dateMap);
+    }
+    dateMap.set(r.source, (dateMap.get(r.source) ?? 0) + r.total_tokens);
+  }
+
+  // Build result with zero-fill for missing sources
+  const dates = Array.from(byDate.keys()).sort();
+  const sourceKeys = Array.from(allSources);
+
+  return dates.map((date) => {
+    const dateMap = byDate.get(date)!;
+    const sources: Record<string, number> = {};
+    for (const s of sourceKeys) {
+      sources[s] = dateMap.get(s) ?? 0;
+    }
+    return { date, sources };
+  });
 }
