@@ -4,10 +4,13 @@ import { useMemo, useState } from "react";
 import { useUsageData, sourceLabel } from "@/hooks/use-usage-data";
 import { formatTokens } from "@/lib/utils";
 import { usePricingMap, formatCost } from "@/hooks/use-pricing";
-import { groupByModel } from "@/lib/usage-helpers";
+import { groupByModel, toSourceTrendPoints } from "@/lib/usage-helpers";
+import { toModelEvolutionPoints } from "@/lib/model-helpers";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CHART_COLORS } from "@/lib/palette";
 import { ModelBreakdownChart } from "@/components/dashboard/model-breakdown-chart";
+import { SourceTrendChart } from "@/components/dashboard/source-trend-chart";
+import { ModelEvolutionChart } from "@/components/dashboard/model-evolution-chart";
 import { PeriodSelector } from "@/components/dashboard/period-selector";
 import { periodToDateRange, periodLabel } from "@/lib/date-helpers";
 import type { Period } from "@/lib/date-helpers";
@@ -61,6 +64,16 @@ export default function ModelsPage() {
     [modelGroups],
   );
 
+  const sourceTrendData = useMemo(
+    () => (data ? toSourceTrendPoints(data.records) : []),
+    [data],
+  );
+
+  const modelEvolutionData = useMemo(
+    () => (data ? toModelEvolutionPoints(data.records) : []),
+    [data],
+  );
+
   const subtitle = periodLabel(period);
 
   return (
@@ -95,6 +108,12 @@ export default function ModelsPage() {
             </div>
           ) : (
             <>
+              {/* Evolution charts */}
+              <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
+                <SourceTrendChart data={sourceTrendData} />
+                <ModelEvolutionChart data={modelEvolutionData} />
+              </div>
+
               {/* Chart */}
               <ModelBreakdownChart data={models} />
 
