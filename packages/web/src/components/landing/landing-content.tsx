@@ -83,11 +83,11 @@ export function LandingContent() {
         style={{ animationDelay: "0ms" }}
       >
         <Image
-          src="/logo-256.png"
+          src="/logo-512.png"
           alt=""
-          width={256}
-          height={256}
-          className="h-16 w-16 shrink-0"
+          width={512}
+          height={512}
+          className="h-32 w-32 shrink-0"
           priority
           aria-hidden="true"
         />
