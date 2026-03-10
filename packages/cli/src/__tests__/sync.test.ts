@@ -1244,4 +1244,197 @@ describe("executeSync", () => {
       spy.mockRestore();
     }
   });
+
+  // ===== Gemini parse error branch with onProgress (lines 198-203) =====
+
+  it("should emit warning and continue when Gemini parser throws", async () => {
+    const geminiDir = join(dataDir, ".gemini", "tmp", "proj-gem-err", "chats");
+    await mkdir(geminiDir, { recursive: true });
+
+    // Good file
+    await writeFile(
+      join(geminiDir, "session-good.json"),
+      geminiSession("2026-03-07T11:00:00.000Z", 2000, 200),
+    );
+
+    // Bad file — will be forced to throw via spy
+    await writeFile(
+      join(geminiDir, "session-bad.json"),
+      geminiSession("2026-03-07T12:00:00.000Z", 3000, 300),
+    );
+
+    const geminiParser = await import("../parsers/gemini.js");
+    const origParse = geminiParser.parseGeminiFile;
+    const spy = vi
+      .spyOn(geminiParser, "parseGeminiFile")
+      .mockImplementation(async (opts) => {
+        if (opts.filePath.includes("session-bad")) {
+          throw new Error("Simulated gemini parser crash");
+        }
+        return origParse(opts);
+      });
+
+    const events: Array<{ source: string; phase: string; message?: string }> = [];
+
+    try {
+      const result = await executeSync({
+        stateDir,
+        geminiDir: join(dataDir, ".gemini"),
+        onProgress: (e) =>
+          events.push({ source: e.source, phase: e.phase, message: e.message }),
+      });
+
+      // Good file data should still be synced
+      expect(result.sources.gemini).toBe(1);
+
+      // Verify a warning was emitted for the bad file
+      const warnEvents = events.filter(
+        (e) => e.source === "gemini-cli" && e.phase === "warn",
+      );
+      expect(warnEvents).toHaveLength(1);
+      expect(warnEvents[0].message).toContain("Simulated gemini parser crash");
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  // ===== OpenCode parse error branch with onProgress (lines 277-283) =====
+
+  it("should emit warning and continue when OpenCode parser throws", async () => {
+    const msgDir = join(dataDir, "opencode-err", "message");
+
+    // Good file in a session dir
+    const sesDir1 = join(msgDir, "ses_good");
+    await mkdir(sesDir1, { recursive: true });
+    await writeFile(join(sesDir1, "msg_001.json"), opencodeMsg(1741320000000, 100, 50));
+
+    // Bad file in another session dir — will be forced to throw via spy
+    const sesDir2 = join(msgDir, "ses_bad");
+    await mkdir(sesDir2, { recursive: true });
+    await writeFile(join(sesDir2, "msg_001.json"), opencodeMsg(1741321000000, 200, 100));
+
+    const ocParser = await import("../parsers/opencode.js");
+    const origParse = ocParser.parseOpenCodeFile;
+    const spy = vi
+      .spyOn(ocParser, "parseOpenCodeFile")
+      .mockImplementation(async (opts) => {
+        if (opts.filePath.includes("ses_bad")) {
+          throw new Error("Simulated opencode parser crash");
+        }
+        return origParse(opts);
+      });
+
+    const events: Array<{ source: string; phase: string; message?: string }> = [];
+
+    try {
+      const result = await executeSync({
+        stateDir,
+        openCodeMessageDir: msgDir,
+        onProgress: (e) =>
+          events.push({ source: e.source, phase: e.phase, message: e.message }),
+      });
+
+      // Good file data should still be synced
+      expect(result.sources.opencode).toBeGreaterThanOrEqual(1);
+
+      // Verify a warning was emitted for the bad file
+      const warnEvents = events.filter(
+        (e) => e.source === "opencode" && e.phase === "warn",
+      );
+      expect(warnEvents).toHaveLength(1);
+      expect(warnEvents[0].message).toContain("Simulated opencode parser crash");
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  // ===== OpenCode file-level skip with onProgress (lines 264-268) =====
+
+  it("should emit parse progress for OpenCode file-level skip on unchanged file", async () => {
+    const msgDir = join(dataDir, "opencode-fskip", "message");
+    const sesDir = join(msgDir, "ses_fskip");
+    await mkdir(sesDir, { recursive: true });
+    await writeFile(join(sesDir, "msg_001.json"), opencodeMsg(1741320000000, 100, 50));
+
+    // First sync without onProgress to establish cursors
+    await executeSync({
+      stateDir,
+      openCodeMessageDir: msgDir,
+    });
+
+    // Add a new file to the session dir to change dir mtime (but keep msg_001 unchanged)
+    await new Promise((r) => setTimeout(r, 50));
+    await writeFile(join(sesDir, "msg_002.json"), opencodeMsg(1741320300000, 150, 75));
+
+    // Second sync with onProgress — dir mtime changed, so dir is scanned.
+    // msg_001 has same inode+mtime+size → file-level skip path fires.
+    const events: Array<{ source: string; phase: string; current?: number; total?: number }> = [];
+    const result = await executeSync({
+      stateDir,
+      openCodeMessageDir: msgDir,
+      onProgress: (e) => events.push({
+        source: e.source,
+        phase: e.phase,
+        current: e.current,
+        total: e.total,
+      }),
+    });
+
+    // msg_002 is new, so at least 1 delta from it
+    expect(result.sources.opencode).toBeGreaterThanOrEqual(1);
+
+    // Verify parse progress events were fired (both for skipped and parsed files)
+    const parseEvents = events.filter(
+      (e) => e.source === "opencode" && e.phase === "parse" && e.current !== undefined,
+    );
+    expect(parseEvents.length).toBeGreaterThanOrEqual(2); // at least 2 files
+  });
+
+  // ===== OpenCode SQLite onProgress for parse detail (lines 381-384) =====
+
+  it("should emit parse progress for OpenCode SQLite data with onProgress", async () => {
+    const dbDir = join(dataDir, "opencode-sqlprog");
+    await mkdir(dbDir, { recursive: true });
+    const dbPath = join(dbDir, "opencode.db");
+    await writeFile(dbPath, "dummy");
+
+    const events: Array<{ source: string; phase: string; message?: string }> = [];
+
+    await executeSync({
+      stateDir,
+      openCodeDbPath: dbPath,
+      openMessageDb: (_p: string) => ({
+        queryMessages: (_lastTs: number) => [
+          {
+            id: "msg_sql_001",
+            session_id: "ses_sql_001",
+            role: "assistant",
+            time_created: 1741320000000,
+            data: JSON.stringify({
+              role: "assistant",
+              modelID: "claude-opus-4.6",
+              time: { created: 1741320000000, completed: 1741320001000 },
+              tokens: { total: 150, input: 100, output: 50, reasoning: 0, cache: { read: 0, write: 0 } },
+            }),
+          },
+        ],
+        close: () => {},
+      }),
+      onProgress: (e) => events.push({ source: e.source, phase: e.phase, message: e.message }),
+    });
+
+    // Verify SQLite discover event
+    const discoverEvents = events.filter(
+      (e) => e.source === "opencode-sqlite" && e.phase === "discover",
+    );
+    expect(discoverEvents).toHaveLength(1);
+
+    // Verify SQLite parse progress event with delta details
+    const parseEvents = events.filter(
+      (e) => e.source === "opencode-sqlite" && e.phase === "parse",
+    );
+    expect(parseEvents).toHaveLength(1);
+    expect(parseEvents[0].message).toContain("Parsed");
+    expect(parseEvents[0].message).toContain("deltas");
+  });
 });
