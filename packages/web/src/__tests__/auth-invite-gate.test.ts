@@ -46,6 +46,7 @@ function makeReq(cookies: Record<string, string> = {}): InviteGateRequest {
 const GOOGLE_ACCOUNT: InviteGateAccount = {
   provider: "google",
   providerAccountId: "google-123",
+  email: "user@example.com",
 };
 
 // ---------------------------------------------------------------------------
@@ -125,7 +126,7 @@ describe("handleInviteGate", () => {
     const [sql, params] = vi.mocked(mockClient.execute).mock.calls[0]!;
     expect(sql).toContain("UPDATE invite_codes");
     expect(sql).toContain("used_by IS NULL");
-    expect(params).toContain("pending:google-123");
+    expect(params).toContain("pending:user@example.com");
     expect(params).toContain("A3K9X2M4");
   });
 
@@ -144,6 +145,29 @@ describe("handleInviteGate", () => {
     );
     expect(typeof result).toBe("string");
     expect(result).toContain("/login?error=InviteRequired");
+  });
+
+  it("should fall back to providerAccountId when email is null", async () => {
+    const noEmailAccount: InviteGateAccount = {
+      provider: "google",
+      providerAccountId: "google-456",
+      email: null,
+    };
+    vi.mocked(mockClient.firstOrNull).mockResolvedValueOnce(null);
+    vi.mocked(mockClient.execute).mockResolvedValueOnce({
+      changes: 1,
+      duration: 0.01,
+    });
+
+    const result = await handleInviteGate(
+      makeReq({ "pew-invite-code": "A3K9X2M4" }),
+      noEmailAccount,
+      mockClient
+    );
+    expect(result).toBe(true);
+
+    const [, params] = vi.mocked(mockClient.execute).mock.calls[0]!;
+    expect(params).toContain("pending:google-456");
   });
 
   it("should preserve callbackUrl in redirect URL", async () => {

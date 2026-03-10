@@ -76,6 +76,7 @@ export interface InviteGateRequest {
 export interface InviteGateAccount {
   provider: string;
   providerAccountId: string;
+  email?: string | null;
 }
 
 /**
@@ -128,12 +129,14 @@ export async function handleInviteGate(
   }
 
   // Atomically consume the invite code
-  // pending:<providerAccountId> since we don't have the user ID yet
+  // pending:<email> so admin can diagnose burned codes by email;
+  // fall back to providerAccountId if email is unavailable
+  const pendingLabel = account.email || account.providerAccountId;
   const meta = await db.execute(
     `UPDATE invite_codes
      SET used_by = ?, used_at = datetime('now')
      WHERE code = ? AND used_by IS NULL`,
-    [`pending:${account.providerAccountId}`, inviteCode]
+    [`pending:${pendingLabel}`, inviteCode]
   );
 
   if (meta.changes === 0) {

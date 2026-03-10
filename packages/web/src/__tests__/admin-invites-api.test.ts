@@ -196,12 +196,38 @@ describe("DELETE /api/admin/invites", () => {
     expect(json.error).toBe("id query parameter is required");
   });
 
-  it("should delete unused code (used_by IS NULL)", async () => {
+  it("should return 400 for non-integer id like '1abc'", async () => {
     resolveAdmin.mockResolvedValueOnce({
       userId: "admin-1",
       email: "admin@test.com",
     });
-    mockClient.firstOrNull.mockResolvedValueOnce({ used_by: null });
+    const res = await DELETE(
+      makeRequest("DELETE", "http://localhost:7030/api/admin/invites?id=1abc")
+    );
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe("Invalid id");
+  });
+
+  it("should return 400 for negative id", async () => {
+    resolveAdmin.mockResolvedValueOnce({
+      userId: "admin-1",
+      email: "admin@test.com",
+    });
+    const res = await DELETE(
+      makeRequest("DELETE", "http://localhost:7030/api/admin/invites?id=-1")
+    );
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe("Invalid id");
+  });
+
+  it("should delete unused code (atomic DELETE succeeds)", async () => {
+    resolveAdmin.mockResolvedValueOnce({
+      userId: "admin-1",
+      email: "admin@test.com",
+    });
+    // Atomic DELETE matches (unused or pending:*)
     mockClient.execute.mockResolvedValueOnce({ changes: 1, duration: 0.01 });
 
     const res = await DELETE(
@@ -210,16 +236,16 @@ describe("DELETE /api/admin/invites", () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.deleted).toBe(true);
+    // Should NOT have called firstOrNull (no fallback needed)
+    expect(mockClient.firstOrNull).not.toHaveBeenCalled();
   });
 
-  it("should delete burned pending:* code (reclaim)", async () => {
+  it("should delete burned pending:* code (atomic DELETE succeeds)", async () => {
     resolveAdmin.mockResolvedValueOnce({
       userId: "admin-1",
       email: "admin@test.com",
     });
-    mockClient.firstOrNull.mockResolvedValueOnce({
-      used_by: "pending:google-account-id-123",
-    });
+    // Atomic DELETE matches (pending:* code)
     mockClient.execute.mockResolvedValueOnce({ changes: 1, duration: 0.01 });
 
     const res = await DELETE(
@@ -235,6 +261,9 @@ describe("DELETE /api/admin/invites", () => {
       userId: "admin-1",
       email: "admin@test.com",
     });
+    // Atomic DELETE didn't match (code is fully consumed)
+    mockClient.execute.mockResolvedValueOnce({ changes: 0, duration: 0.01 });
+    // Fallback SELECT finds the row with a real user ID
     mockClient.firstOrNull.mockResolvedValueOnce({
       used_by: "user-uuid-abc123",
     });
@@ -245,5 +274,23 @@ describe("DELETE /api/admin/invites", () => {
     expect(res.status).toBe(409);
     const json = await res.json();
     expect(json.error).toBe("Cannot delete a used invite code");
+  });
+
+  it("should return 404 when code does not exist", async () => {
+    resolveAdmin.mockResolvedValueOnce({
+      userId: "admin-1",
+      email: "admin@test.com",
+    });
+    // Atomic DELETE didn't match (no such row)
+    mockClient.execute.mockResolvedValueOnce({ changes: 0, duration: 0.01 });
+    // Fallback SELECT also finds nothing
+    mockClient.firstOrNull.mockResolvedValueOnce(null);
+
+    const res = await DELETE(
+      makeRequest("DELETE", "http://localhost:7030/api/admin/invites?id=999")
+    );
+    expect(res.status).toBe(404);
+    const json = await res.json();
+    expect(json.error).toBe("Code not found");
   });
 });

@@ -161,15 +161,26 @@ export async function DELETE(request: Request) {
     );
   }
 
-  const id = parseInt(idStr, 10);
-  if (isNaN(id)) {
+  const id = Number(idStr);
+  if (!Number.isInteger(id) || id < 1) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
   const client = getD1Client();
 
   try {
-    // Check if the code exists and its usage state
+    // Single atomic DELETE — only removes unused or burned (pending:*) codes.
+    // Avoids TOCTOU race between a prior SELECT check and DELETE.
+    const meta = await client.execute(
+      "DELETE FROM invite_codes WHERE id = ? AND (used_by IS NULL OR used_by LIKE 'pending:%')",
+      [id]
+    );
+
+    if (meta.changes > 0) {
+      return NextResponse.json({ deleted: true });
+    }
+
+    // changes=0: either the row doesn't exist, or it's fully consumed.
     const row = await client.firstOrNull<{ used_by: string | null }>(
       "SELECT used_by FROM invite_codes WHERE id = ?",
       [id]
@@ -179,17 +190,11 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Code not found" }, { status: 404 });
     }
 
-    // Allow deletion of unused codes and burned (pending:*) codes
-    // Reject deletion of fully consumed codes (real user ID)
-    if (row.used_by && !row.used_by.startsWith("pending:")) {
-      return NextResponse.json(
-        { error: "Cannot delete a used invite code" },
-        { status: 409 }
-      );
-    }
-
-    await client.execute("DELETE FROM invite_codes WHERE id = ?", [id]);
-    return NextResponse.json({ deleted: true });
+    // Row exists but DELETE didn't match — it's a fully consumed code
+    return NextResponse.json(
+      { error: "Cannot delete a used invite code" },
+      { status: 409 }
+    );
   } catch (err) {
     console.error("Failed to delete invite code:", err);
     return NextResponse.json(

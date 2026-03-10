@@ -135,10 +135,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth((req) => ({
     },
   },
   callbacks: {
-    async signIn({ account }) {
+    async signIn({ account, profile }) {
       // Gate new user registration behind invite codes.
       // Close over `req` to read the pew-invite-code cookie.
-      return handleInviteGate(req, account ?? null);
+      // Pass profile.email so the pending placeholder is human-readable.
+      return handleInviteGate(
+        req,
+        account
+          ? {
+              provider: account.provider,
+              providerAccountId: account.providerAccountId,
+              email: profile?.email ?? null,
+            }
+          : null
+      );
     },
     jwt: jwtCallback,
     session: sessionCallback,
