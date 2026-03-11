@@ -9,6 +9,7 @@ import type { UsageRow } from "@/hooks/use-usage-data";
 import { sourceLabel } from "@/hooks/use-usage-data";
 import { lookupPricing, estimateCost } from "@/lib/pricing";
 import type { PricingMap } from "@/lib/pricing";
+import { getLocalToday } from "@/lib/date-helpers";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -569,7 +570,7 @@ export function computeStreak(
     };
   }
 
-  const todayStr = today ?? new Date().toISOString().slice(0, 10);
+  const todayStr = today ?? getLocalToday(tzOffset);
   const isActiveToday = activeDates.has(todayStr);
   const DAY_MS = 86_400_000;
 

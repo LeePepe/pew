@@ -8,6 +8,7 @@ import {
   getMonthRange,
   formatMonth,
   detectPeakHours,
+  getLocalToday,
 } from "@/lib/date-helpers";
 import type { UsageRow } from "@/hooks/use-usage-data";
 
@@ -297,5 +298,55 @@ describe("detectPeakHours", () => {
     expect(result[0]!.dayOfWeek).toBe("Monday");
     expect(result[0]!.timeSlot).toBe("10:30 AM – 11:00 AM");
     expect(result[0]!.totalTokens).toBe(35_000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getLocalToday
+// ---------------------------------------------------------------------------
+
+describe("getLocalToday", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("returns UTC date when tzOffset is 0", () => {
+    vi.useFakeTimers();
+    // 2026-03-10 15:00 UTC
+    vi.setSystemTime(new Date("2026-03-10T15:00:00.000Z"));
+    expect(getLocalToday(0)).toBe("2026-03-10");
+  });
+
+  it("shifts to previous day for positive tzOffset (west of UTC)", () => {
+    vi.useFakeTimers();
+    // 2026-03-10 02:00 UTC → PST (UTC-8, tzOffset=480): Mar 9, 6pm local
+    vi.setSystemTime(new Date("2026-03-10T02:00:00.000Z"));
+    expect(getLocalToday(480)).toBe("2026-03-09");
+  });
+
+  it("shifts to next day for negative tzOffset (east of UTC)", () => {
+    vi.useFakeTimers();
+    // 2026-03-10 22:00 UTC → JST (UTC+9, tzOffset=-540): Mar 11, 7am local
+    vi.setSystemTime(new Date("2026-03-10T22:00:00.000Z"));
+    expect(getLocalToday(-540)).toBe("2026-03-11");
+  });
+
+  it("matches toLocalDailyBuckets timezone math", () => {
+    vi.useFakeTimers();
+    // The same shift: localMs = Date.now() - tzOffset * 60_000
+    // This is the same formula used in toLocalDailyBuckets
+    vi.setSystemTime(new Date("2026-03-10T03:00:00.000Z"));
+
+    // UTC+5:30 (IST, tzOffset = -330): local = 8:30am Mar 10
+    expect(getLocalToday(-330)).toBe("2026-03-10");
+
+    // UTC-5 (EST, tzOffset = 300): local = 10pm Mar 9
+    expect(getLocalToday(300)).toBe("2026-03-09");
+  });
+
+  it("defaults tzOffset to 0", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-10T12:00:00.000Z"));
+    expect(getLocalToday()).toBe("2026-03-10");
   });
 });

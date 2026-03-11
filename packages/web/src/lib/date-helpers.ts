@@ -23,6 +23,20 @@ export const PERIOD_OPTIONS: { value: Period; label: string }[] = [
 // Internal helper
 // ---------------------------------------------------------------------------
 
+/**
+ * Get today's date string in the user's local timezone.
+ *
+ * Uses the same UTC-shift technique as `toLocalDailyBuckets()` so that
+ * "today" aligns with the bucket dates used by `computeStreak()`.
+ *
+ * @param tzOffset — `new Date().getTimezoneOffset()`: minutes from UTC
+ *   (positive = west of UTC, e.g. 480 for PST; negative = east, e.g. -540 for JST)
+ */
+export function getLocalToday(tzOffset: number = 0): string {
+  const localMs = Date.now() - tzOffset * 60_000;
+  return new Date(localMs).toISOString().slice(0, 10);
+}
+
 /** Format a local Date as "YYYY-MM-DD" without UTC conversion. */
 function toLocalDateString(d: Date): string {
   const y = d.getFullYear();
