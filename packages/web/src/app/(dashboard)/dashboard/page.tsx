@@ -184,7 +184,7 @@ export default function DashboardPage() {
           {budgetStatus && <BudgetProgress status={budgetStatus} />}
           {budgetStatus && <BudgetAlert status={budgetStatus} />}
 
-          {/* Stat cards */}
+          {/* Row 1 — Core metrics (always 4 columns) */}
           <StatGrid columns={4}>
             <StatCard
               title="Total Tokens"
@@ -197,6 +197,18 @@ export default function DashboardPage() {
                 : {})}
             />
             <StatCard
+              title="Input Tokens"
+              value={formatTokens(data.summary.input_tokens)}
+              subtitle="Prompts & context"
+              icon={ArrowDownToLine}
+            />
+            <StatCard
+              title="Output Tokens"
+              value={formatTokens(data.summary.output_tokens)}
+              subtitle="Responses & reasoning"
+              icon={ArrowUpFromLine}
+            />
+            <StatCard
               title="Est. Cost"
               value={formatCost(estimatedCost)}
               subtitle="Based on public pricing"
@@ -206,6 +218,10 @@ export default function DashboardPage() {
                 ? { trend: { value: -Math.round(mom.costGrowth), label: "vs last month" } }
                 : {})}
             />
+          </StatGrid>
+
+          {/* Row 2 — Economy metrics (4 cols with forecast, 2 cols without) */}
+          <StatGrid columns={showForecast ? 4 : 2}>
             <StatCard
               title="Cache Savings"
               value={formatCost(cacheSavings.netSavings)}
@@ -224,11 +240,7 @@ export default function DashboardPage() {
               icon={Database}
               iconColor="text-muted-foreground"
             />
-          </StatGrid>
-
-          {/* Cost forecast (only when period is month or all, and enough data) */}
-          {showForecast && (
-            <StatGrid columns={2}>
+            {showForecast && (
               <StatCard
                 title="Monthly Forecast"
                 value={formatCost(costForecast.projectedMonthCost)}
@@ -236,6 +248,8 @@ export default function DashboardPage() {
                 icon={TrendingUp}
                 iconColor="text-chart-6"
               />
+            )}
+            {showForecast && (
               <StatCard
                 title="Daily Average"
                 value={formatCost(costForecast.dailyAverage)}
@@ -243,29 +257,7 @@ export default function DashboardPage() {
                 icon={DollarSign}
                 iconColor="text-muted-foreground"
               />
-            </StatGrid>
-          )}
-
-          {/* Token breakdown (secondary row) */}
-          <StatGrid columns={3}>
-            <StatCard
-              title="Input Tokens"
-              value={formatTokens(data.summary.input_tokens)}
-              subtitle="Prompts & context"
-              icon={ArrowDownToLine}
-            />
-            <StatCard
-              title="Output Tokens"
-              value={formatTokens(data.summary.output_tokens)}
-              subtitle="Responses & reasoning"
-              icon={ArrowUpFromLine}
-            />
-            <StatCard
-              title="Cached Tokens"
-              value={formatTokens(data.summary.cached_input_tokens)}
-              subtitle="Cache hits"
-              icon={Database}
-            />
+            )}
           </StatGrid>
 
           {/* Personal insight cards */}
