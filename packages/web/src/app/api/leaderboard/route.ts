@@ -152,20 +152,32 @@ export async function GET(request: Request) {
     try {
       result = await client.query<LeaderboardRow>(buildSql(true), params);
     } catch (firstErr) {
-      // Fallback: nickname column or team_members table may not exist yet
       const msg = firstErr instanceof Error ? firstErr.message : "";
-      if (msg.includes("no such column") || msg.includes("no such table")) {
-        // Retry without nickname and without team join
-        const fallbackConditions = ["1=1"];
-        const fallbackParams: unknown[] = [];
-        if (fromDate) {
-          fallbackConditions.push("ur.hour_start >= ?");
-          fallbackParams.push(fromDate);
-        }
-        fallbackConditions.push("u.slug IS NOT NULL");
-        fallbackParams.push(limit);
+      if (!msg.includes("no such column") && !msg.includes("no such table")) {
+        throw firstErr;
+      }
 
-        const fallbackSql = `
+      // Level 1: retry without nickname (keeps is_public, admin, team semantics)
+      try {
+        result = await client.query<LeaderboardRow>(buildSql(false), params);
+      } catch (secondErr) {
+        const msg2 = secondErr instanceof Error ? secondErr.message : "";
+        if (!msg2.includes("no such column") && !msg2.includes("no such table")) {
+          throw secondErr;
+        }
+
+        // Level 2: strip everything new — no nickname, no is_public, no team join.
+        // This is the pre-migration baseline: slug IS NOT NULL only.
+        const bareConditions = ["1=1"];
+        const bareParams: unknown[] = [];
+        if (fromDate) {
+          bareConditions.push("ur.hour_start >= ?");
+          bareParams.push(fromDate);
+        }
+        bareConditions.push("u.slug IS NOT NULL");
+        bareParams.push(limit);
+
+        const bareSql = `
           SELECT
             ur.user_id,
             u.name,
@@ -177,14 +189,12 @@ export async function GET(request: Request) {
             SUM(ur.cached_input_tokens) AS cached_input_tokens
           FROM usage_records ur
           JOIN users u ON u.id = ur.user_id
-          WHERE ${fallbackConditions.join(" AND ")}
+          WHERE ${bareConditions.join(" AND ")}
           GROUP BY ur.user_id
           ORDER BY total_tokens DESC
           LIMIT ?
         `;
-        result = await client.query<LeaderboardRow>(fallbackSql, fallbackParams);
-      } else {
-        throw firstErr;
+        result = await client.query<LeaderboardRow>(bareSql, bareParams);
       }
     }
 

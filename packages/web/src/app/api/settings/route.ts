@@ -52,20 +52,41 @@ export async function GET(request: Request) {
       is_public: row.is_public === 1,
     } satisfies UserSettings);
   } catch (err) {
-    // Fallback if nickname/is_public column doesn't exist yet
+    // Layered fallback: strip missing columns one at a time so we preserve
+    // as much data as possible.
     const msg = err instanceof Error ? err.message : "";
-    if (msg.includes("no such column")) {
-      const row = await client.firstOrNull<{ slug: string | null }>(
-        "SELECT slug FROM users WHERE id = ?",
+    if (!msg.includes("no such column")) {
+      console.error("Failed to load settings:", err);
+      return NextResponse.json({ error: "Failed to load settings" }, { status: 500 });
+    }
+
+    // Level 1: is_public missing but nickname exists
+    try {
+      const row = await client.firstOrNull<{ nickname: string | null; slug: string | null }>(
+        "SELECT nickname, slug FROM users WHERE id = ?",
         [authResult.userId],
       );
       if (!row) {
         return NextResponse.json({ error: "User not found" }, { status: 404 });
       }
-      return NextResponse.json({ nickname: null, slug: row.slug, is_public: false });
+      return NextResponse.json({ nickname: row.nickname, slug: row.slug, is_public: false });
+    } catch (err2) {
+      const msg2 = err2 instanceof Error ? err2.message : "";
+      if (!msg2.includes("no such column")) {
+        console.error("Failed to load settings:", err2);
+        return NextResponse.json({ error: "Failed to load settings" }, { status: 500 });
+      }
     }
-    console.error("Failed to load settings:", err);
-    return NextResponse.json({ error: "Failed to load settings" }, { status: 500 });
+
+    // Level 2: both nickname and is_public missing
+    const row = await client.firstOrNull<{ slug: string | null }>(
+      "SELECT slug FROM users WHERE id = ?",
+      [authResult.userId],
+    );
+    if (!row) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+    return NextResponse.json({ nickname: null, slug: row.slug, is_public: false });
   }
 }
 

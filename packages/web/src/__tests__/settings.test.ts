@@ -91,7 +91,9 @@ describe("GET /api/settings", () => {
 
   it("should fall back when nickname column does not exist", async () => {
     vi.mocked(resolveUser).mockResolvedValueOnce({ userId: "u1" });
+    // Full query fails (nickname missing), level 1 also fails (nickname missing), level 2 succeeds
     mockClient.firstOrNull
+      .mockRejectedValueOnce(new Error("no such column: nickname"))
       .mockRejectedValueOnce(new Error("no such column: nickname"))
       .mockResolvedValueOnce({ slug: "alice" });
 
@@ -104,7 +106,9 @@ describe("GET /api/settings", () => {
 
   it("should return 404 in fallback when user not found", async () => {
     vi.mocked(resolveUser).mockResolvedValueOnce({ userId: "u1" });
+    // Full query fails, level 1 also fails (nickname missing), level 2 returns null
     mockClient.firstOrNull
+      .mockRejectedValueOnce(new Error("no such column: nickname"))
       .mockRejectedValueOnce(new Error("no such column: nickname"))
       .mockResolvedValueOnce(null);
 
@@ -139,6 +143,35 @@ describe("GET /api/settings", () => {
 
     expect(res.status).toBe(200);
     expect(body.is_public).toBe(false);
+  });
+
+  it("should preserve nickname in fallback when only is_public column is missing", async () => {
+    vi.mocked(resolveUser).mockResolvedValueOnce({ userId: "u1" });
+    // First query fails (is_public missing), level 1 fallback succeeds (nickname exists)
+    mockClient.firstOrNull
+      .mockRejectedValueOnce(new Error("no such column: is_public"))
+      .mockResolvedValueOnce({ nickname: "Alice", slug: "alice" });
+
+    const res = await GET(makeRequest("GET"));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body).toEqual({ nickname: "Alice", slug: "alice", is_public: false });
+  });
+
+  it("should fall back to slug-only when both nickname and is_public columns are missing", async () => {
+    vi.mocked(resolveUser).mockResolvedValueOnce({ userId: "u1" });
+    // First query fails (is_public), level 1 fails (nickname), level 2 succeeds
+    mockClient.firstOrNull
+      .mockRejectedValueOnce(new Error("no such column: is_public"))
+      .mockRejectedValueOnce(new Error("no such column: nickname"))
+      .mockResolvedValueOnce({ slug: "alice" });
+
+    const res = await GET(makeRequest("GET"));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body).toEqual({ nickname: null, slug: "alice", is_public: false });
   });
 
   it("should return 500 on unexpected error", async () => {
