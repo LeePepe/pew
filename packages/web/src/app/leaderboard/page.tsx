@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Zap, Trophy, Medal, Award, Users } from "lucide-react";
+import { Zap, Trophy, Medal, Award, Users, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatTokens } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,6 +12,7 @@ import {
   type LeaderboardPeriod,
   type LeaderboardEntry,
 } from "@/hooks/use-leaderboard";
+import { useAdmin } from "@/hooks/use-admin";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -58,7 +59,7 @@ function RankBadge({ rank }: { rank: number }) {
 // Row component
 // ---------------------------------------------------------------------------
 
-function LeaderboardRow({ entry }: { entry: LeaderboardEntry }) {
+function LeaderboardRow({ entry, showHiddenBadge }: { entry: LeaderboardEntry; showHiddenBadge?: boolean }) {
   const { rank, user, total_tokens, input_tokens, output_tokens } = entry;
   const displayName = user.name ?? "Anonymous";
   const initial = displayName[0]?.toUpperCase() ?? "?";
@@ -89,6 +90,12 @@ function LeaderboardRow({ entry }: { entry: LeaderboardEntry }) {
         <span className="text-sm font-medium text-foreground truncate">
           {displayName}
         </span>
+        {showHiddenBadge && user.is_public === false && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+            <EyeOff className="h-3 w-3" strokeWidth={1.5} />
+            hidden
+          </span>
+        )}
       </div>
 
       {/* Token breakdown (hidden on mobile) */}
@@ -143,9 +150,12 @@ export default function LeaderboardPage() {
   const [period, setPeriod] = useState<LeaderboardPeriod>("week");
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [showAll, setShowAll] = useState(false);
+  const { isAdmin } = useAdmin();
   const { data, loading, error } = useLeaderboard({
     period,
     teamId: selectedTeam,
+    admin: showAll,
   });
 
   // Fetch user's teams for the filter dropdown (only works if logged in)
@@ -240,6 +250,21 @@ export default function LeaderboardPage() {
               ))}
             </div>
           )}
+
+          {/* Admin toggle */}
+          {isAdmin && (
+            <label className="flex items-center gap-2 shrink-0 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showAll}
+                onChange={(e) => setShowAll(e.target.checked)}
+                className="h-4 w-4 rounded border-border accent-primary"
+              />
+              <span className="text-xs font-medium text-muted-foreground">
+                Show All
+              </span>
+            </label>
+          )}
         </div>
 
         {/* Error */}
@@ -261,7 +286,7 @@ export default function LeaderboardPage() {
               </div>
             ) : (
               data.entries.map((entry) => (
-                <LeaderboardRow key={entry.rank} entry={entry} />
+                <LeaderboardRow key={entry.rank} entry={entry} showHiddenBadge={showAll} />
               ))
             )}
           </div>
