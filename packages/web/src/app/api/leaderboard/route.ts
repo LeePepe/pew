@@ -3,7 +3,7 @@
  *
  * Query params:
  *   period — "week" | "month" | "all" (default: "week")
- *   limit  — max entries to return (default: 50, max: 100)
+ *   limit  — max entries to return (default: 10 public / 50 admin, max: 100)
  *   team   — team ID for team-scoped leaderboard (optional)
  *   admin  — "true" to bypass public filter (requires admin auth)
  *
@@ -20,7 +20,8 @@ import { resolveAdmin } from "@/lib/admin";
 
 const VALID_PERIODS = new Set(["week", "month", "all"]);
 const MAX_LIMIT = 100;
-const DEFAULT_LIMIT = 50;
+const DEFAULT_LIMIT = 10;
+const ADMIN_DEFAULT_LIMIT = 50;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -93,6 +94,10 @@ export async function GET(request: Request) {
   if (adminParam === "true") {
     const admin = await resolveAdmin(request);
     isAdminMode = admin !== null;
+    // Admin defaults to higher limit when no explicit limit is set
+    if (isAdminMode && !limitParam) {
+      limit = ADMIN_DEFAULT_LIMIT;
+    }
   }
 
   const client = getD1Client();

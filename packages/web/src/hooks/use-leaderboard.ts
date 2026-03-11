@@ -48,7 +48,7 @@ interface UseLeaderboardResult {
 export function useLeaderboard(
   options: UseLeaderboardOptions = {},
 ): UseLeaderboardResult {
-  const { period = "week", limit = 50, teamId, admin } = options;
+  const { period = "week", limit, teamId, admin } = options;
   const [data, setData] = useState<LeaderboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -58,10 +58,10 @@ export function useLeaderboard(
     setError(null);
 
     try {
-      const params = new URLSearchParams({
-        period,
-        limit: String(limit),
-      });
+      const params = new URLSearchParams({ period });
+      if (limit !== undefined) {
+        params.set("limit", String(limit));
+      }
       if (teamId) {
         params.set("team", teamId);
       }
