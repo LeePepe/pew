@@ -76,14 +76,17 @@ cost is unknown.
 
 ### Cross-Platform Paths
 
-| Platform | Base Path |
-|----------|-----------|
-| macOS | `~/Library/Application Support/Code/User/` |
-| Linux | `~/.config/Code/User/` |
-| Windows | `%APPDATA%/Code/User/` |
+Both stable and Insiders builds use the same structure under different directories:
+
+| Platform | Stable | Insiders |
+|----------|--------|----------|
+| macOS | `~/Library/Application Support/Code/User/` | `~/Library/Application Support/Code - Insiders/User/` |
+| Linux | `~/.config/Code/User/` | `~/.config/Code - Insiders/User/` |
+| Windows | `%APPDATA%/Code/User/` | `%APPDATA%/Code - Insiders/User/` |
 
 ### File Discovery
 
+- Scan both `Code/` and `Code - Insiders/` base directories
 - One `chatSessions/` directory per **workspace** (keyed by workspace hash)
 - Multiple workspaces → multiple `workspaceStorage/*/chatSessions/` directories
 - `globalStorage/emptyWindowChatSessions/` for window-less sessions
@@ -350,14 +353,21 @@ Unlike simpler byte-offset cursors (Claude Code / OpenClaw), this cursor must
 also store `requestMeta` and `processedRequestIndices` to support index→metadata
 correlation across incremental reads.
 
-### Open Questions
+### Resolved Questions
 
-1. **VSCode Insiders**: Same structure under `Code - Insiders/` directory?
-2. **Cursor IDE**: Fork of VSCode — same JSONL format under `Cursor/` directory?
-3. **Windsurf/Cody/Continue**: Other VSCode AI extensions with similar data?
-4. **File rotation**: Does VSCode ever truncate/rotate JSONL files?
-5. **cachedInputTokens**: Any way to infer cache usage from other fields?
-6. **reasoningOutputTokens**: Should we estimate from `thinking` response text?
+1. **VSCode Insiders**: Same structure under `Code - Insiders/User/`. Parser
+   should scan both `Code/` and `Code - Insiders/` base directories.
+2. **Cursor IDE / Windsurf / Cody / Continue**: Out of scope for now. These are
+   separate products with potentially different formats — future research spikes
+   if there's demand.
+3. **File rotation**: Unknown whether VSCode ever truncates JSONL files. The
+   parser uses byte-offset cursoring — once data is read and emitted, rotation
+   does not cause data loss. If a file is truncated below the cursor offset,
+   the inode/size check will detect it and trigger a full re-read.
+4. **cachedInputTokens / reasoningOutputTokens**: Set to 0. VSCode does not
+   report these breakdowns. This means Pew will **undercount** for VSCode
+   Copilot compared to sources that do report cache/reasoning tokens — the
+   numbers are a lower bound, never an overcount.
 
 ### Resolved: Multi-Turn Token Accounting
 
