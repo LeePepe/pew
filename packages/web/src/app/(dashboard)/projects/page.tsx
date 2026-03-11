@@ -365,7 +365,7 @@ export default function ProjectsPage() {
 
   if (loading) {
     return (
-      <div className="max-w-3xl space-y-8">
+      <div className="max-w-5xl space-y-8">
         <div>
           <h1 className="text-2xl font-bold font-display">Projects</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -389,7 +389,7 @@ export default function ProjectsPage() {
   const hasNoData = projects.length === 0 && unassigned.length === 0;
 
   return (
-    <div className="max-w-3xl space-y-8">
+    <div className="max-w-5xl space-y-8">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold font-display">Projects</h1>
