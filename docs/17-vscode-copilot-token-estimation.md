@@ -1,8 +1,8 @@
-# 17 — VSCode Copilot Token Estimation Research
+# 17 — VSCode Copilot Token Tracking Research
 
 > Research spike: can we extract token usage from VSCode Copilot Chat local data?
 
-## Status: Research
+## Status: Validated — Exact tokens available
 
 ---
 
@@ -12,9 +12,28 @@ Pew currently tracks 5 AI coding tools (Claude Code, Codex, Gemini CLI, OpenCode
 all of which write structured logs locally with **exact** token counts provided by
 their respective APIs.
 
-VSCode + GitHub Copilot Chat is the most popular AI coding tool but does **not** log
-token usage locally. This document investigates whether we can **estimate** token usage
-from the data that *is* available.
+VSCode + GitHub Copilot Chat is the most popular AI coding tool. Initial
+investigation incorrectly concluded that local data lacked token counts and
+would require char-based estimation. **This was wrong.**
+
+### Key Finding
+
+`request.result.metadata` contains **exact** server-reported token counts:
+
+- `promptTokens` — exact input tokens (server-side, includes full context)
+- `outputTokens` — exact output tokens
+
+Verified against 5 real session files:
+
+| Metric | Count |
+|--------|-------|
+| Total requests with `result` | 30 |
+| Requests with exact token fields | 25 (83.3%) |
+| Requests missing token fields | 5 (failed/incomplete turns) |
+
+The 5 missing requests have no `promptTokens`/`outputTokens` keys at all in their
+metadata — these are incomplete turns (no model response received) and should be
+treated as non-billable.
 
 ---
 
@@ -36,11 +55,19 @@ from the data that *is* available.
 └── chatLanguageModels.json                        # model registry
 ```
 
-### File Discovery Challenges
+### Cross-Platform Paths
+
+| Platform | Base Path |
+|----------|-----------|
+| macOS | `~/Library/Application Support/Code/User/` |
+| Linux | `~/.config/Code/User/` |
+| Windows | `%APPDATA%/Code/User/` |
+
+### File Discovery
 
 - One `chatSessions/` directory per **workspace** (keyed by workspace hash)
-- Multiple workspaces → multiple directories under `workspaceStorage/`
-- `emptyWindowChatSessions/` for window-less sessions
+- Multiple workspaces → multiple `workspaceStorage/*/chatSessions/` directories
+- `globalStorage/emptyWindowChatSessions/` for window-less sessions
 - No single index file — must scan all workspace directories
 
 ---
@@ -58,7 +85,7 @@ of messages. Three operation kinds:
 
 ### Reconstructing Session State
 
-To get the current session state, you must **replay** all operations in order:
+To get the current session state, replay all operations in order:
 
 ```
 line 0 (kind=0): state = snapshot.v
@@ -68,96 +95,105 @@ line N (kind=2): append(state, line.k, line.v)    # e.g. state.requests.push(...
 
 The `k` field is a JSON path array like `["requests", 0, "response"]`.
 
+**Optimization**: For token extraction, we do NOT need full CRDT replay. We can
+stream the JSONL and extract token data directly from `kind=1` lines where
+`k[2] == "result"`, plus `kind=2` lines where `k == ["requests"]` for modelId
+and timestamp. This avoids materializing the full session state.
+
 ---
 
-## Available Data Per Request
+## Token Extraction Strategy
 
-### Precise Fields
+### Primary: Exact Server-Reported Tokens (83%+ coverage)
+
+Token data lives in `kind=1` Set operations targeting `['requests', N, 'result']`:
+
+```jsonc
+{
+  "kind": 1,
+  "k": ["requests", 0, "result"],
+  "v": {
+    "timings": { "totalElapsed": 356743, "firstProgress": 6613 },
+    "details": "Claude Opus 4.6 • 3x",
+    "metadata": {
+      "promptTokens": 36533,      // <-- EXACT input tokens
+      "outputTokens": 937,        // <-- EXACT output tokens
+      "agentId": "...",
+      "sessionId": "...",
+      "renderedUserMessage": "...",
+      "renderedGlobalContext": "...",
+      "toolCallResults": [...],
+      "toolCallRounds": [...]
+    }
+  }
+}
+```
+
+Model ID and timestamp come from the request itself (either in `kind=0` snapshot
+or `kind=2` append to `['requests']`):
+
+```jsonc
+{
+  "kind": 2,
+  "k": ["requests"],
+  "v": [{
+    "modelId": "copilot/claude-opus-4.6",   // strip "copilot/" prefix
+    "timestamp": 1772780377684               // Unix ms
+  }]
+}
+```
+
+### Fallback: Estimation (only for missing fields)
+
+For the ~17% of requests lacking `promptTokens`/`outputTokens` (incomplete turns):
+
+1. **Skip by default** — treat as non-billable / incomplete
+2. **Optional**: if `response[].value` text exists, estimate output as chars/4
+3. Mark with `estimated: true` flag
+
+### char/4 Estimation Accuracy (measured against real data)
+
+| Method | Median Error |
+|--------|-------------|
+| Input: `message.text` + `variableData` chars / 4 | ~95.9% (useless) |
+| Input: above + `renderedUserMessage` + `toolCallResults` chars / 4 | ~82.8% (bad) |
+| Output: `response[].value` chars / 4 | ~49.5% (unreliable) |
+
+**Conclusion**: char/4 estimation should only be used as a last resort. The exact
+fields are available for the vast majority of requests.
+
+---
+
+## Available Metadata Per Request
+
+### Token Data (from `result.metadata`)
+
+| Field | Description | Availability |
+|-------|-------------|-------------|
+| `promptTokens` | Exact input tokens (full context) | 83%+ of requests |
+| `outputTokens` | Exact output tokens | 83%+ of requests |
+
+### Request Metadata
 
 | Field | Path | Example |
 |-------|------|---------|
-| Model ID | `request.modelId` | `"copilot/claude-opus-4.6"` |
+| Model ID | `request.modelId` | `"copilot/claude-opus-4.6"`, `"copilot/claude-opus-4.6-1m"` |
 | Timestamp | `request.timestamp` | `1772780377684` (Unix ms) |
 | Request ID | `request.requestId` | `"request_29c78eba-..."` |
-| Response ID | `request.responseId` | `"response_dc6357b6-..."` |
 | Extension version | `request.agent.extensionVersion` | `"0.38.0"` |
-| Total elapsed (ms) | `request.result.timings.totalElapsed` | `356743` |
-| First token (ms) | `request.result.timings.firstProgress` | `6613` |
-| Premium multiplier | `request.result.details` | `"Claude Opus 4.6 • 3x"` |
-| Model max input | `inputState.selectedModel.metadata.maxInputTokens` | `127805` |
-| Model max output | `inputState.selectedModel.metadata.maxOutputTokens` | `64000` |
+| Total elapsed (ms) | `result.timings.totalElapsed` | `356743` |
+| First token (ms) | `result.timings.firstProgress` | `6613` |
+| Premium multiplier | `result.details` | `"Claude Opus 4.6 • 3x"` |
+| Max input tokens | `inputState.selectedModel.metadata.maxInputTokens` | `127805` |
+| Max output tokens | `inputState.selectedModel.metadata.maxOutputTokens` | `64000` |
+| Multiplier numeric | `inputState.selectedModel.metadata.multiplierNumeric` | `3` |
 
-### User Message (Input)
+### Model ID Normalization
 
-| Field | Content | Token Estimation Quality |
-|-------|---------|--------------------------|
-| `request.message.text` | Raw user input text | **Partial** — only the user's typed message |
-| `request.variableData.variables` | System prompts, instruction files | **Partial** — serialized prompt instructions |
-
-**What's missing from input estimation:**
-- Full conversation history sent to the model
-- File contents injected by `@workspace`, `@file`, `#selection` references
-- Tool call results from previous turns
-- Internal system prompts added by Copilot
-
-**Estimated coverage: ~10-30% of actual input tokens.**
-
-### Assistant Response (Output)
-
-Response items are appended incrementally via `kind=2` operations to the
-`['requests', N, 'response']` path. Response item types:
-
-| Response `kind` | Description | Has text? |
-|-----------------|-------------|-----------|
-| (none/null) | Markdown text output | `value` field — full assistant text |
-| `"thinking"` | Reasoning/thinking text | `value` field — full thinking text |
-| `"toolInvocationSerialized"` | Tool call record | `invocationMessage`, `pastTenseMessage` |
-| `"inlineReference"` | File/symbol reference | No estimable text |
-| `"textEditGroup"` | File edit operations | Edit diffs (code changes) |
-| `"codeblockUri"` | Code block reference | No estimable text |
-| `"mcpServersStarting"` | MCP server lifecycle | No text |
-| `"progressMessage"` | Status updates | Short status text |
-
-**The `value` field on null-kind and thinking-kind items contains the complete
-assistant response text.** This is the most reliable data for estimation.
-
-**Estimated coverage: ~80-90% of actual output tokens** (missing some structured
-tool-call output and internal reasoning overhead).
-
----
-
-## Estimation Approach
-
-### Output Tokens (Moderate Confidence)
-
-```
-output_tokens ≈ (sum of response[].value chars where kind is null or "thinking") / 4
-```
-
-- English text: ~4 chars/token (GPT/Claude tokenizers)
-- Code: ~3.5 chars/token
-- Mixed: ~3.8 chars/token
-- **Expected accuracy: ±20-30%**
-
-### Input Tokens (Low Confidence)
-
-```
-input_tokens_lower_bound ≈ (message.text chars + variableData chars) / 4
-```
-
-- This is a **severe underestimate** — actual input is 3-10x larger
-- No way to recover injected file contents, conversation history, or tool results
-- **Expected accuracy: captures only 10-30% of actual input**
-
-### Alternative: Heuristic Model
-
-Use `result.timings` + model pricing multipliers to back-calculate approximate token count:
-
-```
-total_cost_units ≈ f(totalElapsed, model, multiplier)
-```
-
-This is even more speculative and model-dependent.
+| Raw `modelId` | Normalized Model | Notes |
+|---------------|-----------------|-------|
+| `copilot/claude-opus-4.6` | `claude-opus-4.6` | Strip `copilot/` prefix |
+| `copilot/claude-opus-4.6-1m` | `claude-opus-4.6-1m` | 1M context variant, 6x multiplier |
 
 ---
 
@@ -169,104 +205,74 @@ This is even more speculative and model-dependent.
 | Gemini CLI | Exact | Exact | Cumulative in session JSON |
 | OpenCode | Exact | Exact | Per-message in JSON/SQLite |
 | OpenClaw | Exact | Exact | API-reported per message |
-| **VSCode Copilot** | **~10-30%** | **~70-90%** | **Estimated from text** |
+| **VSCode Copilot** | **Exact** | **Exact** | **Server-reported, 83%+ coverage** |
 
 ---
 
-## Implementation Considerations
+## Implementation Plan
 
-### Parser Complexity: High
-
-1. **CRDT replay** — must replay operation log to reconstruct state (not just read JSON)
-2. **Multi-workspace scanning** — enumerate all `workspaceStorage/*/chatSessions/`
-3. **Incremental sync** — need byte-offset cursor per `.jsonl` file
-4. **Model ID normalization** — `"copilot/claude-opus-4.6"` → strip `"copilot/"` prefix
-5. **Tokenizer choice** — char/4 is crude; could use `tiktoken` or `@anthropic-ai/tokenizer`
-   for better accuracy (adds dependency)
-
-### Data Labeling
-
-If implemented, records should be clearly labeled:
+### Source Type
 
 ```typescript
 source: "vscode-copilot"  // new Source enum value
-// Metadata flag:
-estimated: true            // distinguish from exact counts
+```
+
+### Parser Design
+
+Unlike other parsers that process raw API responses, the VSCode Copilot parser:
+
+1. **Scans** `workspaceStorage/*/chatSessions/*.jsonl` + `emptyWindowChatSessions/*.jsonl`
+2. **Streams** JSONL lines (no full CRDT replay needed)
+3. **Extracts** from `kind=1` lines where `k[2] == "result"`:
+   - `v.metadata.promptTokens` → `inputTokens`
+   - `v.metadata.outputTokens` → `outputTokens`
+4. **Correlates** with `kind=2` (or `kind=0`) request data for:
+   - `modelId` → strip `copilot/` prefix
+   - `timestamp` → for hour bucket assignment
+5. **Skips** requests without token fields (incomplete turns)
+
+### Token Mapping
+
+| VSCode Field | Pew `TokenDelta` Field | Notes |
+|-------------|----------------------|-------|
+| `promptTokens` | `inputTokens` | Exact. No cache breakdown available |
+| `outputTokens` | `outputTokens` | Exact |
+| (none) | `cachedInputTokens` | Not available — set to 0 |
+| (none) | `reasoningOutputTokens` | Not available — set to 0 |
+
+**Limitation**: VSCode Copilot does not break down input tokens into cached vs
+uncached. `cachedInputTokens` will always be 0. If `thinking` response items
+exist, we *could* estimate reasoning tokens from their text length, but the
+exact count is not provided.
+
+### Cursor Type
+
+Byte-offset cursor (same as Claude Code / OpenClaw) since JSONL is append-only:
+
+```typescript
+interface VscodeCopilotCursor extends FileCursorBase {
+  offset: number;  // byte offset into JSONL file
+}
 ```
 
 ### Open Questions
 
-1. **Cross-platform paths**: What are the equivalent paths on Linux/Windows?
-   - Linux: `~/.config/Code/User/workspaceStorage/...`
-   - Windows: `%APPDATA%/Code/User/workspaceStorage/...`
-2. **VSCode Insiders**: Same structure under `Code - Insiders/` directory?
-3. **Cursor IDE**: Fork of VSCode — same JSONL format under `Cursor/` directory?
-4. **Windsurf/Cody/Continue**: Other VSCode AI extensions with similar data?
-5. **File rotation**: Does VSCode ever truncate/rotate JSONL files?
-6. **GitHub API**: Does `api.github.com` expose per-session token usage?
-   Would make this entire approach unnecessary.
+1. **VSCode Insiders**: Same structure under `Code - Insiders/` directory?
+2. **Cursor IDE**: Fork of VSCode — same JSONL format under `Cursor/` directory?
+3. **Windsurf/Cody/Continue**: Other VSCode AI extensions with similar data?
+4. **File rotation**: Does VSCode ever truncate/rotate JSONL files?
+5. **cachedInputTokens**: Any way to infer cache usage from other fields?
+6. **reasoningOutputTokens**: Should we estimate from `thinking` response text?
+7. **Multi-turn token accounting**: `promptTokens` includes conversation history,
+   so summing across turns in a session would double-count. Need to decide:
+   - Sum as-is (measures total API consumption, matches billing) ✅
+   - Diff against previous turn (measures incremental, avoids double-count)
 
 ---
 
-## Recommendation
+## Appendix: Sample Data
 
-**Wait.** The estimation quality (especially for input tokens) is poor compared to
-other sources. Two paths forward:
-
-1. **GitHub Copilot Usage API** — GitHub may expose per-user token usage via API.
-   This would give exact numbers without any local parsing. Check:
-   - `GET /user/copilot/usage` (hypothetical)
-   - GitHub Settings → Copilot → Usage dashboard data source
-
-2. **VSCode Extension API** — A lightweight VSCode extension could intercept the
-   `LanguageModelChat` API and log exact token counts locally. This would provide
-   Claude Code-level accuracy.
-
-If neither option materializes, the local JSONL parsing approach described here
-is a viable fallback — but the `estimated` flag must be prominently displayed in
-the dashboard to avoid misleading users.
-
----
-
-## Appendix: Sample Data Structures
-
-### kind=0 Snapshot (first line)
-
-```jsonc
-{
-  "kind": 0,
-  "v": {
-    "version": 3,
-    "creationDate": 1772780355206,
-    "sessionId": "3a08f728-...",
-    "responderUsername": "GitHub Copilot",
-    "requests": [
-      {
-        "requestId": "request_29c78eba-...",
-        "timestamp": 1772780377684,
-        "modelId": "copilot/claude-opus-4.6",
-        "message": { "text": "用户输入的原始文本..." },
-        "response": [
-          { "kind": "mcpServersStarting", "didStartServerIds": [] }
-        ],
-        "variableData": { "variables": [...] }
-      }
-    ],
-    "inputState": {
-      "selectedModel": {
-        "identifier": "copilot/claude-opus-4.6",
-        "metadata": {
-          "maxInputTokens": 127805,
-          "maxOutputTokens": 64000,
-          "multiplierNumeric": 3
-        }
-      }
-    }
-  }
-}
-```
-
-### kind=1 Set (result with timings)
+### Complete kind=1 Result (with tokens)
 
 ```jsonc
 {
@@ -275,21 +281,64 @@ the dashboard to avoid misleading users.
   "v": {
     "timings": { "totalElapsed": 356743, "firstProgress": 6613 },
     "details": "Claude Opus 4.6 • 3x",
-    "metadata": { "renderedUserMessage": "..." }
+    "metadata": {
+      "promptTokens": 36533,
+      "outputTokens": 937,
+      "agentId": "github.copilot.editsAgent",
+      "cacheKey": "...",
+      "codeBlocks": [...],
+      "modelMessageId": "...",
+      "renderedGlobalContext": "...",
+      "renderedUserMessage": "...",
+      "responseId": "response_dc6357b6-...",
+      "sessionId": "3a08f728-...",
+      "toolCallResults": [...],
+      "toolCallRounds": [...]
+    }
   }
 }
 ```
 
-### kind=2 Append (response text)
+### Incomplete kind=1 Result (no tokens)
+
+```jsonc
+{
+  "kind": 1,
+  "k": ["requests", 7, "result"],
+  "v": {
+    "timings": { "totalElapsed": 538892, "firstProgress": 8300 },
+    "metadata": {
+      "agentId": "...",
+      "modelMessageId": "...",
+      "responseId": "...",
+      "sessionId": "...",
+      "toolCallResults": [...],
+      "toolCallRounds": [...]
+      // NOTE: no promptTokens, no outputTokens
+    }
+  }
+}
+```
+
+### kind=2 Request Append (for modelId + timestamp)
 
 ```jsonc
 {
   "kind": 2,
-  "k": ["requests", 0, "response"],
-  "v": [
-    { "value": "I'll help you with...", "kind": null },          // markdown text
-    { "value": "Let me think about...", "kind": "thinking" },     // reasoning
-    { "kind": "toolInvocationSerialized", "toolId": "copilot_readFile", ... }
-  ]
+  "k": ["requests"],
+  "v": [{
+    "requestId": "request_29c78eba-...",
+    "timestamp": 1772780377684,
+    "modelId": "copilot/claude-opus-4.6",
+    "message": { "text": "用户输入的原始文本..." },
+    "agent": { "extensionVersion": "0.38.0", ... }
+  }]
 }
+```
+
+### Observed Models
+
+```
+copilot/claude-opus-4.6       (multiplier: 3x)
+copilot/claude-opus-4.6-1m    (multiplier: 6x, 1M context)
 ```
