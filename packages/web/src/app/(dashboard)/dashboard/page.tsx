@@ -14,12 +14,12 @@ import { useUsageData, toHeatmapData } from "@/hooks/use-usage-data";
 import { formatTokens, cn } from "@/lib/utils";
 import { usePricingMap, formatCost } from "@/hooks/use-pricing";
 import { computeTotalCost, toDailyCostPoints, computeCacheSavings, forecastMonthlyCost, toDailyCacheRates, computeCurrentMonthTokens } from "@/lib/cost-helpers";
-import { compareWeekdayWeekend, computeMoMGrowth, computeStreak } from "@/lib/usage-helpers";
+import { compareWeekdayWeekend, computeMoMGrowth } from "@/lib/usage-helpers";
 import { computeBudgetStatus } from "@/lib/budget-helpers";
-import { generateInsights } from "@/lib/insights";
+import { computeAchievements } from "@/lib/achievement-helpers";
 import { useBudget } from "@/hooks/use-budget";
 import { StatCard, StatGrid } from "@/components/dashboard/stat-card";
-import { InsightCards } from "@/components/dashboard/insight-cards";
+import { AchievementShelf } from "@/components/dashboard/achievement-shelf";
 import { UsageTrendChart } from "@/components/dashboard/usage-trend-chart";
 import { CostTrendChart } from "@/components/dashboard/cost-trend-chart";
 import { CacheRateChart } from "@/components/dashboard/cache-rate-chart";
@@ -27,7 +27,6 @@ import { IoRatioChart } from "@/components/dashboard/io-ratio-chart";
 import { SourceDonutChart } from "@/components/dashboard/source-donut-chart";
 import { HeatmapCalendar } from "@/components/dashboard/heatmap-calendar";
 import { WeekdayWeekendChart } from "@/components/dashboard/weekday-weekend-chart";
-import { StreakBadge } from "@/components/dashboard/streak-badge";
 import { BudgetProgress } from "@/components/dashboard/budget-progress";
 import { BudgetAlert } from "@/components/dashboard/budget-alert";
 import { BudgetDialog } from "@/components/dashboard/budget-dialog";
@@ -60,7 +59,7 @@ export default function DashboardPage() {
     ...(to ? { to } : {}),
     granularity: "half-hour",
   });
-  // Half-hour granularity for streak (needs 365 days of data)
+  // Half-hour granularity for achievements (needs 365 days of data)
   const yearHalfHourData = useUsageData({ days: 365, granularity: "half-hour" });
 
   const currentYear = new Date().getFullYear();
@@ -129,23 +128,17 @@ export default function DashboardPage() {
     return compareWeekdayWeekend(halfHourData.data.records, { from, to: toStr }, pricingMap, tzOffset);
   }, [halfHourData.data, from, to, pricingMap, tzOffset]);
 
-  // Usage streak (365 days, half-hour granularity)
-  const streak = useMemo(
-    () => (yearHalfHourData.data ? computeStreak(yearHalfHourData.data.records, undefined, tzOffset) : null),
-    [yearHalfHourData.data, tzOffset],
-  );
-
-  // Personal insight cards
-  const insights = useMemo(() => {
-    if (!data || !halfHourData.data) return [];
-    return generateInsights({
-      rows: halfHourData.data.records,
-      summary: data.summary,
+  // Achievements (always 365-day scope)
+  const achievements = useMemo(() => {
+    if (!yearHalfHourData.data) return [];
+    return computeAchievements({
+      rows: yearHalfHourData.data.records,
+      summary: yearHalfHourData.data.summary,
       models,
       pricingMap,
       tzOffset,
     });
-  }, [data, halfHourData.data, models, pricingMap, tzOffset]);
+  }, [yearHalfHourData.data, models, pricingMap, tzOffset]);
 
   const showForecast = (period === "month" || period === "all") && costForecast !== null;
 
@@ -260,8 +253,8 @@ export default function DashboardPage() {
             )}
           </StatGrid>
 
-          {/* Personal insight cards */}
-          <InsightCards insights={insights} />
+          {/* Achievements */}
+          <AchievementShelf achievements={achievements} />
 
           {/* Charts row */}
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-3 md:gap-4">
@@ -307,7 +300,7 @@ export default function DashboardPage() {
             <WeekdayWeekendChart stats={weekdayWeekend} />
           )}
 
-          {/* Activity heatmap + streak */}
+          {/* Activity heatmap */}
           <div className="space-y-3">
             <div className="rounded-[var(--radius-card)] bg-secondary p-4 md:p-5">
               <p className="mb-3 text-xs md:text-sm text-muted-foreground">
@@ -323,7 +316,6 @@ export default function DashboardPage() {
                 />
               )}
             </div>
-            {streak && <StreakBadge streak={streak} />}
           </div>
         </>
       )}

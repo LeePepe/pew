@@ -33,6 +33,19 @@ export function DashboardSkeleton() {
         ))}
       </StatGrid>
 
+      {/* Achievements skeleton */}
+      <div className="rounded-[var(--radius-card)] bg-secondary p-4 md:p-5">
+        <Skeleton className="h-3 w-24 mb-4" />
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={`ach-${i}`} className="flex flex-col items-center gap-1.5 p-3">
+              <Skeleton className="h-[72px] w-[72px] rounded-full" />
+              <Skeleton className="h-3 w-12" />
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Chart row skeleton */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-3 md:gap-4">
         <div className="rounded-[var(--radius-card)] bg-secondary p-4 md:p-5">
