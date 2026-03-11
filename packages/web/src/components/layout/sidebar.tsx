@@ -225,7 +225,7 @@ export function Sidebar() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/logo-24.png"
-                alt="Pew"
+                alt="pew"
                 width={24}
                 height={24}
                 className="shrink-0"
@@ -331,12 +331,12 @@ export function Sidebar() {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src="/logo-24.png"
-                    alt="Pew"
+                    alt="pew"
                     width={24}
                     height={24}
                     className="shrink-0"
                   />
-                  <span className="text-lg font-bold tracking-tighter">
+                  <span className="text-lg font-bold font-handwriting tracking-tighter">
                     pew
                   </span>
                   <Badge

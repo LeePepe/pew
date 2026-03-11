@@ -416,13 +416,13 @@ export default function LeaderboardPage() {
           >
             <Image
               src="/logo-80.png"
-              alt="Pew"
+              alt="pew"
               width={48}
               height={48}
             />
           </Link>
           <div className="flex flex-col">
-            <h1 className="text-2xl font-bold font-display tracking-tight text-foreground">
+            <h1 className="text-2xl font-bold font-handwriting tracking-tight text-foreground">
               pew{" "}
               <span className="font-normal text-muted-foreground">
                 Leaderboard
@@ -509,7 +509,7 @@ export default function LeaderboardPage() {
       <footer className="px-6 py-3">
         <p className="text-center text-xs text-muted-foreground">
           Powered by{" "}
-          <Link href="/" className="text-primary hover:underline">
+          <Link href="/" className="text-primary hover:underline font-handwriting">
             pew
           </Link>{" "}
           &mdash; AI token usage tracker
