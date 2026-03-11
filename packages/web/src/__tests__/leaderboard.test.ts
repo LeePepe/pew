@@ -524,5 +524,34 @@ describe("GET /api/leaderboard", () => {
       const sqlCall = mockClient.query.mock.calls[0]!;
       expect(sqlCall[0]).toContain("u.is_public");
     });
+
+    it("should return is_public: null in admin bare fallback when column is unavailable", async () => {
+      resolveAdmin.mockResolvedValueOnce({ userId: "admin-1", email: "a@b.com" });
+      // Level 0 fails, level 1 fails, bare fallback succeeds (no is_public column)
+      mockClient.query
+        .mockRejectedValueOnce(new Error("no such column: u.is_public"))
+        .mockRejectedValueOnce(new Error("no such column: u.is_public"))
+        .mockResolvedValueOnce({
+          results: [
+            {
+              user_id: "u1",
+              name: "Alice",
+              image: null,
+              slug: "alice",
+              total_tokens: 5000,
+              input_tokens: 3000,
+              output_tokens: 1500,
+              cached_input_tokens: 500,
+            },
+          ],
+        });
+
+      const res = await GET(makeRequest({ admin: "true" }));
+      const body = await res.json();
+
+      expect(res.status).toBe(200);
+      // is_public should be null (unknown), not false (mislabeled as hidden)
+      expect(body.entries[0].user.is_public).toBeNull();
+    });
   });
 });

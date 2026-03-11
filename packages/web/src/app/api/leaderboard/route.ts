@@ -204,7 +204,9 @@ export async function GET(request: Request) {
         name: row.nickname ?? row.name,
         image: row.image,
         slug: row.slug,
-        ...(isAdminMode && { is_public: row.is_public === 1 }),
+        ...(isAdminMode && {
+          is_public: row.is_public == null ? null : row.is_public === 1,
+        }),
       },
       total_tokens: row.total_tokens,
       input_tokens: row.input_tokens,
