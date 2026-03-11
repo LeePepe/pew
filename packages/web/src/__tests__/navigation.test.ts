@@ -23,11 +23,11 @@ describe("sidebar navigation", () => {
       expect(labels).not.toContain("Account");
     });
 
-    it("Settings group should contain Teams before General", () => {
+    it("Settings group should contain Teams, Projects, General", () => {
       const settingsGroup = BASE_NAV_GROUPS.find((g) => g.label === "Settings");
       expect(settingsGroup).toBeDefined();
       const items = settingsGroup!.items.map((i) => i.label);
-      expect(items).toEqual(["Teams", "General"]);
+      expect(items).toEqual(["Teams", "Projects", "General"]);
     });
 
     it("Teams should link to /teams", () => {
@@ -110,6 +110,7 @@ describe("route labels", () => {
     expect(ROUTE_LABELS).toEqual({
       settings: "General",
       teams: "Teams",
+      projects: "Projects",
       details: "Daily Usage",
       apps: "By App",
       models: "By Model",
