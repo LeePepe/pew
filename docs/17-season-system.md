@@ -10,7 +10,7 @@
 |---|--------|-------------|--------|
 | 1 | `docs: add season system plan` | This document | done |
 | 2 | `feat: add seasons and season_teams migration` | `006-seasons.sql` | done |
-| 3 | `feat: add season types to @pew/core` | Season-related type definitions | |
+| 3 | `feat: add season types to @pew/core` | Season-related type definitions | done |
 | 4 | `feat: add admin seasons CRUD API` | `GET/POST/PATCH /api/admin/seasons` | |
 | 5 | `test: add L1 tests for admin seasons API` | Admin seasons CRUD unit tests | |
 | 6 | `feat: add season registration API` | `POST/DELETE /api/seasons/[seasonId]/register` | |
