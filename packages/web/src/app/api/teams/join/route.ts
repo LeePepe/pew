@@ -56,6 +56,33 @@ export async function POST(request: Request) {
       );
     }
 
+    // Enforce team member limit from app_settings (default: 5)
+    const DEFAULT_MAX_TEAM_MEMBERS = 5;
+    let maxMembers = DEFAULT_MAX_TEAM_MEMBERS;
+    try {
+      const setting = await client.firstOrNull<{ value: string }>(
+        "SELECT value FROM app_settings WHERE key = 'max_team_members'",
+        [],
+      );
+      if (setting) {
+        const parsed = parseInt(setting.value, 10);
+        if (!isNaN(parsed) && parsed > 0) maxMembers = parsed;
+      }
+    } catch {
+      // Settings table may not exist yet — use default
+    }
+
+    const countResult = await client.firstOrNull<{ cnt: number }>(
+      "SELECT COUNT(*) AS cnt FROM team_members WHERE team_id = ?",
+      [team.id],
+    );
+    if (countResult && countResult.cnt >= maxMembers) {
+      return NextResponse.json(
+        { error: `Team is full (max ${maxMembers} members)` },
+        { status: 403 },
+      );
+    }
+
     // Add as member
     await client.execute(
       `INSERT INTO team_members (id, team_id, user_id, role, joined_at)

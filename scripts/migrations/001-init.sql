@@ -200,3 +200,16 @@ CREATE TABLE IF NOT EXISTS project_aliases (
 
 CREATE INDEX IF NOT EXISTS idx_project_aliases_project ON project_aliases(project_id);
 CREATE INDEX IF NOT EXISTS idx_project_aliases_lookup  ON project_aliases(user_id, source, project_ref);
+
+-- ============================================================
+-- App-wide settings (key-value store)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS app_settings (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Default: max 5 members per team
+INSERT OR IGNORE INTO app_settings (key, value) VALUES ('max_team_members', '5');

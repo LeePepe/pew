@@ -127,7 +127,9 @@ describe("POST /api/teams/join", () => {
     vi.mocked(resolveUser).mockResolvedValueOnce({ userId: "u1" });
     mockClient.firstOrNull
       .mockResolvedValueOnce({ id: "t1", name: "Team Alpha", slug: "team-alpha" })
-      .mockResolvedValueOnce(null); // not yet a member
+      .mockResolvedValueOnce(null) // not yet a member
+      .mockResolvedValueOnce({ value: "5" }) // max_team_members setting
+      .mockResolvedValueOnce({ cnt: 3 }); // current member count
     mockClient.execute.mockResolvedValueOnce({ changes: 1 });
 
     const res = await POST(makeJson({ invite_code: "valid-code" }));
@@ -140,6 +142,61 @@ describe("POST /api/teams/join", () => {
     // Verify the INSERT was called with role: member
     const [sql] = mockClient.execute.mock.calls[0]!;
     expect(sql).toContain("'member'");
+  });
+
+  it("should return 403 when team is full", async () => {
+    vi.mocked(resolveUser).mockResolvedValueOnce({ userId: "u1" });
+    mockClient.firstOrNull
+      .mockResolvedValueOnce({ id: "t1", name: "Team", slug: "team" }) // team found
+      .mockResolvedValueOnce(null) // not yet a member
+      .mockResolvedValueOnce({ value: "5" }) // max_team_members = 5
+      .mockResolvedValueOnce({ cnt: 5 }); // already at limit
+
+    const res = await POST(makeJson({ invite_code: "valid-code" }));
+    const body = await res.json();
+
+    expect(res.status).toBe(403);
+    expect(body.error).toContain("Team is full");
+    expect(body.error).toContain("5");
+  });
+
+  it("should use default limit when settings table missing", async () => {
+    vi.mocked(resolveUser).mockResolvedValueOnce({ userId: "u1" });
+    mockClient.firstOrNull
+      .mockResolvedValueOnce({ id: "t1", name: "Team", slug: "team" }) // team found
+      .mockResolvedValueOnce(null) // not yet a member
+      .mockRejectedValueOnce(new Error("no such table: app_settings")) // settings missing
+      .mockResolvedValueOnce({ cnt: 2 }); // under default limit of 5
+    mockClient.execute.mockResolvedValueOnce({ changes: 1 });
+
+    const res = await POST(makeJson({ invite_code: "valid-code" }));
+    expect(res.status).toBe(200);
+  });
+
+  it("should enforce default limit of 5 when settings table missing", async () => {
+    vi.mocked(resolveUser).mockResolvedValueOnce({ userId: "u1" });
+    mockClient.firstOrNull
+      .mockResolvedValueOnce({ id: "t1", name: "Team", slug: "team" }) // team found
+      .mockResolvedValueOnce(null) // not yet a member
+      .mockRejectedValueOnce(new Error("no such table: app_settings")) // settings missing
+      .mockResolvedValueOnce({ cnt: 5 }); // at default limit
+
+    const res = await POST(makeJson({ invite_code: "valid-code" }));
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toContain("5");
+  });
+
+  it("should respect custom team limit from settings", async () => {
+    vi.mocked(resolveUser).mockResolvedValueOnce({ userId: "u1" });
+    mockClient.firstOrNull
+      .mockResolvedValueOnce({ id: "t1", name: "Team", slug: "team" }) // team found
+      .mockResolvedValueOnce(null) // not yet a member
+      .mockResolvedValueOnce({ value: "10" }) // custom limit
+      .mockResolvedValueOnce({ cnt: 8 }); // under custom limit
+    mockClient.execute.mockResolvedValueOnce({ changes: 1 });
+
+    const res = await POST(makeJson({ invite_code: "valid-code" }));
+    expect(res.status).toBe(200);
   });
 
   it("should return 503 when teams table does not exist", async () => {
