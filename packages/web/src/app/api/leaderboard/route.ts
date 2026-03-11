@@ -5,12 +5,14 @@
  *   period — "week" | "month" | "all" (default: "week")
  *   limit  — max entries to return (default: 50, max: 100)
  *   team   — team ID for team-scoped leaderboard (optional)
+ *   admin  — "true" to bypass public filter (requires admin auth)
  *
  * Returns { period, entries[] } where each entry has user info + total tokens.
  */
 
 import { NextResponse } from "next/server";
 import { getD1Client } from "@/lib/d1";
+import { resolveAdmin } from "@/lib/admin";
 
 // ---------------------------------------------------------------------------
 // Validation
@@ -30,6 +32,7 @@ interface LeaderboardRow {
   nickname: string | null;
   image: string | null;
   slug: string | null;
+  is_public: number | null;
   total_tokens: number;
   input_tokens: number;
   output_tokens: number;
@@ -62,6 +65,7 @@ export async function GET(request: Request) {
   const period = url.searchParams.get("period") ?? "week";
   const limitParam = url.searchParams.get("limit");
   const teamId = url.searchParams.get("team");
+  const adminParam = url.searchParams.get("admin");
 
   // Validate period
   if (!VALID_PERIODS.has(period)) {
@@ -84,6 +88,13 @@ export async function GET(request: Request) {
     limit = parsed;
   }
 
+  // Admin mode: bypass public filters if caller is a verified admin
+  let isAdminMode = false;
+  if (adminParam === "true") {
+    const admin = await resolveAdmin(request);
+    isAdminMode = admin !== null;
+  }
+
   const client = getD1Client();
   const fromDate = periodStartDate(period);
 
@@ -101,7 +112,7 @@ export async function GET(request: Request) {
     teamJoin = "JOIN team_members tm ON tm.user_id = ur.user_id";
     conditions.push("tm.team_id = ?");
     params.push(teamId);
-  } else {
+  } else if (!isAdminMode) {
     // Public leaderboard only shows users who opted in and have a slug
     conditions.push("u.is_public = 1");
     conditions.push("u.slug IS NOT NULL");
@@ -117,6 +128,7 @@ export async function GET(request: Request) {
       ${withNickname ? "u.nickname," : ""}
       u.image,
       u.slug,
+      ${isAdminMode ? "u.is_public," : ""}
       SUM(ur.total_tokens) AS total_tokens,
       SUM(ur.input_tokens) AS input_tokens,
       SUM(ur.output_tokens) AS output_tokens,
@@ -177,6 +189,7 @@ export async function GET(request: Request) {
         name: row.nickname ?? row.name,
         image: row.image,
         slug: row.slug,
+        ...(isAdminMode && { is_public: row.is_public === 1 }),
       },
       total_tokens: row.total_tokens,
       input_tokens: row.input_tokens,

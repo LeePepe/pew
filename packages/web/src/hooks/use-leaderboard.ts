@@ -14,6 +14,7 @@ export interface LeaderboardEntry {
     name: string | null;
     image: string | null;
     slug: string | null;
+    is_public?: boolean;
   };
   total_tokens: number;
   input_tokens: number;

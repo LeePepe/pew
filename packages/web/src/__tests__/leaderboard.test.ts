@@ -11,6 +11,11 @@ vi.mock("@/lib/d1", async (importOriginal) => {
   };
 });
 
+// Mock admin
+vi.mock("@/lib/admin", () => ({
+  resolveAdmin: vi.fn(),
+}));
+
 function createMockClient() {
   return {
     query: vi.fn(),
