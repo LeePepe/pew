@@ -20,7 +20,6 @@ import {
   DollarSign,
   Users,
   Ticket,
-  FolderKanban,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { APP_VERSION } from "@/lib/version";
@@ -55,7 +54,6 @@ const ICON_MAP: Record<string, ElementType> = {
   Users,
   DollarSign,
   Ticket,
-  FolderKanban,
 };
 
 interface NavItem {

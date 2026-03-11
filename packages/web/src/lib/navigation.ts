@@ -50,7 +50,6 @@ export const BASE_NAV_GROUPS: NavGroupDef[] = [
     defaultOpen: true,
     items: [
       { href: "/teams", label: "Teams", icon: "Users" },
-      { href: "/projects", label: "Projects", icon: "FolderKanban" },
       { href: "/settings", label: "General", icon: "Settings" },
     ],
   },
@@ -76,7 +75,6 @@ export function getNavGroups(isAdmin: boolean): NavGroupDef[] {
 export const ROUTE_LABELS: Record<string, string> = {
   settings: "General",
   teams: "Teams",
-  projects: "Projects",
   details: "Daily Usage",
   apps: "By App",
   models: "By Model",
