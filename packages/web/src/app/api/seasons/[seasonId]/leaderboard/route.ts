@@ -191,6 +191,7 @@ export async function GET(
         cached_input_tokens: row.cached_input_tokens,
         ...(expandMembers && {
           members: (membersByTeam.get(row.team_id) ?? []).map((m) => ({
+            user_id: m.user_id,
             name: m.nickname ?? m.name,
             image: m.image,
             total_tokens: m.total_tokens,
@@ -270,6 +271,7 @@ export async function GET(
         cached_input_tokens: row.cached_input_tokens,
         ...(expandMembers && {
           members: (membersByTeam.get(row.team_id) ?? []).map((m) => ({
+            user_id: m.user_id,
             name: m.nickname ?? m.name,
             image: m.image,
             total_tokens: m.total_tokens,

@@ -208,6 +208,9 @@ describe("GET /api/seasons/[seasonId]/leaderboard", () => {
 
     expect(res.status).toBe(200);
     expect(data.entries[0].members).toHaveLength(2);
+    // user_id must be present (used as React key in frontend)
+    expect(data.entries[0].members[0].user_id).toBe("user-1");
+    expect(data.entries[0].members[1].user_id).toBe("user-2");
     // nickname preferred over name
     expect(data.entries[0].members[0].name).toBe("Ally");
     expect(data.entries[0].members[0].total_tokens).toBe(9000);
@@ -281,6 +284,55 @@ describe("GET /api/seasons/[seasonId]/leaderboard", () => {
     // Verify the snapshot query was used (queries season_snapshots)
     const sql = mockClient.query.mock.calls[0]![0] as string;
     expect(sql).toContain("season_snapshots");
+  });
+
+  it("should include user_id in snapshot member breakdown", async () => {
+    mockClient.firstOrNull.mockResolvedValueOnce(ENDED_SEASON);
+    mockClient.firstOrNull.mockResolvedValueOnce({ cnt: 1 });
+    // Snapshot team data
+    mockClient.query.mockResolvedValueOnce({
+      results: [
+        {
+          team_id: "team-a",
+          team_name: "Team Alpha",
+          team_slug: "team-alpha",
+          rank: 1,
+          total_tokens: 20000,
+          input_tokens: 12000,
+          output_tokens: 8000,
+          cached_input_tokens: 5000,
+        },
+      ],
+    });
+    // Snapshot member data
+    mockClient.query.mockResolvedValueOnce({
+      results: [
+        {
+          team_id: "team-a",
+          user_id: "user-x",
+          name: "Xena",
+          nickname: null,
+          image: null,
+          total_tokens: 20000,
+          input_tokens: 12000,
+          output_tokens: 8000,
+          cached_input_tokens: 5000,
+        },
+      ],
+    });
+
+    const url =
+      "http://localhost:7030/api/seasons/season-1/leaderboard?expand=members";
+    const res = await GET(makeRequest(url), {
+      params: Promise.resolve({ seasonId: "season-2" }),
+    });
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.season.is_snapshot).toBe(true);
+    expect(data.entries[0].members).toHaveLength(1);
+    expect(data.entries[0].members[0].user_id).toBe("user-x");
+    expect(data.entries[0].members[0].name).toBe("Xena");
   });
 
   it("should aggregate live when no snapshot exists", async () => {
