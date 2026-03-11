@@ -423,7 +423,7 @@ export default function LeaderboardPage() {
           </Link>
           <div className="flex flex-col">
             <h1 className="tracking-tight text-foreground">
-              <span className="text-3xl font-bold font-handwriting">pew</span>{" "}
+              <span className="text-4xl font-bold font-handwriting">pew</span>{" "}
               <span className="text-2xl font-normal text-muted-foreground">
                 Leaderboard
               </span>
