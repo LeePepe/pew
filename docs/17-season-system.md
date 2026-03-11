@@ -150,6 +150,15 @@ CREATE INDEX IF NOT EXISTS idx_stm_season      ON season_team_members(season_id)
 CREATE INDEX IF NOT EXISTS idx_stm_season_team ON season_team_members(season_id, team_id);
 ```
 
+### Migration: `008-snapshot-ready.sql`
+
+```sql
+-- Add snapshot_ready flag for write-then-switch mechanism.
+-- Readers check this flag instead of querying season_snapshots table.
+-- 0 = no snapshot ready (use live aggregation), 1 = snapshot available.
+ALTER TABLE seasons ADD COLUMN snapshot_ready INTEGER NOT NULL DEFAULT 0;
+```
+
 ### 赛季状态推导 (无需 status 列)
 
 ```
@@ -387,7 +396,11 @@ ORDER BY total_tokens DESC
 2. 聚合所有参赛战队的 token 数据（同 leaderboard 实时聚合逻辑）
 3. 计算排名
 4. 写入 `season_snapshots`（队伍级别）和 `season_member_snapshots`（队员级别）
-5. 幂等：使用 upsert（INSERT ... ON CONFLICT DO UPDATE）写入新数据，然后清理本次未涉及的旧行（DELETE WHERE updated_at < batch_ts）。注意：D1 REST API 的 batch 不是事务性的，如果中途失败，已写入的行会保留，重跑即可修正
+5. 设置 `snapshot_ready = 0`（读端回退到实时数据）
+6. 幂等：使用 upsert（`INSERT OR REPLACE`）写入新数据，然后清理本次未涉及的旧行（`DELETE WHERE id NOT IN (...)`）
+7. 设置 `snapshot_ready = 1`（读端切换到冻结数据）
+8. 如果写入过程中失败，`snapshot_ready` 保持为 0，读端不会暴露不一致的中间状态。管理员重跑即可修正
+9. 注意：D1 REST API 的 batch 不是事务性的（sequential HTTP calls, not transactional），但 write-then-switch 机制保护了读端一致性
 
 **Response (201):**
 ```json
@@ -725,8 +738,10 @@ describe("DELETE /api/seasons/[seasonId]/register")
 - Response includes `is_snapshot` boolean
 
 **Key implementation detail:**
-Snapshot detection: `SELECT COUNT(*) FROM season_snapshots WHERE season_id = ?`
-If count > 0, use snapshot tables; otherwise, aggregate live.
+Snapshot detection: 读取 season 行的 `snapshot_ready` 列（`0` 或 `1`）。
+如果 `snapshot_ready = 1`，使用 snapshot 表；否则实时聚合。
+这避免了额外的 `COUNT(*)` 子查询，且配合 write-then-switch 机制，
+确保读端不会在 snapshot 写入过程中看到不一致的中间状态。
 
 ---
 
@@ -763,8 +778,8 @@ describe("GET /api/seasons/[seasonId]/leaderboard")
 - Validates season status is `ended`
 - Aggregates usage data for all registered teams + members
 - Computes ranks
-- Idempotent: `DELETE FROM season_snapshots WHERE season_id = ?` then re-insert
-- Same for `season_member_snapshots`
+- Write-then-switch: sets `snapshot_ready = 0`, upserts snapshots (`INSERT OR REPLACE`), cleans up stale rows (`DELETE WHERE id NOT IN (...)`), then sets `snapshot_ready = 1`
+- Idempotent: re-run converges to correct state
 - Returns summary: team_count, member_count
 
 ---
@@ -796,7 +811,7 @@ describe("POST /api/admin/seasons/[seasonId]/snapshot")
 **`GET /api/seasons`**
 - Public endpoint
 - Optional `status` filter
-- Returns seasons with `team_count` and `has_snapshot`
+- Returns seasons with `team_count` and `has_snapshot` (reads `snapshot_ready` column directly)
 - Sorted: active first, then upcoming, then ended (by start_date DESC)
 
 ---
@@ -920,10 +935,11 @@ After deployment:
 ### Deploy Order
 
 1. Deploy code (commits 2-17) — all `no such table` fallbacks ensure the app works before migration
-2. Run migrations (both required):
+2. Run migrations (all required):
    ```bash
    wrangler d1 execute pew-prod --file scripts/migrations/006-seasons.sql
    wrangler d1 execute pew-prod --file scripts/migrations/007-season-team-members.sql
+   wrangler d1 execute pew-prod --file scripts/migrations/008-snapshot-ready.sql
    ```
 3. Verify via admin page: create first season
 
