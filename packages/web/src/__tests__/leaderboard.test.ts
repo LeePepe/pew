@@ -154,7 +154,16 @@ describe("GET /api/leaderboard", () => {
       expect(sqlCall[0]).not.toContain("ur.hour_start >= ?");
     });
 
-    it("should only include users with slugs", async () => {
+    it("should filter by is_public = 1", async () => {
+      mockClient.query.mockResolvedValueOnce({ results: [] });
+
+      await GET(makeRequest());
+
+      const sqlCall = mockClient.query.mock.calls[0]!;
+      expect(sqlCall[0]).toContain("u.is_public = 1");
+    });
+
+    it("should still require slug IS NOT NULL", async () => {
       mockClient.query.mockResolvedValueOnce({ results: [] });
 
       await GET(makeRequest());
@@ -199,13 +208,14 @@ describe("GET /api/leaderboard", () => {
       expect(sqlCall[1]).toContain("team-abc");
     });
 
-    it("should not include slug IS NOT NULL when team is set", async () => {
+    it("should not include slug IS NOT NULL or is_public when team is set", async () => {
       mockClient.query.mockResolvedValueOnce({ results: [] });
 
       await GET(makeRequest({ team: "team-abc" }));
 
       const sqlCall = mockClient.query.mock.calls[0]!;
       expect(sqlCall[0]).not.toContain("u.slug IS NOT NULL");
+      expect(sqlCall[0]).not.toContain("u.is_public");
     });
   });
 
@@ -219,9 +229,24 @@ describe("GET /api/leaderboard", () => {
 
       expect(res.status).toBe(200);
       expect(mockClient.query).toHaveBeenCalledTimes(2);
-      // Fallback SQL should NOT contain u.nickname
+      // Fallback SQL should NOT contain u.nickname or u.is_public
       const fallbackSql = mockClient.query.mock.calls[1]![0] as string;
       expect(fallbackSql).not.toContain("u.nickname");
+      expect(fallbackSql).not.toContain("u.is_public");
+    });
+
+    it("should use slug IS NOT NULL only in fallback SQL", async () => {
+      mockClient.query
+        .mockRejectedValueOnce(new Error("no such column: u.is_public"))
+        .mockResolvedValueOnce({ results: [] });
+
+      const res = await GET(makeRequest());
+
+      expect(res.status).toBe(200);
+      expect(mockClient.query).toHaveBeenCalledTimes(2);
+      const fallbackSql = mockClient.query.mock.calls[1]![0] as string;
+      expect(fallbackSql).toContain("u.slug IS NOT NULL");
+      expect(fallbackSql).not.toContain("u.is_public");
     });
 
     it("should retry when first query throws 'no such table'", async () => {
