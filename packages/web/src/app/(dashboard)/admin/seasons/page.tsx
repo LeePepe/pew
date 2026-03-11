@@ -470,13 +470,13 @@ export default function AdminSeasonsPage() {
           throw new Error(`HTTP ${res.status}`);
         }
         const json = (await res.json()) as {
-          teams: { team_id: string; team_name: string; registered_at?: string }[];
+          entries: { team: { id: string; name: string }; total_tokens: number }[];
         };
         setExpandedTeams(
-          json.teams.map((t) => ({
-            team_id: t.team_id,
-            team_name: t.team_name,
-            registered_at: t.registered_at ?? "",
+          json.entries.map((e) => ({
+            team_id: e.team.id,
+            team_name: e.team.name,
+            registered_at: "",
           })),
         );
       } catch {
