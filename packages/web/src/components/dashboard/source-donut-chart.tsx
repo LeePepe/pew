@@ -87,14 +87,14 @@ export function SourceDonutChart({ data, className }: SourceDonutChartProps) {
   return (
     <div
       className={cn(
-        "rounded-[var(--radius-card)] bg-secondary p-4 md:p-5",
+        "flex flex-col rounded-[var(--radius-card)] bg-secondary p-4 md:p-5",
         className
       )}
     >
       <p className="mb-3 text-xs md:text-sm text-muted-foreground">By Agent</p>
 
-      <div className="flex flex-col items-center">
-        <div className="h-[180px] w-[180px]">
+      <div className="flex flex-1 flex-col items-center">
+        <div className="flex-1 w-full max-w-[220px] min-h-[140px]">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie

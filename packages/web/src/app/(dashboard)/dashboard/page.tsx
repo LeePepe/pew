@@ -31,6 +31,7 @@ import { BudgetProgress } from "@/components/dashboard/budget-progress";
 import { BudgetAlert } from "@/components/dashboard/budget-alert";
 import { BudgetDialog } from "@/components/dashboard/budget-dialog";
 import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
+import { DashboardSegment } from "@/components/dashboard/dashboard-segment";
 import { PeriodSelector } from "@/components/dashboard/period-selector";
 import { periodToDateRange, periodLabel } from "@/lib/date-helpers";
 import type { Period } from "@/lib/date-helpers";
@@ -173,153 +174,164 @@ export default function DashboardPage() {
       {/* Content */}
       {!loading && data && (
         <>
-          {/* Achievements — always visible at top */}
-          <AchievementShelf achievements={achievements} />
+          {/* ── Achievements ────────────────────────────────── */}
+          <DashboardSegment title="Achievements">
+            <AchievementShelf achievements={achievements} />
+          </DashboardSegment>
 
-          {/* Budget progress + alert (above stat grid when budget is active) */}
-          {budgetStatus && <BudgetProgress status={budgetStatus} />}
-          {budgetStatus && <BudgetAlert status={budgetStatus} />}
+          {/* ── Overview ────────────────────────────────────── */}
+          <DashboardSegment title="Overview">
+            {/* Budget progress + alert (above stat grid when budget is active) */}
+            {budgetStatus && <BudgetProgress status={budgetStatus} />}
+            {budgetStatus && <BudgetAlert status={budgetStatus} />}
 
-          {/* Row 1 — Core metrics (always 4 columns) */}
-          <StatGrid columns={4}>
-            <StatCard
-              title="Total Tokens"
-              value={formatTokens(data.summary.total_tokens)}
-              subtitle={subtitle}
-              icon={Zap}
-              iconColor="text-primary"
-              {...(mom && mom.previousMonth.tokens > 0
-                ? { trend: { value: Math.round(mom.tokenGrowth), label: "vs last month" } }
-                : {})}
-            />
-            <StatCard
-              title="Input Tokens"
-              value={formatTokens(data.summary.input_tokens)}
-              subtitle="Prompts & context"
-              icon={ArrowDownToLine}
-            />
-            <StatCard
-              title="Output Tokens"
-              value={formatTokens(data.summary.output_tokens)}
-              subtitle="Responses & reasoning"
-              icon={ArrowUpFromLine}
-            />
-            <StatCard
-              title="Est. Cost"
-              value={formatCost(estimatedCost)}
-              subtitle="Based on public pricing"
-              icon={DollarSign}
-              iconColor="text-chart-6"
-              {...(mom && mom.previousMonth.cost > 0
-                ? { trend: { value: -Math.round(mom.costGrowth), label: "vs last month" } }
-                : {})}
-            />
-          </StatGrid>
-
-          {/* Row 2 — Economy metrics (4 cols with forecast, 2 cols without) */}
-          <StatGrid columns={showForecast ? 4 : 2}>
-            <StatCard
-              title="Cache Savings"
-              value={formatCost(cacheSavings.netSavings)}
-              subtitle={`${Math.round(cacheSavings.savingsPercent)}% vs full input price`}
-              icon={PiggyBank}
-              iconColor="text-success"
-            />
-            <StatCard
-              title="Cached Tokens"
-              value={formatTokens(data.summary.cached_input_tokens)}
-              subtitle={
-                data.summary.input_tokens > 0
-                  ? `${Math.round((data.summary.cached_input_tokens / data.summary.input_tokens) * 100)}% hit rate`
-                  : "0% hit rate"
-              }
-              icon={Database}
-              iconColor="text-muted-foreground"
-            />
-            {showForecast && (
+            {/* Row 1 — Core metrics (always 4 columns) */}
+            <StatGrid columns={4}>
               <StatCard
-                title="Monthly Forecast"
-                value={formatCost(costForecast.projectedMonthCost)}
-                subtitle={`${formatCost(costForecast.currentMonthCost)} spent so far (${costForecast.daysElapsed} days)`}
-                icon={TrendingUp}
-                iconColor="text-chart-6"
+                title="Total Tokens"
+                value={formatTokens(data.summary.total_tokens)}
+                subtitle={subtitle}
+                icon={Zap}
+                iconColor="text-primary"
+                {...(mom && mom.previousMonth.tokens > 0
+                  ? { trend: { value: Math.round(mom.tokenGrowth), label: "vs last month" } }
+                  : {})}
               />
-            )}
-            {showForecast && (
               <StatCard
-                title="Daily Average"
-                value={formatCost(costForecast.dailyAverage)}
-                subtitle={`${costForecast.daysInMonth - costForecast.daysElapsed} days remaining`}
+                title="Input Tokens"
+                value={formatTokens(data.summary.input_tokens)}
+                subtitle="Prompts & context"
+                icon={ArrowDownToLine}
+              />
+              <StatCard
+                title="Output Tokens"
+                value={formatTokens(data.summary.output_tokens)}
+                subtitle="Responses & reasoning"
+                icon={ArrowUpFromLine}
+              />
+              <StatCard
+                title="Est. Cost"
+                value={formatCost(estimatedCost)}
+                subtitle="Based on public pricing"
                 icon={DollarSign}
+                iconColor="text-chart-6"
+                {...(mom && mom.previousMonth.cost > 0
+                  ? { trend: { value: -Math.round(mom.costGrowth), label: "vs last month" } }
+                  : {})}
+              />
+            </StatGrid>
+
+            {/* Row 2 — Economy metrics (4 cols with forecast, 2 cols without) */}
+            <StatGrid columns={showForecast ? 4 : 2}>
+              <StatCard
+                title="Cache Savings"
+                value={formatCost(cacheSavings.netSavings)}
+                subtitle={`${Math.round(cacheSavings.savingsPercent)}% vs full input price`}
+                icon={PiggyBank}
+                iconColor="text-success"
+              />
+              <StatCard
+                title="Cached Tokens"
+                value={formatTokens(data.summary.cached_input_tokens)}
+                subtitle={
+                  data.summary.input_tokens > 0
+                    ? `${Math.round((data.summary.cached_input_tokens / data.summary.input_tokens) * 100)}% hit rate`
+                    : "0% hit rate"
+                }
+                icon={Database}
                 iconColor="text-muted-foreground"
               />
-            )}
-          </StatGrid>
-
-          {/* Charts — left: trends + cache, right: donut + io ratio */}
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-3 md:gap-4">
-            {/* Left column */}
-            <div className="flex flex-col gap-3 md:gap-4">
-              <div>
-                {/* Tab toggle: Tokens | Cost */}
-                <div className="mb-3 flex items-center gap-1 rounded-lg bg-muted p-1 w-fit">
-                  {(["tokens", "cost"] as const).map((tab) => (
-                    <button
-                      key={tab}
-                      type="button"
-                      onClick={() => setChartTab(tab)}
-                      className={cn(
-                        "rounded-md px-3 py-1 text-xs font-medium transition-colors",
-                        chartTab === tab
-                          ? "bg-secondary text-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      {tab === "tokens" ? "Tokens" : "Cost"}
-                    </button>
-                  ))}
-                </div>
-                {chartTab === "tokens" ? (
-                  <UsageTrendChart data={daily} />
-                ) : (
-                  <CostTrendChart data={dailyCostPoints} />
-                )}
-              </div>
-              <CacheRateChart data={dailyCacheRates} />
-            </div>
-
-            {/* Right column — top spacer matches the tab toggle height so charts align */}
-            <div className="flex flex-col gap-3 md:gap-4">
-              {/* Invisible spacer matching the tab toggle row height (p-1 + text + mb-3) */}
-              <div className="hidden lg:block h-[28px] shrink-0" />
-              <SourceDonutChart data={sources} />
-              <IoRatioChart
-                inputTokens={data.summary.input_tokens}
-                outputTokens={data.summary.output_tokens}
-              />
-            </div>
-          </div>
-
-          {/* Activity heatmap + Weekday vs Weekend — side by side */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4">
-            <div className="rounded-[var(--radius-card)] bg-secondary p-4 md:p-5">
-              <p className="mb-3 text-xs md:text-sm text-muted-foreground">
-                {currentYear} Activity
-              </p>
-              {yearData.loading ? (
-                <Skeleton className="h-[120px] w-full" />
-              ) : (
-                <HeatmapCalendar
-                  data={heatmapData}
-                  year={currentYear}
-                  valueFormatter={(v) => formatTokens(v)}
+              {showForecast && (
+                <StatCard
+                  title="Monthly Forecast"
+                  value={formatCost(costForecast.projectedMonthCost)}
+                  subtitle={`${formatCost(costForecast.currentMonthCost)} spent so far (${costForecast.daysElapsed} days)`}
+                  icon={TrendingUp}
+                  iconColor="text-chart-6"
                 />
               )}
+              {showForecast && (
+                <StatCard
+                  title="Daily Average"
+                  value={formatCost(costForecast.dailyAverage)}
+                  subtitle={`${costForecast.daysInMonth - costForecast.daysElapsed} days remaining`}
+                  icon={DollarSign}
+                  iconColor="text-muted-foreground"
+                />
+              )}
+            </StatGrid>
+          </DashboardSegment>
+
+          {/* ── Trends ──────────────────────────────────────── */}
+          <DashboardSegment title="Trends">
+            {/* Charts — left: trends + cache, right: donut + io ratio */}
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-3 md:gap-4">
+              {/* Left column */}
+              <div className="flex flex-col gap-3 md:gap-4">
+                <div>
+                  {/* Tab toggle: Tokens | Cost */}
+                  <div className="mb-3 flex items-center gap-1 rounded-lg bg-muted p-1 w-fit">
+                    {(["tokens", "cost"] as const).map((tab) => (
+                      <button
+                        key={tab}
+                        type="button"
+                        onClick={() => setChartTab(tab)}
+                        className={cn(
+                          "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                          chartTab === tab
+                            ? "bg-secondary text-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {tab === "tokens" ? "Tokens" : "Cost"}
+                      </button>
+                    ))}
+                  </div>
+                  {chartTab === "tokens" ? (
+                    <UsageTrendChart data={daily} />
+                  ) : (
+                    <CostTrendChart data={dailyCostPoints} />
+                  )}
+                </div>
+                <CacheRateChart data={dailyCacheRates} />
+              </div>
+
+              {/* Right column — top spacer matches the tab toggle height so charts align */}
+              <div className="flex flex-col gap-3 md:gap-4">
+                {/* Invisible spacer matching the tab toggle row height (p-1 + text + mb-3) */}
+                <div className="hidden lg:block h-[28px] shrink-0" />
+                <SourceDonutChart data={sources} className="flex-1" />
+                <IoRatioChart
+                  inputTokens={data.summary.input_tokens}
+                  outputTokens={data.summary.output_tokens}
+                />
+              </div>
             </div>
-            {weekdayWeekend && (
-              <WeekdayWeekendChart stats={weekdayWeekend} />
-            )}
-          </div>
+          </DashboardSegment>
+
+          {/* ── Insights ────────────────────────────────────── */}
+          <DashboardSegment title="Insights">
+            {/* Activity heatmap + Weekday vs Weekend — side by side */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4">
+              <div className="rounded-[var(--radius-card)] bg-secondary p-4 md:p-5">
+                <p className="mb-3 text-xs md:text-sm text-muted-foreground">
+                  {currentYear} Activity
+                </p>
+                {yearData.loading ? (
+                  <Skeleton className="h-[120px] w-full" />
+                ) : (
+                  <HeatmapCalendar
+                    data={heatmapData}
+                    year={currentYear}
+                    valueFormatter={(v) => formatTokens(v)}
+                  />
+                )}
+              </div>
+              {weekdayWeekend && (
+                <WeekdayWeekendChart stats={weekdayWeekend} />
+              )}
+            </div>
+          </DashboardSegment>
         </>
       )}
     </div>
