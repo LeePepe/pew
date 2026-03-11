@@ -313,7 +313,7 @@ function LeaderboardRow({
 
       {/* Total — check-style handwriting font, full number */}
       <div className="relative z-10 shrink-0 text-right">
-        <span className="font-handwriting text-3xl leading-none tracking-tight text-foreground">
+        <span className="font-handwriting text-[45px] leading-none tracking-tight text-foreground">
           {formatTokensFull(total_tokens)}
         </span>
       </div>
@@ -423,7 +423,7 @@ export default function LeaderboardPage() {
           </Link>
           <div className="flex flex-col">
             <h1 className="tracking-tight text-foreground">
-              <span className="text-4xl font-bold font-handwriting">pew</span>{" "}
+              <span className="text-[54px] font-bold font-handwriting leading-none">pew</span>{" "}
               <span className="text-2xl font-normal text-muted-foreground">
                 Leaderboard
               </span>
