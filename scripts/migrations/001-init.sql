@@ -1,5 +1,5 @@
 -- Squashed schema: all tables and indexes for pew-db
--- Replaces previous migrations 002-005 and untracked DDL.
+-- Replaces previous migrations 002-007 and untracked DDL.
 -- Apply via: wrangler d1 execute pew-db --remote --file scripts/migrations/001-init.sql
 
 -- ============================================================
@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS usage_records (
 
 CREATE INDEX IF NOT EXISTS idx_usage_user_time ON usage_records(user_id, hour_start);
 CREATE INDEX IF NOT EXISTS idx_usage_source    ON usage_records(source);
+CREATE INDEX IF NOT EXISTS idx_usage_device    ON usage_records(user_id, device_id);
 
 -- ============================================================
 -- Session statistics
@@ -171,3 +172,31 @@ CREATE TABLE IF NOT EXISTS user_budgets (
 );
 
 CREATE INDEX IF NOT EXISTS idx_budget_user ON user_budgets(user_id);
+
+-- ============================================================
+-- Projects (two-layer: user-defined projects + alias mappings)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS projects (
+  id         TEXT PRIMARY KEY,
+  user_id    TEXT NOT NULL REFERENCES users(id),
+  name       TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(user_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id);
+
+CREATE TABLE IF NOT EXISTS project_aliases (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     TEXT NOT NULL REFERENCES users(id),
+  project_id  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  source      TEXT NOT NULL,
+  project_ref TEXT NOT NULL,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(user_id, source, project_ref)
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_aliases_project ON project_aliases(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_aliases_lookup  ON project_aliases(user_id, source, project_ref);
