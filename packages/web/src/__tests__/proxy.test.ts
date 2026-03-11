@@ -64,6 +64,7 @@ describe("isPublicRoute", () => {
     "/api/leaderboard",
     "/api/leaderboard?period=week",
     "/u/john",
+    "/leaderboard",
   ])("should return true for public route: %s", (path) => {
     expect(isPublicRoute(path)).toBe(true);
   });
@@ -74,7 +75,6 @@ describe("isPublicRoute", () => {
     "/settings",
     "/login",
     "/api/usage",
-    "/leaderboard",
   ])("should return false for protected route: %s", (path) => {
     expect(isPublicRoute(path)).toBe(false);
   });
@@ -104,9 +104,10 @@ describe("resolveProxyAction", () => {
       "redirect:/login",
     );
     expect(resolveProxyAction("/", false, false)).toBe("redirect:/login");
-    expect(resolveProxyAction("/leaderboard", false, false)).toBe(
-      "redirect:/login",
-    );
+  });
+
+  it("should return 'next' for unauthenticated user on /leaderboard (public)", () => {
+    expect(resolveProxyAction("/leaderboard", false, false)).toBe("next");
   });
 
   it("should return 'next' for logged-in user on protected page", () => {
