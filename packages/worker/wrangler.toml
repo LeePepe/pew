@@ -1,8 +1,8 @@
-name = "zebra-ingest"
+name = "pew-ingest"
 main = "src/index.ts"
 compatibility_date = "2026-03-01"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "zebra-db"
+database_name = "pew-db"
 database_id = "f8c733b4-6516-4431-9dcb-7dea05c38e28"

@@ -1,5 +1,5 @@
 -- Migration 002: Add session_records table for session statistics pipeline
--- Apply via: wrangler d1 execute zebra-db --file scripts/migrations/002-session-records.sql
+-- Apply via: wrangler d1 execute pew-db --file scripts/migrations/002-session-records.sql
 
 CREATE TABLE IF NOT EXISTS session_records (
   id                  INTEGER PRIMARY KEY AUTOINCREMENT,
