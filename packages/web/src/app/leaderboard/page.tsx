@@ -101,7 +101,7 @@ function ScopeDropdown({
   if (teams.length === 0 && !isAdmin) return null;
 
   return (
-    <div ref={ref} className="relative shrink-0">
+    <div ref={ref} className="relative z-20 shrink-0">
       <button
         onClick={() => setOpen(!open)}
         className={cn(
@@ -424,7 +424,7 @@ export default function LeaderboardPage() {
           <div className="flex flex-col">
             <h1 className="tracking-tight text-foreground">
               <span className="text-[47px] font-bold font-handwriting leading-none mr-2">pew</span>
-              <span className="text-2xl font-normal text-muted-foreground">
+              <span className="text-[19px] font-normal text-muted-foreground">
                 Leaderboard
               </span>
             </h1>
