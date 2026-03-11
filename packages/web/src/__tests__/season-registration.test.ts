@@ -76,7 +76,15 @@ describe("POST /api/seasons/[seasonId]/register", () => {
       .mockResolvedValueOnce({ role: "owner" })
       // No existing registration
       .mockResolvedValueOnce(null);
-    mockClient.execute.mockResolvedValueOnce({ changes: 1, duration: 0.01 });
+    // Fetch current team members
+    mockClient.query.mockResolvedValueOnce({
+      results: [{ user_id: "user-1" }, { user_id: "user-2" }],
+    });
+    // INSERT season_teams + 2x INSERT season_team_members
+    mockClient.execute
+      .mockResolvedValueOnce({ changes: 1, duration: 0.01 })
+      .mockResolvedValueOnce({ changes: 1, duration: 0.01 })
+      .mockResolvedValueOnce({ changes: 1, duration: 0.01 });
 
     const res = await POST(makeRequest("POST", undefined, { team_id: "team-1" }), {
       params: regParams,
@@ -85,20 +93,31 @@ describe("POST /api/seasons/[seasonId]/register", () => {
     const json = await res.json();
     expect(json.season_id).toBe("season-1");
     expect(json.team_id).toBe("team-1");
+
+    // Verify frozen roster inserts
+    expect(mockClient.query).toHaveBeenCalledWith(
+      "SELECT user_id FROM team_members WHERE team_id = ?",
+      ["team-1"]
+    );
+    expect(mockClient.execute).toHaveBeenCalledTimes(3);
+    const secondCall = mockClient.execute.mock.calls[1]!;
+    expect(secondCall[0]).toContain("season_team_members");
   });
 
-  it("should register team when season is active", async () => {
+  it("should reject when season is active", async () => {
     resolveUser.mockResolvedValueOnce(USER);
-    mockClient.firstOrNull
-      .mockResolvedValueOnce({ id: "season-1", start_date: "2020-01-01", end_date: "2099-12-31" })
-      .mockResolvedValueOnce({ role: "owner" })
-      .mockResolvedValueOnce(null);
-    mockClient.execute.mockResolvedValueOnce({ changes: 1, duration: 0.01 });
+    mockClient.firstOrNull.mockResolvedValueOnce({
+      id: "season-1",
+      start_date: "2020-01-01",
+      end_date: "2099-12-31",
+    });
 
     const res = await POST(makeRequest("POST", undefined, { team_id: "team-1" }), {
       params: regParams,
     });
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toContain("upcoming");
   });
 
   it("should reject when season is ended", async () => {
@@ -114,7 +133,7 @@ describe("POST /api/seasons/[seasonId]/register", () => {
     });
     expect(res.status).toBe(400);
     const json = await res.json();
-    expect(json.error).toContain("ended");
+    expect(json.error).toContain("upcoming");
   });
 
   it("should reject when user is not team owner", async () => {
@@ -187,7 +206,10 @@ describe("DELETE /api/seasons/[seasonId]/register", () => {
       .mockResolvedValueOnce({ id: "season-1", start_date: "2099-01-01", end_date: "2099-12-31" })
       .mockResolvedValueOnce({ role: "owner" })
       .mockResolvedValueOnce({ id: "reg-1" });
-    mockClient.execute.mockResolvedValueOnce({ changes: 1, duration: 0.01 });
+    // DELETE season_team_members + DELETE season_teams
+    mockClient.execute
+      .mockResolvedValueOnce({ changes: 2, duration: 0.01 })
+      .mockResolvedValueOnce({ changes: 1, duration: 0.01 });
 
     const res = await DELETE(makeRequest("DELETE", undefined, { team_id: "team-1" }), {
       params: regParams,
@@ -195,6 +217,11 @@ describe("DELETE /api/seasons/[seasonId]/register", () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.deleted).toBe(true);
+
+    // Verify both deletes happened
+    expect(mockClient.execute).toHaveBeenCalledTimes(2);
+    expect(mockClient.execute.mock.calls[0]![0]).toContain("season_team_members");
+    expect(mockClient.execute.mock.calls[1]![0]).toContain("season_teams");
   });
 
   it("should reject withdrawal from active season", async () => {

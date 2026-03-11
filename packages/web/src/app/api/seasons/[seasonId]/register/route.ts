@@ -58,9 +58,9 @@ export async function POST(
     }
 
     const status = deriveSeasonStatus(season.start_date, season.end_date);
-    if (status === "ended") {
+    if (status !== "upcoming") {
       return NextResponse.json(
-        { error: "Cannot register for an ended season" },
+        { error: "Can only register for upcoming seasons" },
         { status: 400 }
       );
     }
@@ -91,12 +91,27 @@ export async function POST(
       );
     }
 
+    // Fetch current team members to freeze into season roster
+    const members = await client.query<{ user_id: string }>(
+      "SELECT user_id FROM team_members WHERE team_id = ?",
+      [team_id]
+    );
+
     const id = crypto.randomUUID();
     await client.execute(
       `INSERT INTO season_teams (id, season_id, team_id, registered_by)
        VALUES (?, ?, ?, ?)`,
       [id, seasonId, team_id, user.userId]
     );
+
+    // Freeze roster: copy current members into season_team_members
+    for (const member of members.results) {
+      await client.execute(
+        `INSERT INTO season_team_members (id, season_id, team_id, user_id)
+         VALUES (?, ?, ?, ?)`,
+        [crypto.randomUUID(), seasonId, team_id, member.user_id]
+      );
+    }
 
     return NextResponse.json(
       {
@@ -203,6 +218,11 @@ export async function DELETE(
         { status: 404 }
       );
     }
+
+    await client.execute(
+      "DELETE FROM season_team_members WHERE season_id = ? AND team_id = ?",
+      [seasonId, team_id]
+    );
 
     await client.execute(
       "DELETE FROM season_teams WHERE season_id = ? AND team_id = ?",
