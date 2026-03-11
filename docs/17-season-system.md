@@ -219,7 +219,7 @@ today > end_date  → "ended"
 ```
 
 **Validation:**
-- 赛季存在且状态为 `upcoming` 或 `active`（已结束不可报名）
+- 赛季存在且状态为 `upcoming`（`active` 或 `ended` 不可报名）
 - 调用者是该 team 的 owner
 - 该 team 未重复报名同一赛季
 - team_id 有效
@@ -489,7 +489,7 @@ ORDER BY total_tokens DESC
 
 在 team detail 页面中，为 team owner 展示 "Register for Season" 按钮：
 
-- 列出可报名的赛季（upcoming + active）
+- 列出可报名的赛季（upcoming only；active 仅显示已报名状态）
 - 已报名的赛季显示 "Registered" 标记
 - upcoming 赛季显示 "Withdraw" 选项
 
@@ -649,13 +649,13 @@ describe("PATCH /api/admin/seasons/[seasonId]")
 
 **`POST /api/seasons/[seasonId]/register`**
 - Requires auth (`resolveUser`)
-- Validates: season exists, status is upcoming/active, user is team owner, not already registered
-- Inserts into `season_teams`
+- Validates: season exists, status is upcoming, user is team owner, not already registered
+- Inserts into `season_teams` and copies team members into `season_team_members` (frozen roster)
 
 **`DELETE /api/seasons/[seasonId]/register`**
 - Requires auth
 - Validates: season is upcoming, user is team owner, registration exists
-- Deletes from `season_teams`
+- Deletes from `season_teams` and `season_team_members`
 
 ---
 
@@ -669,7 +669,7 @@ describe("PATCH /api/admin/seasons/[seasonId]")
 ```
 describe("POST /api/seasons/[seasonId]/register")
   should register team when user is owner and season is upcoming
-  should register team when season is active
+  should reject when season is active (frozen roster — upcoming only)
   should reject when season is ended
   should reject when user is not team owner
   should reject when team is already registered
@@ -855,7 +855,7 @@ describe("GET /api/seasons")
 - `packages/web/src/hooks/use-season-registration.ts` (new)
 
 **Features:**
-- For team owner: show available seasons (upcoming + active)
+- For team owner: show available seasons (upcoming for registration, active for visibility)
 - "Register" button per season
 - "Registered" badge for already-registered seasons
 - "Withdraw" button for upcoming seasons only
@@ -881,7 +881,7 @@ After deployment:
 1. **Admin creates season:** `/admin/seasons` -> Create "S1" -> April 1-30
 2. **Team owner registers:** Team detail -> Register for S1 -> success
 3. **Leaderboard live:** `/leaderboard/seasons/s1` -> shows teams ranked by live tokens
-4. **Mid-season join:** Another team registers -> sees data from season start
+4. **Roster frozen:** Registration copies current team members into `season_team_members` — mid-season member changes don't affect scoring
 5. **Season ends:** Date passes -> status auto-changes to "ended"
 6. **Snapshot:** Admin clicks "Generate Snapshot" -> data frozen
 7. **Historical view:** `/leaderboard/seasons/s1` -> shows "Final Results" from snapshot

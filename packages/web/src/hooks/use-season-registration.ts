@@ -90,7 +90,8 @@ export function useSeasonRegistration(
         registeredIds = new Set(teamData.registered_season_ids ?? []);
       }
 
-      // Filter to upcoming + active, enrich with registration status
+      // Filter to upcoming + active (show active for visibility, but only
+      // upcoming seasons accept new registrations — backend enforces this)
       const available = seasonsData.seasons
         .filter((s) => s.status === "upcoming" || s.status === "active")
         .map((s) => ({

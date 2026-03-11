@@ -162,7 +162,7 @@ function SeasonRow({
               )}
             </button>
           ) : null
-        ) : (
+        ) : season.status === "upcoming" ? (
           <button
             onClick={() => onRegister(season.id)}
             disabled={isBusy}
@@ -177,7 +177,7 @@ function SeasonRow({
               "Register"
             )}
           </button>
-        )}
+        ) : null}
       </div>
     </div>
   );
@@ -429,8 +429,8 @@ export default function TeamDetailPage() {
             Season Registration
           </h2>
           <p className="text-xs text-muted-foreground mb-3">
-            Register your team for upcoming or active seasons to compete on the
-            leaderboard.
+            Register your team for upcoming seasons to compete on the
+            leaderboard. Rosters are frozen at registration time.
           </p>
           <SeasonRegistration teamId={team.id} />
         </section>
