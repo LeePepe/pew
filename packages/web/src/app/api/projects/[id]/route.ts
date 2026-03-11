@@ -102,123 +102,131 @@ export async function PATCH(
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
 
-  try {
-    // Update name if provided
-    if ("name" in body) {
-      const name = body.name;
-      if (typeof name !== "string" || name.trim().length === 0) {
-        return NextResponse.json(
-          { error: "name must be a non-empty string" },
-          { status: 400 },
-        );
-      }
-      if (name.length > MAX_NAME_LENGTH) {
-        return NextResponse.json(
-          { error: `name must be at most ${MAX_NAME_LENGTH} characters` },
-          { status: 400 },
-        );
-      }
+  // -----------------------------------------------------------------------
+  // Phase 1: Validate ALL inputs before any writes
+  // -----------------------------------------------------------------------
 
-      // Check uniqueness (skip self)
-      const existing = await client.firstOrNull<{ id: string }>(
-        "SELECT id FROM projects WHERE user_id = ? AND name = ? AND id != ?",
-        [userId, name.trim(), projectId],
+  let trimmedName: string | undefined;
+  let addAliases: AliasInput[] = [];
+  let removeAliases: AliasInput[] = [];
+
+  // Validate name
+  if ("name" in body) {
+    const name = body.name;
+    if (typeof name !== "string" || name.trim().length === 0) {
+      return NextResponse.json(
+        { error: "name must be a non-empty string" },
+        { status: 400 },
       );
-      if (existing) {
+    }
+    if (name.length > MAX_NAME_LENGTH) {
+      return NextResponse.json(
+        { error: `name must be at most ${MAX_NAME_LENGTH} characters` },
+        { status: 400 },
+      );
+    }
+    trimmedName = name.trim();
+
+    const existing = await client.firstOrNull<{ id: string }>(
+      "SELECT id FROM projects WHERE user_id = ? AND name = ? AND id != ?",
+      [userId, trimmedName, projectId],
+    );
+    if (existing) {
+      return NextResponse.json(
+        { error: "A project with this name already exists" },
+        { status: 409 },
+      );
+    }
+  }
+
+  // Validate add_aliases
+  if ("add_aliases" in body) {
+    const { valid, error } = validateAliases(body.add_aliases, "add_aliases");
+    if (error) {
+      return NextResponse.json({ error }, { status: 400 });
+    }
+
+    const invalidAliases: AliasInput[] = [];
+    for (const alias of valid) {
+      const exists = await client.firstOrNull<{ "1": number }>(
+        `SELECT 1 FROM session_records
+         WHERE user_id = ? AND source = ? AND project_ref = ?
+         LIMIT 1`,
+        [userId, alias.source, alias.project_ref],
+      );
+      if (!exists) {
+        invalidAliases.push(alias);
+      }
+    }
+    if (invalidAliases.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Some aliases do not match any session data",
+          invalid_aliases: invalidAliases,
+        },
+        { status: 400 },
+      );
+    }
+
+    for (const alias of valid) {
+      const taken = await client.firstOrNull<{ project_id: string }>(
+        `SELECT project_id FROM project_aliases
+         WHERE user_id = ? AND source = ? AND project_ref = ?`,
+        [userId, alias.source, alias.project_ref],
+      );
+      if (taken && taken.project_id !== projectId) {
         return NextResponse.json(
-          { error: "A project with this name already exists" },
+          {
+            error: `Alias (${alias.source}, ${alias.project_ref}) is already assigned to another project`,
+          },
           { status: 409 },
         );
       }
+    }
+    addAliases = valid;
+  }
 
+  // Validate remove_aliases
+  if ("remove_aliases" in body) {
+    const { valid, error } = validateAliases(
+      body.remove_aliases,
+      "remove_aliases",
+    );
+    if (error) {
+      return NextResponse.json({ error }, { status: 400 });
+    }
+    removeAliases = valid;
+  }
+
+  // -----------------------------------------------------------------------
+  // Phase 2: All validation passed — execute writes
+  // -----------------------------------------------------------------------
+
+  try {
+    if (trimmedName !== undefined) {
       await client.execute(
         "UPDATE projects SET name = ?, updated_at = datetime('now') WHERE id = ?",
-        [name.trim(), projectId],
+        [trimmedName, projectId],
       );
     }
 
-    // Add aliases
-    if ("add_aliases" in body) {
-      const { valid: addAliases, error } = validateAliases(
-        body.add_aliases,
-        "add_aliases",
-      );
-      if (error) {
-        return NextResponse.json({ error }, { status: 400 });
-      }
-
-      // Validate each alias references real session data
-      const invalidAliases: AliasInput[] = [];
-      for (const alias of addAliases) {
-        const exists = await client.firstOrNull<{ "1": number }>(
-          `SELECT 1 FROM session_records
-           WHERE user_id = ? AND source = ? AND project_ref = ?
-           LIMIT 1`,
-          [userId, alias.source, alias.project_ref],
-        );
-        if (!exists) {
-          invalidAliases.push(alias);
-        }
-      }
-      if (invalidAliases.length > 0) {
-        return NextResponse.json(
-          {
-            error: "Some aliases do not match any session data",
-            invalid_aliases: invalidAliases,
-          },
-          { status: 400 },
-        );
-      }
-
-      // Check aliases aren't already assigned (to any project)
-      for (const alias of addAliases) {
-        const taken = await client.firstOrNull<{ project_id: string }>(
-          `SELECT project_id FROM project_aliases
-           WHERE user_id = ? AND source = ? AND project_ref = ?`,
-          [userId, alias.source, alias.project_ref],
-        );
-        if (taken && taken.project_id !== projectId) {
-          return NextResponse.json(
-            {
-              error: `Alias (${alias.source}, ${alias.project_ref}) is already assigned to another project`,
-            },
-            { status: 409 },
-          );
-        }
-      }
-
-      for (const alias of addAliases) {
-        await client.execute(
-          `INSERT OR IGNORE INTO project_aliases (user_id, project_id, source, project_ref, created_at)
-           VALUES (?, ?, ?, ?, datetime('now'))`,
-          [userId, projectId, alias.source, alias.project_ref],
-        );
-      }
-
+    for (const alias of addAliases) {
       await client.execute(
-        "UPDATE projects SET updated_at = datetime('now') WHERE id = ?",
-        [projectId],
+        `INSERT OR IGNORE INTO project_aliases (user_id, project_id, source, project_ref, created_at)
+         VALUES (?, ?, ?, ?, datetime('now'))`,
+        [userId, projectId, alias.source, alias.project_ref],
       );
     }
 
-    // Remove aliases
-    if ("remove_aliases" in body) {
-      const { valid: removeAliases, error } = validateAliases(
-        body.remove_aliases,
-        "remove_aliases",
+    for (const alias of removeAliases) {
+      await client.execute(
+        `DELETE FROM project_aliases
+         WHERE user_id = ? AND project_id = ? AND source = ? AND project_ref = ?`,
+        [userId, projectId, alias.source, alias.project_ref],
       );
-      if (error) {
-        return NextResponse.json({ error }, { status: 400 });
-      }
+    }
 
-      for (const alias of removeAliases) {
-        await client.execute(
-          `DELETE FROM project_aliases
-           WHERE user_id = ? AND project_id = ? AND source = ? AND project_ref = ?`,
-          [userId, projectId, alias.source, alias.project_ref],
-        );
-      }
-
+    if (trimmedName !== undefined || addAliases.length > 0 || removeAliases.length > 0) {
       await client.execute(
         "UPDATE projects SET updated_at = datetime('now') WHERE id = ?",
         [projectId],

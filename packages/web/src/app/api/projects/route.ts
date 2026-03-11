@@ -223,13 +223,29 @@ export async function POST(request: Request) {
     }
   }
 
+  // Deduplicate aliases by (source, project_ref) key
+  const seen = new Set<string>();
+  const deduped: AliasInput[] = [];
+  for (const alias of aliases) {
+    const key = `${alias.source}:${alias.project_ref}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduped.push(alias);
+    }
+  }
+
   const client = getD1Client();
+  const trimmedName = name.trim();
+
+  // -------------------------------------------------------------------------
+  // Phase 1: Validate ALL inputs before any writes
+  // -------------------------------------------------------------------------
 
   try {
     // Check name uniqueness
     const existing = await client.firstOrNull<{ id: string }>(
       "SELECT id FROM projects WHERE user_id = ? AND name = ?",
-      [userId, name.trim()],
+      [userId, trimmedName],
     );
     if (existing) {
       return NextResponse.json(
@@ -240,7 +256,7 @@ export async function POST(request: Request) {
 
     // Validate aliases reference real session data
     const invalidAliases: AliasInput[] = [];
-    for (const alias of aliases) {
+    for (const alias of deduped) {
       const exists = await client.firstOrNull<{ "1": number }>(
         `SELECT 1 FROM session_records
          WHERE user_id = ? AND source = ? AND project_ref = ?
@@ -262,7 +278,7 @@ export async function POST(request: Request) {
     }
 
     // Check aliases aren't already assigned to another project
-    for (const alias of aliases) {
+    for (const alias of deduped) {
       const taken = await client.firstOrNull<{ project_id: string }>(
         `SELECT project_id FROM project_aliases
          WHERE user_id = ? AND source = ? AND project_ref = ?`,
@@ -278,16 +294,18 @@ export async function POST(request: Request) {
       }
     }
 
-    // Create project
+    // -----------------------------------------------------------------------
+    // Phase 2: All validation passed — execute writes
+    // -----------------------------------------------------------------------
+
     const projectId = crypto.randomUUID();
     await client.execute(
       `INSERT INTO projects (id, user_id, name, created_at, updated_at)
        VALUES (?, ?, ?, datetime('now'), datetime('now'))`,
-      [projectId, userId, name.trim()],
+      [projectId, userId, trimmedName],
     );
 
-    // Insert aliases
-    for (const alias of aliases) {
+    for (const alias of deduped) {
       await client.execute(
         `INSERT INTO project_aliases (user_id, project_id, source, project_ref, created_at)
          VALUES (?, ?, ?, ?, datetime('now'))`,
@@ -295,12 +313,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Return the created project
     return NextResponse.json(
       {
         id: projectId,
-        name: name.trim(),
-        aliases: aliases.map((a) => ({
+        name: trimmedName,
+        aliases: deduped.map((a) => ({
           source: a.source,
           project_ref: a.project_ref,
         })),
