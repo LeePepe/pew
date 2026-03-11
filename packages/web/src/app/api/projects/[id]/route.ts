@@ -199,8 +199,13 @@ export async function PATCH(
   }
 
   // -----------------------------------------------------------------------
-  // Phase 2: All validation passed — execute writes
+  // Phase 2: All validation passed — execute writes with rollback on failure
   // -----------------------------------------------------------------------
+
+  const originalName = project.name;
+  let nameWritten = false;
+  const aliasesAdded: AliasInput[] = [];
+  const aliasesRemoved: AliasInput[] = [];
 
   try {
     if (trimmedName !== undefined) {
@@ -208,6 +213,7 @@ export async function PATCH(
         "UPDATE projects SET name = ?, updated_at = datetime('now') WHERE id = ?",
         [trimmedName, projectId],
       );
+      nameWritten = true;
     }
 
     for (const alias of addAliases) {
@@ -216,6 +222,7 @@ export async function PATCH(
          VALUES (?, ?, ?, ?, datetime('now'))`,
         [userId, projectId, alias.source, alias.project_ref],
       );
+      aliasesAdded.push(alias);
     }
 
     for (const alias of removeAliases) {
@@ -224,6 +231,7 @@ export async function PATCH(
          WHERE user_id = ? AND project_id = ? AND source = ? AND project_ref = ?`,
         [userId, projectId, alias.source, alias.project_ref],
       );
+      aliasesRemoved.push(alias);
     }
 
     if (trimmedName !== undefined || addAliases.length > 0 || removeAliases.length > 0) {
@@ -280,6 +288,31 @@ export async function PATCH(
       created_at: updated!.created_at,
     });
   } catch (err) {
+    // Best-effort rollback: undo any writes that succeeded before the failure
+    try {
+      if (nameWritten) {
+        await client.execute(
+          "UPDATE projects SET name = ? WHERE id = ?",
+          [originalName, projectId],
+        );
+      }
+      for (const alias of aliasesAdded) {
+        await client.execute(
+          `DELETE FROM project_aliases
+           WHERE user_id = ? AND project_id = ? AND source = ? AND project_ref = ?`,
+          [userId, projectId, alias.source, alias.project_ref],
+        );
+      }
+      for (const alias of aliasesRemoved) {
+        await client.execute(
+          `INSERT OR IGNORE INTO project_aliases (user_id, project_id, source, project_ref, created_at)
+           VALUES (?, ?, ?, ?, datetime('now'))`,
+          [userId, projectId, alias.source, alias.project_ref],
+        );
+      }
+    } catch (rollbackErr) {
+      console.error("Rollback failed:", rollbackErr);
+    }
     console.error("Failed to update project:", err);
     return NextResponse.json(
       { error: "Failed to update project" },

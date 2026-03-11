@@ -295,7 +295,7 @@ export async function POST(request: Request) {
     }
 
     // -----------------------------------------------------------------------
-    // Phase 2: All validation passed — execute writes
+    // Phase 2: All validation passed — execute writes with rollback on failure
     // -----------------------------------------------------------------------
 
     const projectId = crypto.randomUUID();
@@ -305,13 +305,59 @@ export async function POST(request: Request) {
       [projectId, userId, trimmedName],
     );
 
-    for (const alias of deduped) {
-      await client.execute(
-        `INSERT INTO project_aliases (user_id, project_id, source, project_ref, created_at)
-         VALUES (?, ?, ?, ?, datetime('now'))`,
-        [userId, projectId, alias.source, alias.project_ref],
-      );
+    try {
+      for (const alias of deduped) {
+        await client.execute(
+          `INSERT INTO project_aliases (user_id, project_id, source, project_ref, created_at)
+           VALUES (?, ?, ?, ?, datetime('now'))`,
+          [userId, projectId, alias.source, alias.project_ref],
+        );
+      }
+    } catch (aliasErr) {
+      // Rollback: remove the project and any aliases that were inserted
+      try {
+        await client.execute(
+          "DELETE FROM project_aliases WHERE project_id = ?",
+          [projectId],
+        );
+        await client.execute("DELETE FROM projects WHERE id = ?", [projectId]);
+      } catch (rollbackErr) {
+        console.error("Rollback failed:", rollbackErr);
+      }
+      throw aliasErr;
     }
+
+    // Query real session stats for the newly-assigned aliases
+    let sessionCount = 0;
+    let lastActive: string | null = null;
+    if (deduped.length > 0) {
+      const statsResult = await client.query<{
+        session_count: number;
+        last_active: string | null;
+      }>(
+        `SELECT
+           COUNT(sr.id) AS session_count,
+           MAX(sr.last_message_at) AS last_active
+         FROM project_aliases pa
+         LEFT JOIN session_records sr
+           ON sr.user_id = pa.user_id
+           AND sr.source = pa.source
+           AND sr.project_ref = pa.project_ref
+         WHERE pa.project_id = ?`,
+        [projectId],
+      );
+      const firstRow = statsResult.results[0];
+      if (firstRow) {
+        sessionCount = firstRow.session_count;
+        lastActive = firstRow.last_active;
+      }
+    }
+
+    // Read back server-generated created_at instead of fabricating one
+    const created = await client.firstOrNull<{ created_at: string }>(
+      "SELECT created_at FROM projects WHERE id = ?",
+      [projectId],
+    );
 
     return NextResponse.json(
       {
@@ -321,9 +367,9 @@ export async function POST(request: Request) {
           source: a.source,
           project_ref: a.project_ref,
         })),
-        session_count: 0,
-        last_active: null,
-        created_at: new Date().toISOString(),
+        session_count: sessionCount,
+        last_active: lastActive,
+        created_at: created!.created_at,
       },
       { status: 201 },
     );
