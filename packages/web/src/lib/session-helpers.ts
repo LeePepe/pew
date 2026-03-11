@@ -14,6 +14,7 @@ export type SessionRow = {
   assistant_messages: number;
   total_messages: number;
   project_ref: string | null;
+  project_name: string | null;
   model: string | null;
 };
 

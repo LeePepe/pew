@@ -22,6 +22,7 @@ function makeSession(overrides: Partial<SessionRow> = {}): SessionRow {
     assistant_messages: 10,
     total_messages: 25,
     project_ref: null,
+    project_name: null,
     model: "claude-sonnet-4-20250514",
     ...overrides,
   };
