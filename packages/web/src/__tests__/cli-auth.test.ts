@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { GET } from "@/app/api/auth/cli/route";
+import { GET, getPublicOrigin } from "@/app/api/auth/cli/route";
 import * as d1Module from "@/lib/d1";
 
 // Mock getD1Client
@@ -49,8 +49,59 @@ describe("GET /api/auth/cli", () => {
     );
   });
 
+  describe("getPublicOrigin", () => {
+    it("should use x-forwarded-host and x-forwarded-proto", () => {
+      const req = new Request("http://0.0.0.0:8080/api/auth/cli", {
+        headers: {
+          "x-forwarded-host": "pew.md",
+          "x-forwarded-proto": "https",
+        },
+      });
+      expect(getPublicOrigin(req)).toBe("https://pew.md");
+    });
+
+    it("should default to https when x-forwarded-proto is absent", () => {
+      const req = new Request("http://0.0.0.0:8080/api/auth/cli", {
+        headers: {
+          "x-forwarded-host": "pew.md",
+        },
+      });
+      expect(getPublicOrigin(req)).toBe("https://pew.md");
+    });
+
+    it("should fall back to NEXTAUTH_URL", () => {
+      const orig = process.env.NEXTAUTH_URL;
+      process.env.NEXTAUTH_URL = "https://pew.md";
+      try {
+        const req = new Request("http://0.0.0.0:8080/api/auth/cli");
+        expect(getPublicOrigin(req)).toBe("https://pew.md");
+      } finally {
+        if (orig === undefined) {
+          delete process.env.NEXTAUTH_URL;
+        } else {
+          process.env.NEXTAUTH_URL = orig;
+        }
+      }
+    });
+
+    it("should fall back to request URL origin", () => {
+      const orig = process.env.NEXTAUTH_URL;
+      delete process.env.NEXTAUTH_URL;
+      try {
+        const req = new Request("http://localhost:7030/api/auth/cli");
+        expect(getPublicOrigin(req)).toBe("http://localhost:7030");
+      } finally {
+        if (orig === undefined) {
+          delete process.env.NEXTAUTH_URL;
+        } else {
+          process.env.NEXTAUTH_URL = orig;
+        }
+      }
+    });
+  });
+
   describe("authentication", () => {
-    it("should reject unauthenticated requests", async () => {
+    it("should redirect unauthenticated requests to login", async () => {
       vi.mocked(resolveUser).mockResolvedValueOnce(null);
 
       const res = await GET(makeRequest("http://localhost:9999/callback"));
@@ -59,6 +110,27 @@ describe("GET /api/auth/cli", () => {
       expect(res.status).toBe(307);
       const location = res.headers.get("Location");
       expect(location).toContain("/login");
+    });
+
+    it("should use public origin for unauthenticated redirect", async () => {
+      vi.mocked(resolveUser).mockResolvedValueOnce(null);
+
+      const req = new Request(
+        "http://0.0.0.0:8080/api/auth/cli?callback=" +
+          encodeURIComponent("http://localhost:9999/callback"),
+        {
+          headers: {
+            "x-forwarded-host": "pew.md",
+            "x-forwarded-proto": "https",
+          },
+        }
+      );
+      const res = await GET(req);
+
+      expect(res.status).toBe(307);
+      const location = res.headers.get("Location")!;
+      expect(location.startsWith("https://pew.md/login")).toBe(true);
+      expect(location).not.toContain("0.0.0.0");
     });
   });
 

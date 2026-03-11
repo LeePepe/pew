@@ -14,6 +14,27 @@ import { NextResponse } from "next/server";
 import { resolveUser } from "@/lib/auth-helpers";
 import { getD1Client } from "@/lib/d1";
 
+/**
+ * Resolve the public-facing origin from the request.
+ *
+ * In production behind Railway's reverse proxy, `request.url` contains the
+ * internal container URL (e.g. `http://0.0.0.0:8080`). We must use the
+ * forwarded headers or NEXTAUTH_URL to construct the correct public origin.
+ */
+export function getPublicOrigin(request: Request): string {
+  const fwdHost = request.headers.get("x-forwarded-host");
+  if (fwdHost) {
+    const fwdProto = request.headers.get("x-forwarded-proto") || "https";
+    return `${fwdProto}://${fwdHost}`;
+  }
+
+  if (process.env.NEXTAUTH_URL) {
+    return process.env.NEXTAUTH_URL;
+  }
+
+  return new URL(request.url).origin;
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const callback = url.searchParams.get("callback");
@@ -23,8 +44,9 @@ export async function GET(request: Request) {
   if (!authResult) {
     // Redirect to login page, preserving the return URL
     const returnUrl = url.pathname + url.search;
+    const origin = getPublicOrigin(request);
     return NextResponse.redirect(
-      new URL(`/login?callbackUrl=${encodeURIComponent(returnUrl)}`, url.origin)
+      new URL(`/login?callbackUrl=${encodeURIComponent(returnUrl)}`, origin)
     );
   }
 
