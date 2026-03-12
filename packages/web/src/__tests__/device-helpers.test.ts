@@ -171,4 +171,66 @@ describe("toDeviceSharePoints", () => {
     // When total is 0, percentage should be 0 (not NaN/Infinity)
     expect(result[0]!["dev-a"]).toBe(0);
   });
+
+  it("should guarantee percentages sum to exactly 100 (thirds case)", () => {
+    // 3 devices with equal tokens — naive Math.round gives 33+33+33=99
+    const timeline = [
+      { date: "2026-03-01", device_id: "dev-a", total_tokens: 1000, input_tokens: 0, output_tokens: 0, cached_input_tokens: 0 },
+      { date: "2026-03-01", device_id: "dev-b", total_tokens: 1000, input_tokens: 0, output_tokens: 0, cached_input_tokens: 0 },
+      { date: "2026-03-01", device_id: "dev-c", total_tokens: 1000, input_tokens: 0, output_tokens: 0, cached_input_tokens: 0 },
+    ];
+
+    const result = toDeviceSharePoints(timeline);
+    const values = Object.entries(result[0]!)
+      .filter(([k]) => k !== "date")
+      .map(([, v]) => v as number);
+
+    // Sum must be exactly 100
+    expect(values.reduce((a, b) => a + b, 0)).toBe(100);
+    // Each should be 33 or 34 (largest-remainder assigns the extra 1)
+    for (const v of values) {
+      expect(v).toBeGreaterThanOrEqual(33);
+      expect(v).toBeLessThanOrEqual(34);
+    }
+  });
+
+  it("should guarantee percentages sum to exactly 100 (many devices)", () => {
+    // 7 devices with equal tokens — 100/7 ≈ 14.28 each
+    const timeline = Array.from({ length: 7 }, (_, i) => ({
+      date: "2026-03-01",
+      device_id: `dev-${i}`,
+      total_tokens: 100,
+      input_tokens: 0,
+      output_tokens: 0,
+      cached_input_tokens: 0,
+    }));
+
+    const result = toDeviceSharePoints(timeline);
+    const values = Object.entries(result[0]!)
+      .filter(([k]) => k !== "date")
+      .map(([, v]) => v as number);
+
+    expect(values.reduce((a, b) => a + b, 0)).toBe(100);
+    // Each should be 14 or 15
+    for (const v of values) {
+      expect(v).toBeGreaterThanOrEqual(14);
+      expect(v).toBeLessThanOrEqual(15);
+    }
+  });
+
+  it("should guarantee percentages sum to exactly 100 (uneven split)", () => {
+    // Tokens: 1, 1, 1, 1, 1, 1, 1 = 7 total → each ~14.28%
+    // But also test a more realistic uneven case
+    const timeline = [
+      { date: "2026-03-01", device_id: "dev-a", total_tokens: 501, input_tokens: 0, output_tokens: 0, cached_input_tokens: 0 },
+      { date: "2026-03-01", device_id: "dev-b", total_tokens: 499, input_tokens: 0, output_tokens: 0, cached_input_tokens: 0 },
+    ];
+
+    const result = toDeviceSharePoints(timeline);
+    const values = Object.entries(result[0]!)
+      .filter(([k]) => k !== "date")
+      .map(([, v]) => v as number);
+
+    expect(values.reduce((a, b) => a + b, 0)).toBe(100);
+  });
 });

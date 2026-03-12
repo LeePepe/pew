@@ -55,6 +55,33 @@ export function buildDeviceLabelMap(
 // Chart data transformations
 // ---------------------------------------------------------------------------
 
+/**
+ * Largest-remainder method (Hamilton's method) for rounding percentages.
+ * Guarantees the rounded values sum to exactly `target` (default 100).
+ */
+function roundPercentages(
+  values: number[],
+  target = 100
+): number[] {
+  if (values.length === 0) return [];
+
+  const floored = values.map(Math.floor);
+  let remainder = target - floored.reduce((a, b) => a + b, 0);
+
+  // Sort indices by descending fractional part, break ties by original order
+  const indices = values
+    .map((v, i) => ({ i, frac: v - Math.floor(v) }))
+    .sort((a, b) => b.frac - a.frac || a.i - b.i);
+
+  for (const { i } of indices) {
+    if (remainder <= 0) break;
+    floored[i]!++;
+    remainder--;
+  }
+
+  return floored;
+}
+
 /** Pivoted data point for LineChart — { date, [device_id]: tokens } */
 export interface DeviceTrendPoint {
   date: string;
@@ -113,15 +140,25 @@ export function toDeviceSharePoints(
     dateMap.set(point.device_id, point.total_tokens);
   }
 
-  // Convert to percentage points
+  // Convert to percentage points using largest-remainder rounding
   const result: DeviceSharePoint[] = [];
 
   for (const [date, deviceMap] of byDate) {
     const total = Array.from(deviceMap.values()).reduce((a, b) => a + b, 0);
     const point: DeviceSharePoint = { date };
 
-    for (const [deviceId, tokens] of deviceMap) {
-      point[deviceId] = total > 0 ? Math.round((tokens / total) * 100) : 0;
+    if (total > 0) {
+      const entries = Array.from(deviceMap.entries());
+      const rawPcts = entries.map(([, tokens]) => (tokens / total) * 100);
+      const rounded = roundPercentages(rawPcts);
+
+      for (let i = 0; i < entries.length; i++) {
+        point[entries[i]![0]] = rounded[i]!;
+      }
+    } else {
+      for (const [deviceId] of deviceMap) {
+        point[deviceId] = 0;
+      }
     }
 
     result.push(point);
