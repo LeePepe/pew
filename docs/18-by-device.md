@@ -119,7 +119,8 @@ Design notes:
 ### `GET /api/usage/by-device`
 
 New endpoint for the analytics page. Accepts `from`, `to` query parameters
-(same convention as `/api/usage`).
+(same convention as `/api/usage`). When omitted, defaults to the same fallback
+range as `/api/usage` (all-time or a sensible default) — does **not** return 400.
 
 Returns two datasets in a single response:
 
@@ -246,7 +247,7 @@ interface DevicesResponse {
     first_seen: string;
     last_seen: string;
     total_tokens: number;
-    source_count: number;
+    sources: string[];          // GROUP_CONCAT(DISTINCT source), split into array
     model_count: number;
   }>;
 }
@@ -338,9 +339,16 @@ devices: "By Device",
 | Function | Purpose |
 |----------|---------|
 | `shortDeviceId(id)` | Returns first 8 chars of UUID; returns `id` unchanged if not a UUID (e.g. `'default'`) |
-| `deviceLabel(device)` | Returns `alias ?? shortDeviceId(device_id)` — see "Default Device" below |
-| `toDeviceTrendPoints(timeline, devices)` | Pivots timeline into `{ date, [deviceLabel]: tokens }[]` for LineChart |
-| `toDeviceSharePoints(timeline, devices)` | Converts to percentage-based points for 100% stacked AreaChart |
+| `deviceLabel(device)` | Returns `alias ?? shortDeviceId(device_id)` — see "The `default` Device" above |
+| `buildDeviceLabelMap(devices)` | Returns `Map<device_id, label>` for chart legend/tooltip lookup |
+| `toDeviceTrendPoints(timeline)` | Pivots timeline into `{ date, [device_id]: tokens }[]` for LineChart. Uses `device_id` as series key (stable, unique), **not** display label. |
+| `toDeviceSharePoints(timeline)` | Converts to percentage-based points for 100% stacked AreaChart. Same keying strategy. |
+
+**Chart keying convention**: All chart data structures use `device_id` as the
+series key. Display labels (`deviceLabel()`) are resolved at render time via
+`buildDeviceLabelMap()` and passed to Recharts `nameKey` / `legendFormatter` /
+tooltip formatters. This avoids series collisions when an alias happens to match
+another device's short UUID or the `"Legacy Device"` fallback.
 
 ### Chart Components
 
@@ -513,13 +521,13 @@ Tests follow the project's existing conventions (`packages/web/src/__tests__/`).
 | `device_id = 'default'` appears in results | Legacy records included, not filtered out |
 | `sources` and `models` are arrays | Parsed from `GROUP_CONCAT` |
 | Missing/invalid auth → 401 | |
-| Missing date params → 400 | |
+| Missing date params → uses default range | Same fallback as `/api/usage` |
 
 **`devices.test.ts`** — `GET /api/devices` + `PUT /api/devices`:
 
 | Test | What |
 |------|------|
-| GET returns all devices with stats | Includes `device_id`, `alias`, `first_seen`, `last_seen`, `total_tokens` |
+| GET returns all devices with stats | Includes `device_id`, `alias`, `first_seen`, `last_seen`, `total_tokens`, `sources[]` |
 | GET includes `'default'` device | Not filtered out |
 | PUT creates alias | New alias → 200, refetch shows alias |
 | PUT updates existing alias | Overwrite → 200 |
