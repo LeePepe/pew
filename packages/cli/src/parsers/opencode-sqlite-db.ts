@@ -4,8 +4,11 @@ import type { SessionRow, SessionMessageRow } from "./opencode-sqlite-session.js
 
 /**
  * Unified SQLite database interface that works across Bun and Node.js runtimes.
- * - In Bun: uses native bun:sqlite (fast, no native deps)
- * - In Node.js: uses better-sqlite3 (requires native compilation)
+ * - In Bun: uses native bun:sqlite (fast, zero deps)
+ * - In Node.js (>= 22.5): uses built-in node:sqlite (zero deps)
+ *
+ * No native/compiled dependencies are required — both paths use
+ * platform-provided SQLite bindings.
  *
  * NOTE: The package ships as ESM ("type": "module"), so bare `require()` is
  * not defined when Node.js loads the compiled .js files. We use
@@ -31,7 +34,7 @@ let sqliteLoadAttempted = false;
 
 /**
  * Synchronously get a SQLite database opener.
- * Uses bun:sqlite under Bun, better-sqlite3 under Node.js.
+ * Uses bun:sqlite under Bun, node:sqlite under Node.js (>= 22.5).
  * Returns null if neither is available.
  */
 function getSqliteOpener(): ((dbPath: string) => SqliteDb) | null {
@@ -50,14 +53,15 @@ function getSqliteOpener(): ((dbPath: string) => SqliteDb) | null {
       // bun:sqlite not available (shouldn't happen in Bun)
     }
   } else {
-    // Node.js: use better-sqlite3 via createRequire (require() is not
-    // available in ESM context, which is how the published CLI runs)
+    // Node.js >= 22.5: use built-in node:sqlite (experimental but stable API).
+    // DatabaseSync is the synchronous interface — matches bun:sqlite's API shape.
+    // Option is `readOnly` (camelCase), not `readonly` like bun:sqlite.
     try {
-      const BetterSqlite3 = esmRequire("better-sqlite3");
-      cachedSqliteImpl = (dbPath: string) => new BetterSqlite3(dbPath, { readonly: true });
+      const { DatabaseSync } = esmRequire("node:sqlite");
+      cachedSqliteImpl = (dbPath: string) => new DatabaseSync(dbPath, { readOnly: true });
       return cachedSqliteImpl;
     } catch {
-      // better-sqlite3 not available (native module issues)
+      // node:sqlite not available (Node.js < 22.5)
     }
   }
 
@@ -68,8 +72,8 @@ function getSqliteOpener(): ((dbPath: string) => SqliteDb) | null {
  * Open an OpenCode SQLite database in read-only mode
  * and return a queryMessages function for use with parseOpenCodeSqlite().
  *
- * Uses bun:sqlite under Bun runtime and better-sqlite3 under Node.js
- * for cross-runtime SQLite access.
+ * Uses bun:sqlite under Bun runtime and node:sqlite under Node.js (>= 22.5)
+ * for cross-runtime SQLite access with zero native dependencies.
  * Returns null if the database cannot be opened.
  */
 export function openMessageDb(

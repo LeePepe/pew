@@ -62,8 +62,8 @@ const syncCommand = defineCommand({
     const paths = resolveDefaultPaths();
     consola.start("Syncing token usage from AI coding tools...\n");
 
-    // Dynamic import: opencode-sqlite-db.ts uses native SQLite bindings
-    // (bun:sqlite or better-sqlite3) which may fail to load on some platforms.
+    // Dynamic import: opencode-sqlite-db.ts uses platform SQLite bindings
+    // (bun:sqlite or node:sqlite) which may not be available on older Node.js.
     let openMessageDb: typeof import("./parsers/opencode-sqlite-db.js").openMessageDb | undefined;
     let openSessionDb: typeof import("./parsers/opencode-sqlite-db.js").openSessionDb | undefined;
     try {
@@ -362,8 +362,8 @@ const notifyCommand = defineCommand({
 
     const paths = resolveDefaultPaths();
 
-    // Dynamic import: opencode-sqlite-db.ts uses native SQLite bindings
-    // (bun:sqlite or better-sqlite3) which may fail to load on some platforms.
+    // Dynamic import: opencode-sqlite-db.ts uses platform SQLite bindings
+    // (bun:sqlite or node:sqlite) which may not be available on older Node.js.
     let openMessageDb2: typeof import("./parsers/opencode-sqlite-db.js").openMessageDb | undefined;
     let openSessionDb2: typeof import("./parsers/opencode-sqlite-db.js").openSessionDb | undefined;
     try {
