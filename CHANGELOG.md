@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.5.1
+
+### Fixes
+
+- **ESM/require SQLite bug** — Fixed `pew sync` failing to open OpenCode's SQLite database when running under Node.js ESM context; `require()` is undefined in ESM modules, causing silent fallback to null
+
+### Refactoring
+
+- **Zero native deps** — Replaced `better-sqlite3` with `node:sqlite` (Node.js >= 22.5) for SQLite access, eliminating ~20 transitive native dependencies and the `prebuild-install` deprecation warning during `npm install -g @nocoo/pew`
+- **Engine requirement** — Added `"engines": { "node": ">=22.5.0" }` to CLI package
+
 ## v1.5.0
 
 ### Features

@@ -392,7 +392,7 @@ const notifyCommand = defineCommand({
       openSessionDb: openSessionDb2,
       openclawDir: paths.openclawDir,
       vscodeCopilotDirs: paths.vscodeCopilotDirs,
-      version: "1.5.0",
+      version: "1.5.1",
     });
 
     if (result.error) {
@@ -606,7 +606,7 @@ async function runSessionUpload(stateDir: string, apiUrl: string, dev: boolean):
 export const main = defineCommand({
   meta: {
     name: "pew",
-    version: "1.5.0",
+    version: "1.5.1",
     description: "The contribution graph for AI-native developers",
   },
   subCommands: {
