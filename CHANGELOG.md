@@ -1,5 +1,40 @@
 # Changelog
 
+## v1.5.0
+
+### Features
+
+- **By Device analytics** — New "By Device" page with device usage aggregation, trend charts, and share charts; GET `/api/usage/by-device` endpoint
+- **Devices management** — Manage page for device aliases with inline editing, relative time display, and per-device stats; GET/PUT `/api/devices` endpoint
+- **Device chart components** — Device trend chart and device share chart with zero-fill and largest-remainder rounding
+- **Daily messages** — Renamed User/Assistant labels to Human/Agent across daily message views
+- **ESLint L2 pipeline** — ESLint 10 with typescript-eslint strict, React hooks, and Next.js plugins integrated into lint and pre-commit hooks
+- **lint-staged** — Incremental ESLint on staged files via lint-staged for faster pre-commit feedback
+
+### Fixes
+
+- **Dockerfile build** — Added `--ignore-scripts` to `bun install` to skip `better-sqlite3` native compilation in Bun Docker image
+- **DeviceTrendPoint unused import** — Removed unused type import that broke Next.js production build
+- **React purity** — Suppressed `react-hooks/purity` for intentional `Date.now()` in relative time display
+- **Coverage enforcement** — Pre-commit hook now runs `test:coverage` instead of `test` to enforce 90% threshold
+- **Coverage exclusions** — Excluded UI hooks, auth config, R2 client, and proxy from UT coverage (covered by E2E)
+- **Node.js SQLite** — Restored try/catch guard for native SQLite import with updated warning messages
+- **Device pricing** — Use merged DB pricing overrides for by-device estimated cost
+- **Device trend zero-fill** — Zero-fill missing devices in trend and share chart helpers
+
+### Refactoring
+
+- **Git hooks restructured** — pre-commit runs UT only (fast); pre-push runs UT + lint + E2E (full gate to catch remote merge issues)
+- **Unified UI components** — Shared FilterDropdown component, unified agent pill colors across By Model and Projects pages, unified season/leaderboard page styles
+- **Invite codes** — Status filter and copy-available button on invite codes page
+
+### Infrastructure
+
+- **D1 migration** — `device_aliases` table for per-device custom names
+- **Husky v9** — Migrated from legacy `.husky/_` to modern v9 hook format
+- **Test suite** — 113 test files, 1817 tests passing, 95%+ coverage
+- **README** — Added Testing & Git Hooks documentation section
+
 ## v1.4.0
 
 ### Features
