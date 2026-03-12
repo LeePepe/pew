@@ -1,3 +1,4 @@
+import { createRequire } from "node:module";
 import type { MessageRow, QueryMessagesFn } from "./opencode-sqlite.js";
 import type { SessionRow, SessionMessageRow } from "./opencode-sqlite-session.js";
 
@@ -5,7 +6,16 @@ import type { SessionRow, SessionMessageRow } from "./opencode-sqlite-session.js
  * Unified SQLite database interface that works across Bun and Node.js runtimes.
  * - In Bun: uses native bun:sqlite (fast, no native deps)
  * - In Node.js: uses better-sqlite3 (requires native compilation)
+ *
+ * NOTE: The package ships as ESM ("type": "module"), so bare `require()` is
+ * not defined when Node.js loads the compiled .js files. We use
+ * `createRequire(import.meta.url)` to get a CJS-compatible require that
+ * works in both ESM and CJS contexts. Bun supports require() everywhere,
+ * but we use createRequire uniformly for consistency.
  */
+
+const esmRequire = createRequire(import.meta.url);
+
 interface SqliteDb {
   prepare(sql: string): SqliteStmt;
   close(): void;
@@ -33,18 +43,17 @@ function getSqliteOpener(): ((dbPath: string) => SqliteDb) | null {
   if (isBun) {
     // Bun: use bun:sqlite (synchronous require works in Bun)
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { Database } = require("bun:sqlite");
+      const { Database } = esmRequire("bun:sqlite");
       cachedSqliteImpl = (dbPath: string) => new Database(dbPath, { readonly: true });
       return cachedSqliteImpl;
     } catch {
       // bun:sqlite not available (shouldn't happen in Bun)
     }
   } else {
-    // Node.js: use better-sqlite3
+    // Node.js: use better-sqlite3 via createRequire (require() is not
+    // available in ESM context, which is how the published CLI runs)
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const BetterSqlite3 = require("better-sqlite3");
+      const BetterSqlite3 = esmRequire("better-sqlite3");
       cachedSqliteImpl = (dbPath: string) => new BetterSqlite3(dbPath, { readonly: true });
       return cachedSqliteImpl;
     } catch {
