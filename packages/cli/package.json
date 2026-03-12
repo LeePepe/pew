@@ -29,6 +29,9 @@
     "codex",
     "gemini",
     "opencode",
+    "openclaw",
+    "copilot",
+    "vscode-copilot",
     "cli"
   ],
   "license": "MIT",

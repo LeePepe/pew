@@ -9,7 +9,7 @@ Pew is a monorepo (Bun workspaces) for tracking token usage from local AI coding
 
 ### Supported AI Tools
 
-Claude Code, Gemini CLI, OpenCode, OpenClaw
+Claude Code, Codex, Gemini CLI, OpenCode, OpenClaw, VS Code Copilot
 
 ### Key Conventions
 
