@@ -29,7 +29,7 @@ export function resolveHost(dev: boolean): string {
 export interface LoginOptions {
   /** Directory for config file */
   configDir: string;
-  /** Base URL of the Pew SaaS */
+  /** Base URL of the pew SaaS */
   apiUrl: string;
   /** Whether dev mode is active (uses config.dev.json) */
   dev?: boolean;
