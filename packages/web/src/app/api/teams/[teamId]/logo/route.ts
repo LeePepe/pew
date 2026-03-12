@@ -3,8 +3,8 @@
  * DELETE /api/teams/[teamId]/logo — remove team logo (owner only).
  *
  * Accepts multipart/form-data with a single "file" field.
- * Validates: PNG or JPEG, square aspect ratio, max 2 MB.
- * Converts to JPEG quality 80, 256x256, stores in R2 with a unique filename.
+ * Validates: PNG or JPEG, max 2 MB.
+ * Converts to JPEG quality 80, 256x256 center-crop, stores in R2 with a unique filename.
  * The full CDN URL is persisted in teams.logo_url.
  */
 
@@ -20,7 +20,7 @@ import { putTeamLogo, deleteTeamLogoByUrl } from "@/lib/r2";
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2 MB
 const ACCEPTED_TYPES = new Set(["image/png", "image/jpeg", "image/jpg"]);
-const OUTPUT_SIZE = 256; // resize to 256x256 square
+const OUTPUT_SIZE = 256; // resize to 256x256 center-crop
 const JPEG_QUALITY = 80;
 
 // ---------------------------------------------------------------------------
@@ -95,38 +95,19 @@ export async function POST(
   const arrayBuffer = await file.arrayBuffer();
   const inputBuffer = Buffer.from(arrayBuffer);
 
-  // Validate image dimensions — must be square
-  let metadata: sharp.Metadata;
+  // Convert to JPEG, resize to 256x256 (center-crop), quality 80
+  let jpegBuffer: Buffer;
   try {
-    metadata = await sharp(inputBuffer).metadata();
+    jpegBuffer = await sharp(inputBuffer)
+      .resize(OUTPUT_SIZE, OUTPUT_SIZE, { fit: "cover" })
+      .jpeg({ quality: JPEG_QUALITY })
+      .toBuffer();
   } catch {
     return NextResponse.json(
       { error: "Invalid image file" },
       { status: 400 },
     );
   }
-
-  if (!metadata.width || !metadata.height) {
-    return NextResponse.json(
-      { error: "Cannot determine image dimensions" },
-      { status: 400 },
-    );
-  }
-
-  if (metadata.width !== metadata.height) {
-    return NextResponse.json(
-      {
-        error: `Image must be square. Got ${metadata.width}x${metadata.height}.`,
-      },
-      { status: 400 },
-    );
-  }
-
-  // Convert to JPEG, resize to 256x256, quality 80
-  const jpegBuffer = await sharp(inputBuffer)
-    .resize(OUTPUT_SIZE, OUTPUT_SIZE, { fit: "cover" })
-    .jpeg({ quality: JPEG_QUALITY })
-    .toBuffer();
 
   // Upload to R2 (returns new unique CDN URL)
   let newLogoUrl: string;

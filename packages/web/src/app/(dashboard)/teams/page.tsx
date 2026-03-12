@@ -105,13 +105,6 @@ function TeamLogo({
       return;
     }
 
-    // Validate square aspect ratio on the client
-    const valid = await validateSquare(file);
-    if (!valid) {
-      onMessage({ type: "error", text: "Image must be square." });
-      return;
-    }
-
     setUploading(true);
     const formData = new FormData();
     formData.append("file", file);
@@ -205,21 +198,6 @@ function TeamLogo({
       )}
     </div>
   );
-}
-
-function validateSquare(file: File): Promise<boolean> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(img.src);
-      resolve(img.naturalWidth === img.naturalHeight);
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(img.src);
-      resolve(false);
-    };
-    img.src = URL.createObjectURL(file);
-  });
 }
 
 // ---------------------------------------------------------------------------

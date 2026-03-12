@@ -21,7 +21,6 @@ vi.mock("@/lib/r2", () => ({
 
 vi.mock("sharp", () => {
   const mockSharp = vi.fn(() => ({
-    metadata: vi.fn().mockResolvedValue({ width: 200, height: 200 }),
     resize: vi.fn().mockReturnThis(),
     jpeg: vi.fn().mockReturnThis(),
     toBuffer: vi.fn().mockResolvedValue(Buffer.from("fake-jpeg")),
@@ -93,9 +92,8 @@ describe("POST /api/teams/[teamId]/logo", () => {
     vi.mocked(d1Module.getD1Client).mockReturnValue(
       mockClient as unknown as d1Module.D1Client,
     );
-    // Reset sharp mock to default (square image)
+    // Reset sharp mock to default
     vi.mocked(sharp).mockReturnValue({
-      metadata: vi.fn().mockResolvedValue({ width: 200, height: 200 }),
       resize: vi.fn().mockReturnThis(),
       jpeg: vi.fn().mockReturnThis(),
       toBuffer: vi.fn().mockResolvedValue(Buffer.from("fake-jpeg")),
@@ -162,52 +160,34 @@ describe("POST /api/teams/[teamId]/logo", () => {
     expect((await res.json()).error).toContain("too large");
   });
 
-  it("should reject non-square images", async () => {
+  it("should accept non-square images (center-crop to 256x256)", async () => {
     resolveUser.mockResolvedValueOnce({ userId: "u1" });
-    mockClient.firstOrNull.mockResolvedValueOnce({ role: "owner" });
-    vi.mocked(sharp).mockReturnValue({
-      metadata: vi.fn().mockResolvedValue({ width: 200, height: 100 }),
-      resize: vi.fn().mockReturnThis(),
-      jpeg: vi.fn().mockReturnThis(),
-      toBuffer: vi.fn().mockResolvedValue(Buffer.from("fake-jpeg")),
-    } as never);
+    mockClient.firstOrNull
+      .mockResolvedValueOnce({ role: "owner" }) // membership check
+      .mockResolvedValueOnce({ logo_url: null }); // old logo
+    mockClient.execute.mockResolvedValueOnce(undefined);
+    vi.mocked(putTeamLogo).mockResolvedValueOnce("https://cdn.example.com/new.jpg");
 
     const res = await POST(makeUploadRequest("t1"), makeParams());
 
-    expect(res.status).toBe(400);
-    expect((await res.json()).error).toContain("square");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.logo_url).toBe("https://cdn.example.com/new.jpg");
   });
 
   it("should reject invalid image data", async () => {
     resolveUser.mockResolvedValueOnce({ userId: "u1" });
     mockClient.firstOrNull.mockResolvedValueOnce({ role: "owner" });
     vi.mocked(sharp).mockReturnValue({
-      metadata: vi.fn().mockRejectedValue(new Error("Input buffer contains unsupported image format")),
       resize: vi.fn().mockReturnThis(),
       jpeg: vi.fn().mockReturnThis(),
-      toBuffer: vi.fn().mockResolvedValue(Buffer.from("fake-jpeg")),
+      toBuffer: vi.fn().mockRejectedValue(new Error("Input buffer contains unsupported image format")),
     } as never);
 
     const res = await POST(makeUploadRequest("t1"), makeParams());
 
     expect(res.status).toBe(400);
     expect((await res.json()).error).toContain("Invalid image");
-  });
-
-  it("should reject images with missing dimensions", async () => {
-    resolveUser.mockResolvedValueOnce({ userId: "u1" });
-    mockClient.firstOrNull.mockResolvedValueOnce({ role: "owner" });
-    vi.mocked(sharp).mockReturnValue({
-      metadata: vi.fn().mockResolvedValue({ width: undefined, height: undefined }),
-      resize: vi.fn().mockReturnThis(),
-      jpeg: vi.fn().mockReturnThis(),
-      toBuffer: vi.fn().mockResolvedValue(Buffer.from("fake-jpeg")),
-    } as never);
-
-    const res = await POST(makeUploadRequest("t1"), makeParams());
-
-    expect(res.status).toBe(400);
-    expect((await res.json()).error).toContain("dimensions");
   });
 
   it("should reject request without file field", async () => {
