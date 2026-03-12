@@ -1,4 +1,4 @@
-import { defineCommand } from "citty";
+import { defineCommand, showUsage } from "citty";
 import { consola } from "consola";
 import pc from "picocolors";
 import { homedir } from "node:os";
@@ -608,5 +608,9 @@ export const main = defineCommand({
     notify: notifyCommand,
     init: initCommand,
     uninstall: uninstallCommand,
+  },
+  run() {
+    // Show usage when invoked without a subcommand (avoids citty's "No command specified" error)
+    showUsage(main);
   },
 });
