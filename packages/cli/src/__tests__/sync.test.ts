@@ -1609,6 +1609,151 @@ describe("executeSync", () => {
     expect(result.totalRecords).toBe(1);
   });
 
+  // ===== Bug A: Partial replay inflation (inode change on single file) =====
+
+  it("should not inflate when a single file's inode changes (partial replay)", async () => {
+    // Scenario: sync Claude file → file gets replaced (new inode, same content)
+    // → sync again → queue should have same values (not 2x).
+    // This tests the bug where a single driver's inode reset causes
+    // partial replay that gets SUM'd with the existing queue.
+    const claudeDir = join(dataDir, ".claude", "projects", "proj-inode");
+    await mkdir(claudeDir, { recursive: true });
+    const filePath = join(claudeDir, "session.jsonl");
+    const content = claudeLine("2026-03-07T10:15:00.000Z", 3000, 300) + "\n";
+    await writeFile(filePath, content);
+
+    // First sync
+    await executeSync({
+      stateDir,
+      deviceId: "dev-1",
+      claudeDir: join(dataDir, ".claude"),
+    });
+
+    const queueRaw1 = await readFile(join(stateDir, "queue.jsonl"), "utf-8");
+    const records1 = queueRaw1.trim().split("\n").map((l) => JSON.parse(l) as QueueRecord);
+    expect(records1).toHaveLength(1);
+    expect(records1[0].input_tokens).toBe(3000);
+
+    // Simulate inode change: delete and recreate file with same content
+    // (On most filesystems, rm + create = new inode)
+    const { rm: rmFile } = await import("node:fs/promises");
+    await rmFile(filePath);
+    await new Promise((r) => setTimeout(r, 50)); // ensure different mtime
+    await writeFile(filePath, content);
+
+    // Second sync — inode changed, driver will replay from offset 0
+    // With the fix, sync should detect inode change → full rescan → overwrite
+    await executeSync({
+      stateDir,
+      deviceId: "dev-1",
+      claudeDir: join(dataDir, ".claude"),
+    });
+
+    const queueRaw2 = await readFile(join(stateDir, "queue.jsonl"), "utf-8");
+    const records2 = queueRaw2.trim().split("\n").map((l) => JSON.parse(l) as QueueRecord);
+    expect(records2).toHaveLength(1);
+    expect(records2[0].input_tokens).toBe(3000);  // NOT 6000
+    expect(records2[0].output_tokens).toBe(300);   // NOT 600
+  });
+
+  it("should not inflate when inode changes with multiple sources active", async () => {
+    // Scenario: Claude + Gemini both synced. Claude file inode changes.
+    // Queue should reflect correct values for BOTH sources.
+    const claudeDir = join(dataDir, ".claude", "projects", "proj-multi");
+    await mkdir(claudeDir, { recursive: true });
+    const claudePath = join(claudeDir, "session.jsonl");
+    const claudeContent = claudeLine("2026-03-07T10:15:00.000Z", 3000, 300) + "\n";
+    await writeFile(claudePath, claudeContent);
+
+    const geminiDir = join(dataDir, ".gemini", "tmp", "proj-multi", "chats");
+    await mkdir(geminiDir, { recursive: true });
+    await writeFile(
+      join(geminiDir, "session-2026-03-07.json"),
+      geminiSession("2026-03-07T10:15:00.000Z", 2000, 200),
+    );
+
+    // First sync — both sources
+    await executeSync({
+      stateDir,
+      deviceId: "dev-1",
+      claudeDir: join(dataDir, ".claude"),
+      geminiDir: join(dataDir, ".gemini"),
+    });
+
+    // Simulate Claude file inode change
+    const { rm: rmFile } = await import("node:fs/promises");
+    await rmFile(claudePath);
+    await new Promise((r) => setTimeout(r, 50));
+    await writeFile(claudePath, claudeContent);
+
+    // Second sync
+    await executeSync({
+      stateDir,
+      deviceId: "dev-1",
+      claudeDir: join(dataDir, ".claude"),
+      geminiDir: join(dataDir, ".gemini"),
+    });
+
+    const queueRaw = await readFile(join(stateDir, "queue.jsonl"), "utf-8");
+    const records = queueRaw.trim().split("\n").map((l) => JSON.parse(l) as QueueRecord);
+    const claude = records.find((r) => r.source === "claude-code");
+    const gemini = records.find((r) => r.source === "gemini-cli");
+    expect(claude).toBeDefined();
+    expect(gemini).toBeDefined();
+    expect(claude!.input_tokens).toBe(3000);  // NOT 6000
+    expect(gemini!.input_tokens).toBe(2000);  // Preserved, not lost
+  });
+
+  // ===== Bug B: No-op sync re-marking history as unread =====
+
+  it("should not re-mark uploaded records as unread on no-op sync", async () => {
+    // Scenario: sync → upload (advances offset) → sync again (no new data)
+    // → queue offset should stay advanced (not reset to 0)
+    // This tests the bug where a no-op sync overwrites queue and resets
+    // offset to 0, causing the next upload to re-send everything.
+    const claudeDir = join(dataDir, ".claude", "projects", "proj-noop");
+    await mkdir(claudeDir, { recursive: true });
+    await writeFile(
+      join(claudeDir, "session.jsonl"),
+      claudeLine("2026-03-07T10:15:00.000Z", 1100, 110) + "\n",
+    );
+
+    // First sync
+    await executeSync({
+      stateDir,
+      deviceId: "dev-1",
+      claudeDir: join(dataDir, ".claude"),
+    });
+
+    // Simulate successful upload: advance offset to end of queue file
+    const { LocalQueue } = await import("../storage/local-queue.js");
+    const queue = new LocalQueue(stateDir);
+    const { newOffset } = await queue.readFromOffset(0);
+    await queue.saveOffset(newOffset);
+
+    // Verify offset is now > 0
+    const offsetAfterUpload = await queue.loadOffset();
+    expect(offsetAfterUpload).toBeGreaterThan(0);
+
+    // Second sync — no new data
+    const r2 = await executeSync({
+      stateDir,
+      deviceId: "dev-1",
+      claudeDir: join(dataDir, ".claude"),
+    });
+    expect(r2.totalDeltas).toBe(0);
+    expect(r2.totalRecords).toBe(0);
+
+    // Queue offset should NOT be reset to 0
+    const offsetAfterNoop = await queue.loadOffset();
+    expect(offsetAfterNoop).toBe(offsetAfterUpload);
+
+    // Verify queue content is still there (not wiped)
+    const { records } = await queue.readFromOffset(0);
+    expect(records).toHaveLength(1);
+    expect(records[0].input_tokens).toBe(1100);
+  });
+
   it("should set queue offset to 0 after sync (ready for full upload read)", async () => {
     const claudeDir = join(dataDir, ".claude", "projects", "proj-offset");
     await mkdir(claudeDir, { recursive: true });

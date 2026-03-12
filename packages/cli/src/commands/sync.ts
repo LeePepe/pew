@@ -108,13 +108,19 @@ export async function executeSync(opts: SyncOptions): Promise<SyncResult> {
   const queue = new LocalQueue(stateDir);
   const cursors = await cursorStore.load();
 
-  // Detect full-scan vs incremental BEFORE drivers populate cursors.files.
-  // If cursors were empty at start, this is a full scan (first run or after
-  // pew reset). The records represent the complete picture and should replace
-  // the queue entirely. Otherwise it's incremental and records are deltas
-  // that must be SUM'd with existing queue contents.
+  // Full-scan detection: if cursors were completely empty at start (first run
+  // or after `pew reset`), all records represent the complete picture.
   const initialCursorEmpty =
     Object.keys(cursors.files).length === 0 && !cursors.openCodeSqlite;
+
+  // Track whether any file's inode changed during this scan. An inode change
+  // means the driver replayed from offset 0, producing the full historical
+  // total for that file. If we SUM this with the existing queue (which already
+  // contains the same historical total), we get 2× inflation.
+  //
+  // When inode change is detected, we abort the current scan, clear all
+  // cursors, and restart as a full scan (equivalent to `pew reset` + sync).
+  let inodeChangeDetected = false;
 
   const allDeltas: ParsedDelta[] = [];
   const sourceCounts = { claude: 0, codex: 0, gemini: 0, opencode: 0, openclaw: 0, vscodeCopilot: 0 };
@@ -189,6 +195,20 @@ export async function executeSync(opts: SyncOptions): Promise<SyncResult> {
         continue;
       }
 
+      // Detect inode change: file was replaced/rotated since last cursor.
+      // The driver will replay from offset 0 (full file content), but we're
+      // in incremental mode — SUM'ing a full replay with the existing queue
+      // would double-count. Abort and restart as full scan.
+      if (!initialCursorEmpty && cursor && cursor.inode !== fingerprint.inode) {
+        inodeChangeDetected = true;
+        onProgress?.({
+          source: driver.source,
+          phase: "warn",
+          message: `File inode changed for ${filePath} — restarting as full scan`,
+        });
+        break;
+      }
+
       // Extract resume state and parse
       const resume = driver.resumeState(cursor, fingerprint);
       const result = await driver.parse(filePath, resume).catch(
@@ -221,6 +241,27 @@ export async function executeSync(opts: SyncOptions): Promise<SyncResult> {
 
     // Post-parse hook (e.g. OpenCode JSON deposits messageKeys into ctx)
     driver.afterAll?.(cursors.files, ctx);
+
+    // If inode change detected in inner loop, break outer driver loop too
+    if (inodeChangeDetected) break;
+  }
+
+  // ---------- Inode change → full rescan restart ----------
+  // An inode change means a file was replaced. The driver would replay from
+  // offset 0, but we're in incremental mode — SUM'ing would inflate.
+  // Strategy: clear all cursors and restart as a clean full scan.
+  if (inodeChangeDetected) {
+    onProgress?.({
+      source: "all",
+      phase: "warn",
+      message: "File rotation detected — clearing cursors and restarting full scan",
+    });
+    await cursorStore.save({
+      version: 1,
+      files: {},
+      updatedAt: null,
+    });
+    return executeSync(opts);
   }
 
   // ---------- Phase 2: DB-based drivers ----------
@@ -279,6 +320,26 @@ export async function executeSync(opts: SyncOptions): Promise<SyncResult> {
 
     const prevCursor = cursors.openCodeSqlite as OpenCodeSqliteCursor | undefined;
     const result = await driver.run(prevCursor, ctx);
+
+    // Detect DB inode change (same logic as file drivers)
+    const dbCursor = result.cursor as OpenCodeSqliteCursor;
+    if (
+      !initialCursorEmpty &&
+      prevCursor &&
+      dbCursor.inode !== prevCursor.inode
+    ) {
+      onProgress?.({
+        source: "opencode-sqlite",
+        phase: "warn",
+        message: "SQLite database inode changed — restarting full scan",
+      });
+      await cursorStore.save({
+        version: 1,
+        files: {},
+        updatedAt: null,
+      });
+      return executeSync(opts);
+    }
 
     cursors.openCodeSqlite = result.cursor as CursorState["openCodeSqlite"];
 
@@ -357,13 +418,16 @@ export async function executeSync(opts: SyncOptions): Promise<SyncResult> {
   if (initialCursorEmpty) {
     // Full scan: overwrite queue with complete snapshot
     await queue.overwrite(records);
-  } else {
-    // Incremental: SUM with existing queue records
+    await queue.saveOffset(0);
+  } else if (records.length > 0) {
+    // Incremental with new data: SUM with existing queue records
     const { records: oldRecords } = await queue.readFromOffset(0);
     const merged = aggregateRecords([...oldRecords, ...records]);
     await queue.overwrite(merged);
+    await queue.saveOffset(0);
   }
-  await queue.saveOffset(0);
+  // else: incremental with no new data — skip queue write entirely
+  // to preserve the upload offset (Bug B: re-marking uploaded records)
 
   // ---------- Save cursor state AFTER queue ----------
   // Queue must be written before cursor so that a crash between the two
