@@ -14,7 +14,7 @@ export function RankBadge({ rank }: { rank: number }) {
     return <Award className="h-5 w-5 text-amber-600" strokeWidth={1.5} />;
   }
   return (
-    <span className="flex h-5 w-5 items-center justify-center text-xs font-medium text-muted-foreground">
+    <span className="flex h-5 w-5 items-center justify-center text-xs font-medium tabular-nums text-muted-foreground">
       {rank}
     </span>
   );

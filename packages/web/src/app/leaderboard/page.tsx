@@ -20,6 +20,7 @@ import {
 import { useAdmin } from "@/hooks/use-admin";
 import { CheckRuling } from "@/components/leaderboard/check-ruling";
 import { RankBadge } from "@/components/leaderboard/rank-badge";
+import { TableHeader } from "@/components/leaderboard/table-header";
 import { LeaderboardSkeleton } from "@/components/leaderboard/leaderboard-skeleton";
 import { LeaderboardNav } from "@/components/leaderboard/leaderboard-nav";
 import { PageHeader } from "@/components/leaderboard/page-header";
@@ -271,7 +272,7 @@ function LeaderboardRow({
   const content = (
     <div
       className={cn(
-        "relative flex items-center gap-4 overflow-hidden rounded-[var(--radius-card)] bg-secondary px-4 py-4 transition-colors animate-fade-up",
+        "relative flex items-center gap-3 overflow-hidden rounded-[var(--radius-card)] bg-secondary px-4 py-3 transition-colors animate-fade-up",
         user.slug && "hover:bg-accent cursor-pointer",
         rank <= 3 && "ring-1 ring-border/50",
       )}
@@ -279,8 +280,8 @@ function LeaderboardRow({
     >
       <CheckRuling />
 
-      {/* Rank */}
-      <div className="flex w-8 shrink-0 items-center justify-center">
+      {/* Rank — fixed w-8, tabular-nums for alignment */}
+      <div className="flex w-8 shrink-0 items-center justify-center tabular-nums">
         <RankBadge rank={rank} />
       </div>
 
@@ -320,14 +321,22 @@ function LeaderboardRow({
         </div>
       </div>
 
-      {/* Token breakdown (hidden on mobile) */}
-      <div className="hidden sm:flex items-center gap-6 text-xs text-muted-foreground">
-        <span title="Input tokens">{formatTokens(input_tokens)} in</span>
-        <span title="Output tokens">{formatTokens(output_tokens)} out</span>
+      {/* Input tokens — cyan tint (hidden on mobile) */}
+      <div className="hidden sm:block w-20 text-right">
+        <span className="text-xs tabular-nums text-cyan-400/80" title="Input tokens">
+          {formatTokens(input_tokens)}
+        </span>
+      </div>
+
+      {/* Output tokens — amber/warm tint (hidden on mobile) */}
+      <div className="hidden sm:block w-20 text-right">
+        <span className="text-xs tabular-nums text-amber-400/80" title="Output tokens">
+          {formatTokens(output_tokens)}
+        </span>
       </div>
 
       {/* Total — check-style handwriting font, full number */}
-      <div className="relative z-10 shrink-0 text-right">
+      <div className="relative z-10 w-[140px] shrink-0 text-right">
         <span className="font-handwriting text-[39px] leading-none tracking-tight text-foreground">
           {formatTokensFull(total_tokens)}
         </span>
@@ -443,6 +452,9 @@ export default function LeaderboardPage() {
           </div>
         )}
 
+        {/* Table header row */}
+        <TableHeader />
+
         {/* Loading — skeleton only on initial load */}
         {loading && !data && <LeaderboardSkeleton />}
 
@@ -450,7 +462,7 @@ export default function LeaderboardPage() {
         {data && (
           <div
             className={cn(
-              "space-y-3 transition-opacity duration-200",
+              "space-y-2 transition-opacity duration-200",
               refreshing && "opacity-60",
             )}
           >
