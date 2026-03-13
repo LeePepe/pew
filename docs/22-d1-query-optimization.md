@@ -175,16 +175,25 @@ GROUP BY sr.source, sr.project_ref
 
 ### Priority 1: No schema changes needed (application-level)
 
-| Change | Impact | Effort |
-|--------|--------|--------|
-| Split sessions list (Q5) into paginated query + separate summary query | Reduces 3219 -> ~50 rows for list; summary stays accurate | **Medium** (API contract change, requires client pagination) |
-| Cache leaderboard results (60s TTL) | 246 executions -> ~10 | Low |
+| Change | Impact | Effort | Status |
+|--------|--------|--------|--------|
+| ~~Split sessions list (Q5) into paginated query + separate summary query~~ Protective LIMIT 5000 instead | Prevents unbounded scans; client recomputes aggregates from raw records so true pagination would break charts | Low | ✅ Done (`e878607`) |
+| Cache leaderboard results (60s TTL) | 246 executions -> ~10 | Low | ✅ Done (`c1cb97a`) |
 
 ### Priority 2: New indexes
 
-| Index | Table | Columns | Benefits |
-|-------|-------|---------|----------|
-| `idx_session_user_source_project` | `session_records` | `(user_id, source, project_ref)` | Q7 orphan detection + GROUP BY |
+| Index | Table | Columns | Benefits | Status |
+|-------|-------|---------|----------|--------|
+| `idx_session_user_source_project` | `session_records` | `(user_id, source, project_ref)` | Q7 orphan detection + GROUP BY | ✅ Done (migration 010) |
+
+### Redundant index cleanup
+
+| Index | Reason | Status |
+|-------|--------|--------|
+| `idx_project_aliases_lookup` | Exact duplicate of UNIQUE autoindex on `(user_id, source, project_ref)` | ✅ Dropped (migration 010) |
+| `idx_usage_source` | Single-col `(source)` — all queries filter `user_id` first | ✅ Dropped (migration 010) |
+| `idx_session_source` | Single-col `(source)` — same reasoning | ✅ Dropped (migration 010) |
+| `idx_session_kind` | Single-col `(kind)` — same reasoning | ✅ Dropped (migration 010) |
 
 ### Priority 3: Materialized summaries (future)
 
@@ -194,16 +203,14 @@ If `usage_records` grows beyond 50k rows, consider a `user_daily_totals` table u
 
 ## Potentially Redundant Indexes
 
-> **⚠️ Validation required**: The assessment below is based on D1 Insights top queries over a 7-day window. "Not appearing in top queries" does not prove an index is unused — it may serve infrequent queries, admin tools, or future features not yet deployed. Before dropping any index, perform a **full query surface audit** (grep all SQL in the repo) and verify with `EXPLAIN QUERY PLAN` that no query plan relies on the index.
+> **Audit complete**: All four candidates were verified via full repo-wide SQL grep. None are referenced by any query path. Dropped in migration 010.
 
-| Index | Observation | Safe to drop? |
-|-------|-------------|---------------|
-| `idx_project_aliases_lookup (user_id, source, project_ref)` | Duplicates UNIQUE constraint autoindex on identical columns | **Yes** — SQLite autoindex on UNIQUE covers this exactly |
-| `idx_usage_source (source)` | Not in any top query; `source` is always filtered after `user_id` | **Needs verification** — audit repo queries first |
-| `idx_session_source (source)` | Same pattern as above | **Needs verification** |
-| `idx_session_kind (kind)` | Same pattern as above | **Needs verification** |
-
-Only `idx_project_aliases_lookup` is provably redundant (duplicate of UNIQUE autoindex). The other three require a repo-wide query audit before removal — dropping an index that serves an infrequent but important query path would cause a silent performance regression.
+| Index | Observation | Resolution |
+|-------|-------------|------------|
+| `idx_project_aliases_lookup (user_id, source, project_ref)` | Duplicates UNIQUE constraint autoindex on identical columns | **Dropped** |
+| `idx_usage_source (source)` | Not in any top query; `source` is always filtered after `user_id` | **Dropped** |
+| `idx_session_source (source)` | Same pattern as above | **Dropped** |
+| `idx_session_kind (kind)` | Same pattern as above | **Dropped** |
 
 ---
 

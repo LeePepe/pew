@@ -70,7 +70,6 @@ CREATE TABLE IF NOT EXISTS usage_records (
 );
 
 CREATE INDEX IF NOT EXISTS idx_usage_user_time ON usage_records(user_id, hour_start);
-CREATE INDEX IF NOT EXISTS idx_usage_source    ON usage_records(source);
 CREATE INDEX IF NOT EXISTS idx_usage_device    ON usage_records(user_id, device_id);
 
 -- ============================================================
@@ -97,9 +96,8 @@ CREATE TABLE IF NOT EXISTS session_records (
   UNIQUE(user_id, session_key)
 );
 
-CREATE INDEX IF NOT EXISTS idx_session_user_time ON session_records(user_id, started_at);
-CREATE INDEX IF NOT EXISTS idx_session_source    ON session_records(source);
-CREATE INDEX IF NOT EXISTS idx_session_kind      ON session_records(kind);
+CREATE INDEX IF NOT EXISTS idx_session_user_time           ON session_records(user_id, started_at);
+CREATE INDEX IF NOT EXISTS idx_session_user_source_project ON session_records(user_id, source, project_ref);
 
 -- ============================================================
 -- Model pricing (admin-managed)
@@ -200,7 +198,6 @@ CREATE TABLE IF NOT EXISTS project_aliases (
 );
 
 CREATE INDEX IF NOT EXISTS idx_project_aliases_project ON project_aliases(project_id);
-CREATE INDEX IF NOT EXISTS idx_project_aliases_lookup  ON project_aliases(user_id, source, project_ref);
 
 -- ============================================================
 -- App-wide settings (key-value store)
