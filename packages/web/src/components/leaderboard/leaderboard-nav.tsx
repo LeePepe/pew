@@ -19,14 +19,17 @@ const TABS = [
 
 /**
  * Route-based tab navigation for leaderboard pages.
- * Highlights the active tab based on the current pathname.
+ *
+ * Inspired by WoW Armory's HorizontalNav --underline style:
+ * uppercase labels with an animated bottom indicator on the active tab.
+ * Adapted to pew's Basalt design system (teal primary, muted foreground).
  */
 export function LeaderboardNav() {
   const pathname = usePathname();
 
   return (
     <nav
-      className="flex gap-1 rounded-lg bg-secondary p-1 animate-fade-up"
+      className="relative flex gap-6 border-b border-border animate-fade-up"
       style={{ animationDelay: "120ms" }}
       aria-label="Leaderboard navigation"
     >
@@ -40,13 +43,17 @@ export function LeaderboardNav() {
             key={tab.href}
             href={tab.href}
             className={cn(
-              "flex-1 rounded-md px-3 py-1.5 text-center text-sm font-medium transition-colors",
+              "relative pb-2.5 text-sm font-semibold uppercase tracking-wider transition-colors",
               isActive
-                ? "bg-background text-foreground shadow-sm"
+                ? "text-foreground"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
             {tab.label}
+            {/* Active underline indicator */}
+            {isActive && (
+              <span className="absolute inset-x-0 -bottom-px h-0.5 bg-primary rounded-full" />
+            )}
           </Link>
         );
       })}
