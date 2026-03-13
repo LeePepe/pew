@@ -2,29 +2,27 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import {
-  Github,
-  Trophy,
-  Medal,
-  Award,
-  EyeOff,
-  ChevronDown,
   Globe,
   Users,
   ShieldCheck,
+  EyeOff,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatTokens, formatTokensFull } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Skeleton } from "@/components/ui/skeleton";
-import { ThemeToggle } from "@/components/layout/theme-toggle";
 import {
   useLeaderboard,
   type LeaderboardPeriod,
   type LeaderboardEntry,
 } from "@/hooks/use-leaderboard";
 import { useAdmin } from "@/hooks/use-admin";
+import { CheckRuling } from "@/components/leaderboard/check-ruling";
+import { RankBadge } from "@/components/leaderboard/rank-badge";
+import { LeaderboardSkeleton } from "@/components/leaderboard/leaderboard-skeleton";
+import { LeaderboardNav } from "@/components/leaderboard/leaderboard-nav";
+import { PageHeader } from "@/components/leaderboard/page-header";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,7 +64,6 @@ function TeamLogoIcon({
   const [error, setError] = useState(false);
   const [prevUrl, setPrevUrl] = useState(logoUrl);
 
-  // Reset error state when logoUrl changes (derived state, no effect needed)
   if (logoUrl !== prevUrl) {
     setPrevUrl(logoUrl);
     setError(false);
@@ -91,7 +88,6 @@ function TeamLogoBadge({ logoUrl, name }: { logoUrl: string | null; name: string
   const [error, setError] = useState(false);
   const [prevUrl, setPrevUrl] = useState(logoUrl);
 
-  // Reset error state when logoUrl changes (derived state, no effect needed)
   if (logoUrl !== prevUrl) {
     setPrevUrl(logoUrl);
     setError(false);
@@ -127,7 +123,6 @@ function ScopeDropdown({
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  // Close on outside click
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
@@ -161,7 +156,6 @@ function ScopeDropdown({
       <Users className={iconClass} strokeWidth={1.5} />
     );
 
-  // Only show dropdown if there are teams or user is admin
   if (teams.length === 0 && !isAdmin) return null;
 
   return (
@@ -257,49 +251,6 @@ function DropdownItem({
 }
 
 // ---------------------------------------------------------------------------
-// Rank decorations
-// ---------------------------------------------------------------------------
-
-function RankBadge({ rank }: { rank: number }) {
-  if (rank === 1) {
-    return <Trophy className="h-5 w-5 text-yellow-500" strokeWidth={1.5} />;
-  }
-  if (rank === 2) {
-    return <Medal className="h-5 w-5 text-gray-400" strokeWidth={1.5} />;
-  }
-  if (rank === 3) {
-    return <Award className="h-5 w-5 text-amber-600" strokeWidth={1.5} />;
-  }
-  return (
-    <span className="flex h-5 w-5 items-center justify-center text-xs font-medium text-muted-foreground">
-      {rank}
-    </span>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Check-style ruling lines (right-side texture)
-// ---------------------------------------------------------------------------
-
-function CheckRuling() {
-  return (
-    <div
-      className="pointer-events-none absolute inset-y-0 right-0 w-1/3 opacity-[0.04]"
-      aria-hidden="true"
-    >
-      {/* Horizontal ruling lines */}
-      <div className="absolute inset-0 flex flex-col justify-evenly">
-        <div className="h-px bg-foreground" />
-        <div className="h-px bg-foreground" />
-        <div className="h-px bg-foreground" />
-        <div className="h-px bg-foreground" />
-        <div className="h-px bg-foreground" />
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Row component — check-style design
 // ---------------------------------------------------------------------------
 
@@ -326,7 +277,6 @@ function LeaderboardRow({
       )}
       style={{ animationDelay: `${index * 40}ms` }}
     >
-      {/* Check ruling texture */}
       <CheckRuling />
 
       {/* Rank */}
@@ -396,29 +346,6 @@ function LeaderboardRow({
 }
 
 // ---------------------------------------------------------------------------
-// Skeleton
-// ---------------------------------------------------------------------------
-
-function LeaderboardSkeleton() {
-  return (
-    <div className="space-y-3">
-      {Array.from({ length: 10 }).map((_, i) => (
-        <div
-          key={i}
-          className="flex items-center gap-4 rounded-[var(--radius-card)] bg-secondary px-4 py-4"
-        >
-          <Skeleton className="h-5 w-8" />
-          <Skeleton className="h-8 w-8 rounded-full" />
-          <Skeleton className="h-4 w-32" />
-          <div className="flex-1" />
-          <Skeleton className="h-6 w-28" />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -428,7 +355,6 @@ export default function LeaderboardPage() {
   const [teams, setTeams] = useState<Team[]>([]);
   const { isAdmin } = useAdmin();
 
-  // Derive hook params from scope
   const teamId = scope !== "global" && scope !== "all" ? scope : null;
   const admin = scope === "all";
 
@@ -438,7 +364,6 @@ export default function LeaderboardPage() {
     admin,
   });
 
-  // Fetch user's teams for the filter dropdown (only works if logged in)
   const fetchTeams = useCallback(async () => {
     try {
       const res = await fetch("/api/teams");
@@ -460,61 +385,25 @@ export default function LeaderboardPage() {
   const showHiddenBadge = scope === "all";
 
   return (
-    <div className="relative flex min-h-screen flex-col bg-background">
-      {/* Top-right icons — same pattern as landing page */}
-      <div className="absolute right-6 top-4 z-50 flex items-center gap-1">
-        <a
-          href="/privacy"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-[color] duration-200 hover:text-foreground"
-          aria-label="Privacy policy"
-        >
-          <ShieldCheck className="h-4 w-4" strokeWidth={1.5} aria-hidden="true" />
-        </a>
-        <a
-          href="https://github.com/nicnocquee/pew"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-[color] duration-200 hover:text-foreground"
-          aria-label="View source on GitHub"
-        >
-          <Github className="h-4 w-4" strokeWidth={1.5} aria-hidden="true" />
-        </a>
-        <ThemeToggle />
-      </div>
-
+    <>
       {/* Header */}
-      <header className="mx-auto w-full max-w-3xl px-6 pt-10 pb-2">
-        <div
-          className="flex items-center gap-5 animate-fade-up"
-          style={{ animationDelay: "0ms" }}
-        >
-          <Link
-            href="/"
-            className="shrink-0 hover:opacity-80 transition-opacity"
-          >
-            <Image
-              src="/logo-80.png"
-              alt="pew"
-              width={48}
-              height={48}
-            />
-          </Link>
-          <div className="flex flex-col">
-            <h1 className="tracking-tight text-foreground">
-              <span className="text-[47px] font-bold font-handwriting leading-none mr-2">pew</span>
-              <span className="text-[19px] font-normal text-muted-foreground">
-                Leaderboard
-              </span>
-            </h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              Who&apos;s burning the most tokens?
-            </p>
-          </div>
-        </div>
-      </header>
+      <PageHeader>
+        <h1 className="tracking-tight text-foreground">
+          <span className="text-[47px] font-bold font-handwriting leading-none mr-2">pew</span>
+          <span className="text-[19px] font-normal text-muted-foreground">
+            Leaderboard
+          </span>
+        </h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          Who&apos;s burning the most tokens?
+        </p>
+      </PageHeader>
 
       {/* Main content */}
-      <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-4 space-y-4">
+      <main className="flex-1 py-4 space-y-4">
+        {/* Tab nav */}
+        <LeaderboardNav />
+
         {/* Controls row */}
         <div
           className="relative z-20 flex items-center gap-3 animate-fade-up"
@@ -545,18 +434,6 @@ export default function LeaderboardPage() {
             teams={teams}
             isAdmin={isAdmin}
           />
-
-          {/* Seasons link */}
-          <Link
-            href="/leaderboard/seasons"
-            className={cn(
-              "flex items-center gap-2 rounded-lg bg-secondary px-3 py-[10px] text-sm font-medium transition-colors shrink-0",
-              "text-muted-foreground hover:text-foreground hover:bg-accent",
-            )}
-          >
-            <Trophy className="h-3.5 w-3.5" strokeWidth={1.5} />
-            Seasons
-          </Link>
         </div>
 
         {/* Error */}
@@ -594,17 +471,6 @@ export default function LeaderboardPage() {
           </div>
         )}
       </main>
-
-      {/* Footer — same as landing page */}
-      <footer className="px-6 py-3">
-        <p className="text-center text-xs text-muted-foreground">
-          © {new Date().getFullYear()} pew.md
-          <span className="mx-1.5">·</span>
-          <a href="/privacy" className="hover:text-foreground transition-colors">
-            Privacy
-          </a>
-        </p>
-      </footer>
-    </div>
+    </>
   );
 }

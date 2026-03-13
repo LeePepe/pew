@@ -1,153 +1,64 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import {
-  Github,
-  Trophy,
-  Medal,
-  Award,
-  ArrowLeft,
   Users,
   ChevronDown,
+  ChevronRight,
   Zap,
   Camera,
   Calendar,
-  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatTokens, formatTokensFull } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ThemeToggle } from "@/components/layout/theme-toggle";
 import {
   useSeasonLeaderboard,
   type SeasonTeamEntry,
 } from "@/hooks/use-season-leaderboard";
-import type { SeasonListItem } from "@/hooks/use-seasons";
-import type { SeasonStatus } from "@pew/core";
+import { CheckRuling } from "@/components/leaderboard/check-ruling";
+import { RankBadge } from "@/components/leaderboard/rank-badge";
+import { StatusBadge } from "@/components/leaderboard/status-badge";
+import { LeaderboardSkeleton } from "@/components/leaderboard/leaderboard-skeleton";
+import { PageHeader } from "@/components/leaderboard/page-header";
+import { Trophy } from "lucide-react";
 
 // ---------------------------------------------------------------------------
-// Slug → season ID resolver
+// Breadcrumb navigation
 // ---------------------------------------------------------------------------
 
-function useSeasonIdFromSlug(slug: string) {
-  const [seasonId, setSeasonId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function resolve() {
-      try {
-        const res = await fetch("/api/seasons");
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
-        }
-        const data = (await res.json()) as { seasons: SeasonListItem[] };
-        const match = data.seasons.find((s) => s.slug === slug);
-        if (!match) {
-          throw new Error("Season not found");
-        }
-        if (!cancelled) {
-          setSeasonId(match.id);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Unknown error");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    resolve();
-    return () => {
-      cancelled = true;
-    };
-  }, [slug]);
-
-  return { seasonId, loading, error };
-}
-
-// ---------------------------------------------------------------------------
-// Status badge (same as seasons list page)
-// ---------------------------------------------------------------------------
-
-const STATUS_STYLES: Record<SeasonStatus, string> = {
-  active:
-    "bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/25",
-  upcoming:
-    "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/25",
-  ended: "bg-muted text-muted-foreground border-border",
-};
-
-const STATUS_LABELS: Record<SeasonStatus, string> = {
-  active: "Active",
-  upcoming: "Upcoming",
-  ended: "Ended",
-};
-
-function StatusBadge({ status }: { status: SeasonStatus }) {
+function Breadcrumb({ seasonName }: { seasonName?: string | undefined }) {
   return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium",
-        STATUS_STYLES[status],
-      )}
+    <nav
+      className="flex items-center gap-1.5 text-sm text-muted-foreground animate-fade-up"
+      style={{ animationDelay: "120ms" }}
+      aria-label="Breadcrumb"
     >
-      {status === "active" && (
-        <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+      <Link
+        href="/leaderboard"
+        className="hover:text-foreground transition-colors"
+      >
+        Leaderboard
+      </Link>
+      <ChevronRight className="h-3.5 w-3.5" />
+      <Link
+        href="/leaderboard/seasons"
+        className="hover:text-foreground transition-colors"
+      >
+        Seasons
+      </Link>
+      {seasonName && (
+        <>
+          <ChevronRight className="h-3.5 w-3.5" />
+          <span className="text-foreground font-medium truncate">
+            {seasonName}
+          </span>
+        </>
       )}
-      {STATUS_LABELS[status]}
-    </span>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Check-style ruling lines (right-side texture)
-// ---------------------------------------------------------------------------
-
-function CheckRuling() {
-  return (
-    <div
-      className="pointer-events-none absolute inset-y-0 right-0 w-1/3 opacity-[0.04]"
-      aria-hidden="true"
-    >
-      <div className="absolute inset-0 flex flex-col justify-evenly">
-        <div className="h-px bg-foreground" />
-        <div className="h-px bg-foreground" />
-        <div className="h-px bg-foreground" />
-        <div className="h-px bg-foreground" />
-        <div className="h-px bg-foreground" />
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Rank decorations
-// ---------------------------------------------------------------------------
-
-function RankBadge({ rank }: { rank: number }) {
-  if (rank === 1) {
-    return <Trophy className="h-5 w-5 text-yellow-500" strokeWidth={1.5} />;
-  }
-  if (rank === 2) {
-    return <Medal className="h-5 w-5 text-gray-400" strokeWidth={1.5} />;
-  }
-  if (rank === 3) {
-    return <Award className="h-5 w-5 text-amber-600" strokeWidth={1.5} />;
-  }
-  return (
-    <span className="flex h-5 w-5 items-center justify-center text-xs font-medium text-muted-foreground">
-      {rank}
-    </span>
+    </nav>
   );
 }
 
@@ -179,7 +90,6 @@ function TeamRow({
           expanded && "rounded-b-none",
         )}
       >
-        {/* Check ruling texture */}
         <CheckRuling />
 
         {/* Rank */}
@@ -272,150 +182,69 @@ function TeamRow({
 }
 
 // ---------------------------------------------------------------------------
-// Skeleton
-// ---------------------------------------------------------------------------
-
-function LeaderboardSkeleton() {
-  return (
-    <div className="space-y-3">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div
-          key={i}
-          className="flex items-center gap-4 rounded-[var(--radius-card)] bg-secondary px-4 py-4"
-        >
-          <Skeleton className="h-5 w-8" />
-          <Skeleton className="h-8 w-8 rounded-full" />
-          <Skeleton className="h-4 w-32" />
-          <div className="flex-1" />
-          <Skeleton className="h-6 w-28" />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
 export default function SeasonLeaderboardPage() {
   const { slug } = useParams<{ slug: string }>();
-  const {
-    seasonId,
-    loading: resolving,
-    error: resolveError,
-  } = useSeasonIdFromSlug(slug);
-  const { data, loading, refreshing, error } =
-    useSeasonLeaderboard(seasonId);
 
-  const isLoading = resolving || (loading && !data);
+  // Pass slug directly to the API (supports both UUID and slug since Phase 3)
+  const { data, loading, refreshing, error } = useSeasonLeaderboard(slug);
+
+  const isLoading = loading && !data;
 
   return (
-    <div className="relative flex min-h-screen flex-col bg-background">
-      {/* Top-right icons — same pattern as main leaderboard */}
-      <div className="absolute right-6 top-4 z-50 flex items-center gap-1">
-        <a
-          href="/privacy"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-[color] duration-200 hover:text-foreground"
-          aria-label="Privacy policy"
-        >
-          <ShieldCheck className="h-4 w-4" strokeWidth={1.5} aria-hidden="true" />
-        </a>
-        <a
-          href="https://github.com/nicnocquee/pew"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-[color] duration-200 hover:text-foreground"
-          aria-label="View source on GitHub"
-        >
-          <Github className="h-4 w-4" strokeWidth={1.5} aria-hidden="true" />
-        </a>
-        <ThemeToggle />
-      </div>
-
-      {/* Header */}
-      <header className="mx-auto w-full max-w-3xl px-6 pt-10 pb-2">
-        <div
-          className="flex items-center gap-5 animate-fade-up"
-          style={{ animationDelay: "0ms" }}
-        >
-          <Link
-            href="/"
-            className="shrink-0 hover:opacity-80 transition-opacity"
-          >
-            <Image
-              src="/logo-80.png"
-              alt="pew"
-              width={48}
-              height={48}
-            />
-          </Link>
-          <div className="flex flex-col">
-            {data ? (
-              <>
-                <h1 className="tracking-tight text-foreground">
-                  <span className="text-[47px] font-bold font-handwriting leading-none mr-2">
-                    {data.season.name}
-                  </span>
-                </h1>
-                <div className="mt-0.5 flex items-center gap-2 flex-wrap">
-                  <StatusBadge status={data.season.status} />
-                  {data.season.is_snapshot ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                      <Camera className="h-3 w-3" />
-                      Final Results
-                    </span>
-                  ) : data.season.status === "active" ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:text-green-400">
-                      <Zap className="h-3 w-3" />
-                      Live
-                    </span>
-                  ) : null}
-                  <span className="text-sm text-muted-foreground inline-flex items-center gap-1">
-                    <Calendar className="h-3.5 w-3.5" />
-                    {data.season.start_date} &mdash; {data.season.end_date}
-                  </span>
-                </div>
-              </>
-            ) : isLoading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-10 w-48" />
-                <Skeleton className="h-4 w-56" />
-              </div>
-            ) : null}
+    <>
+      {/* Header — context-aware: shows season name + status when loaded */}
+      <PageHeader>
+        {data ? (
+          <>
+            <h1 className="tracking-tight text-foreground">
+              <span className="text-[47px] font-bold font-handwriting leading-none mr-2">
+                {data.season.name}
+              </span>
+            </h1>
+            <div className="mt-0.5 flex items-center gap-2 flex-wrap">
+              <StatusBadge status={data.season.status} />
+              {data.season.is_snapshot ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                  <Camera className="h-3 w-3" />
+                  Final Results
+                </span>
+              ) : data.season.status === "active" ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:text-green-400">
+                  <Zap className="h-3 w-3" />
+                  Live
+                </span>
+              ) : null}
+              <span className="text-sm text-muted-foreground inline-flex items-center gap-1">
+                <Calendar className="h-3.5 w-3.5" />
+                {data.season.start_date} &mdash; {data.season.end_date}
+              </span>
+            </div>
+          </>
+        ) : isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-10 w-48" />
+            <Skeleton className="h-4 w-56" />
           </div>
-        </div>
-      </header>
+        ) : null}
+      </PageHeader>
 
       {/* Main content */}
-      <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-4 space-y-4">
-        {/* Controls row */}
-        <div
-          className="relative z-20 flex items-center gap-3 animate-fade-up"
-          style={{ animationDelay: "180ms" }}
-        >
-          {/* Back link */}
-          <Link
-            href="/leaderboard/seasons"
-            className={cn(
-              "flex items-center gap-2 rounded-lg bg-secondary px-3 py-[10px] text-sm font-medium transition-colors",
-              "text-muted-foreground hover:text-foreground hover:bg-accent",
-            )}
-          >
-            <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.5} />
-            Back to Seasons
-          </Link>
-        </div>
+      <main className="flex-1 py-4 space-y-4">
+        {/* Breadcrumb navigation */}
+        <Breadcrumb seasonName={data?.season.name} />
 
         {/* Error */}
-        {(resolveError || error) && (
+        {error && (
           <div className="rounded-[var(--radius-card)] bg-destructive/10 p-4 text-sm text-destructive">
-            {resolveError || error}
+            {error}
           </div>
         )}
 
         {/* Loading */}
-        {isLoading && <LeaderboardSkeleton />}
+        {isLoading && <LeaderboardSkeleton count={5} />}
 
         {/* Content */}
         {data && (
@@ -441,17 +270,6 @@ export default function SeasonLeaderboardPage() {
           </div>
         )}
       </main>
-
-      {/* Footer */}
-      <footer className="px-6 py-3">
-        <p className="text-center text-xs text-muted-foreground">
-          &copy; {new Date().getFullYear()} pew.md
-          <span className="mx-1.5">&middot;</span>
-          <a href="/privacy" className="hover:text-foreground transition-colors">
-            Privacy
-          </a>
-        </p>
-      </footer>
-    </div>
+    </>
   );
 }

@@ -57,7 +57,7 @@ interface UseSeasonLeaderboardResult {
 }
 
 export function useSeasonLeaderboard(
-  seasonId: string | null,
+  seasonIdOrSlug: string | null,
 ): UseSeasonLeaderboardResult {
   const [data, setData] = useState<SeasonLeaderboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -65,7 +65,7 @@ export function useSeasonLeaderboard(
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    if (!seasonId) return;
+    if (!seasonIdOrSlug) return;
 
     if (data === null) {
       setLoading(true);
@@ -76,7 +76,7 @@ export function useSeasonLeaderboard(
 
     try {
       const res = await fetch(
-        `/api/seasons/${seasonId}/leaderboard?expand=members`,
+        `/api/seasons/${seasonIdOrSlug}/leaderboard?expand=members`,
       );
 
       if (!res.ok) {
@@ -95,7 +95,7 @@ export function useSeasonLeaderboard(
       setRefreshing(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seasonId]);
+  }, [seasonIdOrSlug]);
 
   useEffect(() => {
     fetchData();

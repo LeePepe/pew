@@ -1,78 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import {
   Trophy,
-  ArrowLeft,
   Calendar,
   Users,
   Camera,
   Zap,
-  Github,
-  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useSeasons, type SeasonListItem } from "@/hooks/use-seasons";
-import type { SeasonStatus } from "@pew/core";
-
-// ---------------------------------------------------------------------------
-// Status badge
-// ---------------------------------------------------------------------------
-
-const STATUS_STYLES: Record<SeasonStatus, string> = {
-  active:
-    "bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/25",
-  upcoming:
-    "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/25",
-  ended:
-    "bg-muted text-muted-foreground border-border",
-};
-
-const STATUS_LABELS: Record<SeasonStatus, string> = {
-  active: "Active",
-  upcoming: "Upcoming",
-  ended: "Ended",
-};
-
-function StatusBadge({ status }: { status: SeasonStatus }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium",
-        STATUS_STYLES[status],
-      )}
-    >
-      {status === "active" && (
-        <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-      )}
-      {STATUS_LABELS[status]}
-    </span>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Check-style ruling lines (right-side texture)
-// ---------------------------------------------------------------------------
-
-function CheckRuling() {
-  return (
-    <div
-      className="pointer-events-none absolute inset-y-0 right-0 w-1/3 opacity-[0.04]"
-      aria-hidden="true"
-    >
-      <div className="absolute inset-0 flex flex-col justify-evenly">
-        <div className="h-px bg-foreground" />
-        <div className="h-px bg-foreground" />
-        <div className="h-px bg-foreground" />
-        <div className="h-px bg-foreground" />
-        <div className="h-px bg-foreground" />
-      </div>
-    </div>
-  );
-}
+import { CheckRuling } from "@/components/leaderboard/check-ruling";
+import { StatusBadge } from "@/components/leaderboard/status-badge";
+import { LeaderboardNav } from "@/components/leaderboard/leaderboard-nav";
+import { PageHeader } from "@/components/leaderboard/page-header";
 
 // ---------------------------------------------------------------------------
 // Season card — unified with main leaderboard row style
@@ -161,77 +103,24 @@ export default function SeasonsPage() {
   const { data, loading, error } = useSeasons();
 
   return (
-    <div className="relative flex min-h-screen flex-col bg-background">
-      {/* Top-right icons */}
-      <div className="absolute right-6 top-4 z-50 flex items-center gap-1">
-        <a
-          href="/privacy"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-[color] duration-200 hover:text-foreground"
-          aria-label="Privacy policy"
-        >
-          <ShieldCheck className="h-4 w-4" strokeWidth={1.5} aria-hidden="true" />
-        </a>
-        <a
-          href="https://github.com/nicnocquee/pew"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-[color] duration-200 hover:text-foreground"
-          aria-label="View source on GitHub"
-        >
-          <Github className="h-4 w-4" strokeWidth={1.5} aria-hidden="true" />
-        </a>
-        <ThemeToggle />
-      </div>
-
+    <>
       {/* Header */}
-      <header className="mx-auto w-full max-w-3xl px-6 pt-10 pb-2">
-        <div
-          className="flex items-center gap-5 animate-fade-up"
-          style={{ animationDelay: "0ms" }}
-        >
-          <Link
-            href="/"
-            className="shrink-0 hover:opacity-80 transition-opacity"
-          >
-            <Image
-              src="/logo-80.png"
-              alt="pew"
-              width={48}
-              height={48}
-            />
-          </Link>
-          <div className="flex flex-col">
-            <h1 className="tracking-tight text-foreground">
-              <span className="text-[47px] font-bold font-handwriting leading-none mr-2">pew</span>
-              <span className="text-[19px] font-normal text-muted-foreground">
-                Seasons
-              </span>
-            </h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              Compete as teams across time-boxed seasons.
-            </p>
-          </div>
-        </div>
-      </header>
+      <PageHeader>
+        <h1 className="tracking-tight text-foreground">
+          <span className="text-[47px] font-bold font-handwriting leading-none mr-2">pew</span>
+          <span className="text-[19px] font-normal text-muted-foreground">
+            Seasons
+          </span>
+        </h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          Compete as teams across time-boxed seasons.
+        </p>
+      </PageHeader>
 
       {/* Main content */}
-      <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-4 space-y-4">
-        {/* Controls row */}
-        <div
-          className="relative z-20 flex items-center gap-3 animate-fade-up"
-          style={{ animationDelay: "180ms" }}
-        >
-          <Link
-            href="/leaderboard"
-            className={cn(
-              "flex items-center gap-2 rounded-lg bg-secondary px-3 py-[10px] text-sm font-medium transition-colors shrink-0",
-              "text-muted-foreground hover:text-foreground hover:bg-accent",
-            )}
-          >
-            <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.5} />
-            Back to Leaderboard
-          </Link>
-        </div>
+      <main className="flex-1 py-4 space-y-4">
+        {/* Tab nav */}
+        <LeaderboardNav />
 
         {/* Error */}
         {error && (
@@ -268,17 +157,6 @@ export default function SeasonsPage() {
           </div>
         )}
       </main>
-
-      {/* Footer */}
-      <footer className="px-6 py-3">
-        <p className="text-center text-xs text-muted-foreground">
-          © {new Date().getFullYear()} pew.md
-          <span className="mx-1.5">·</span>
-          <a href="/privacy" className="hover:text-foreground transition-colors">
-            Privacy
-          </a>
-        </p>
-      </footer>
-    </div>
+    </>
   );
 }

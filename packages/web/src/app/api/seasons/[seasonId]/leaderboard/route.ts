@@ -91,6 +91,12 @@ function startDateInclusive(startDate: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Helpers — identifier detection
+// ---------------------------------------------------------------------------
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// ---------------------------------------------------------------------------
 // Route handler
 // ---------------------------------------------------------------------------
 
@@ -105,9 +111,12 @@ export async function GET(
   const client = getD1Client();
 
   try {
-    // Fetch season (includes snapshot_ready flag)
+    // Fetch season by UUID or slug
+    const isUUID = UUID_RE.test(seasonId);
     const season = await client.firstOrNull<SeasonRow>(
-      "SELECT id, name, slug, start_date, end_date, snapshot_ready FROM seasons WHERE id = ?",
+      isUUID
+        ? "SELECT id, name, slug, start_date, end_date, snapshot_ready FROM seasons WHERE id = ?"
+        : "SELECT id, name, slug, start_date, end_date, snapshot_ready FROM seasons WHERE slug = ?",
       [seasonId]
     );
 
@@ -145,7 +154,7 @@ export async function GET(
         JOIN teams t ON t.id = ss.team_id
         WHERE ss.season_id = ?
         ORDER BY ss.rank ASC`,
-        [seasonId]
+        [season.id]
       );
 
       const membersByTeam = new Map<string, MemberSnapshotRow[]>();
@@ -165,7 +174,7 @@ export async function GET(
           JOIN users u ON u.id = sms.user_id
           WHERE sms.season_id = ?
           ORDER BY sms.total_tokens DESC`,
-          [seasonId]
+          [season.id]
         );
 
         for (const row of memberSnapshots.results) {
@@ -218,7 +227,7 @@ export async function GET(
         WHERE st.season_id = ?
         GROUP BY st.team_id
         ORDER BY total_tokens DESC`,
-        [fromDate, toDate, seasonId]
+        [fromDate, toDate, season.id]
       );
 
       const membersByTeam = new Map<string, MemberRow[]>();
@@ -245,7 +254,7 @@ export async function GET(
             AND tm.team_id IN (${placeholders})
           GROUP BY tm.team_id, tm.user_id
           ORDER BY total_tokens DESC`,
-          [fromDate, toDate, seasonId, ...teamIds]
+          [fromDate, toDate, season.id, ...teamIds]
         );
 
         for (const row of memberRows.results) {
