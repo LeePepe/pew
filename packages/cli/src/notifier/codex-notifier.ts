@@ -200,6 +200,13 @@ function removeNotify(text: string): string {
   return `${out.join("\n").replace(/\n+$/, "")}\n`;
 }
 
+/**
+ * Parse a TOML string array literal, e.g. `["a", "b", 'c']`.
+ *
+ * Handles TOML escape sequences in double-quoted strings (`\"`, `\\`, `\n`,
+ * `\t`).  Single-quoted strings are literal (no escape processing), per the
+ * TOML spec.
+ */
 function parseTomlStringArray(text: string): string[] | null {
   if (!text.startsWith("[") || !text.endsWith("]")) return null;
   const inner = text.slice(1, -1).trim();
@@ -218,6 +225,19 @@ function parseTomlStringArray(text: string): string[] | null {
         quote = char;
         current = "";
       }
+      continue;
+    }
+
+    // Handle backslash escapes in double-quoted strings only
+    if (quote === '"' && char === "\\") {
+      const next = inner[i + 1];
+      if (next === '"') { current += '"'; i++; continue; }
+      if (next === "\\") { current += "\\"; i++; continue; }
+      if (next === "n") { current += "\n"; i++; continue; }
+      if (next === "t") { current += "\t"; i++; continue; }
+      if (next === "r") { current += "\r"; i++; continue; }
+      // Unknown escape: preserve the backslash as-is (defensive)
+      current += char;
       continue;
     }
 
@@ -267,6 +287,12 @@ function readTomlArrayLiteral(
         continue;
       }
 
+      // Skip escaped characters in double-quoted strings
+      if (quote === '"' && char === "\\" && j + 1 < chunk.length) {
+        j++; // skip the next character
+        continue;
+      }
+
       if (char === quote) {
         inString = false;
         quote = null;
@@ -298,6 +324,11 @@ function findTomlArrayBlockEnd(lines: string[], startIndex: number, rhs: string)
         }
         if (char === "[") depth += 1;
         else if (char === "]") depth -= 1;
+        continue;
+      }
+      // Skip escaped characters in double-quoted strings
+      if (quote === '"' && char === "\\" && j + 1 < chunk.length) {
+        j++;
         continue;
       }
       if (char === quote) {

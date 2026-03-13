@@ -209,4 +209,117 @@ describe("Codex notifier installer", () => {
     expect(result.changed).toBe(true);
     expect(updated).toContain('"/tmp/pew/bin/notify.cjs"');
   });
+
+  // ---- TOML escape handling ----
+
+  it("parses notify with escaped quotes in double-quoted strings", async () => {
+    // notify = ["bash", "-lc", "echo \"x\""]
+    await writeFile(
+      configPath,
+      'notify = ["bash", "-lc", "echo \\"x\\""]\n',
+      "utf8",
+    );
+
+    // Install should detect existing notify and back it up correctly
+    const result = await installCodexNotifier({
+      configPath,
+      notifyPath,
+      originalBackupPath,
+    });
+    const backup = JSON.parse(await readFile(originalBackupPath, "utf8"));
+
+    expect(result.changed).toBe(true);
+    // The parsed backup should contain the unescaped value
+    expect(backup.notify).toEqual(["bash", "-lc", 'echo "x"']);
+  });
+
+  it("parses notify with backslash paths (Windows-style)", async () => {
+    // notify = ["C:\\Users\\foo\\notify.exe", "--flag"]
+    await writeFile(
+      configPath,
+      'notify = ["C:\\\\Users\\\\foo\\\\notify.exe", "--flag"]\n',
+      "utf8",
+    );
+
+    const result = await installCodexNotifier({
+      configPath,
+      notifyPath,
+      originalBackupPath,
+    });
+    const backup = JSON.parse(await readFile(originalBackupPath, "utf8"));
+
+    expect(result.changed).toBe(true);
+    expect(backup.notify).toEqual(["C:\\Users\\foo\\notify.exe", "--flag"]);
+  });
+
+  it("does not process escapes in single-quoted strings (TOML literal strings)", async () => {
+    // In TOML, single-quoted strings are literal — backslash has no special meaning
+    // notify = ['C:\Users\foo\notify.exe', '--flag']
+    await writeFile(
+      configPath,
+      "notify = ['C:\\Users\\foo\\notify.exe', '--flag']\n",
+      "utf8",
+    );
+
+    const result = await installCodexNotifier({
+      configPath,
+      notifyPath,
+      originalBackupPath,
+    });
+    const backup = JSON.parse(await readFile(originalBackupPath, "utf8"));
+
+    expect(result.changed).toBe(true);
+    // Single-quoted: backslashes are kept literally
+    expect(backup.notify).toEqual(["C:\\Users\\foo\\notify.exe", "--flag"]);
+  });
+
+  it("correctly restores a backup containing escaped quotes on uninstall", async () => {
+    // Simulate: pew was installed, original had escaped quotes
+    await writeFile(
+      configPath,
+      'notify = ["/usr/bin/env", "node", "/tmp/pew/bin/notify.cjs", "--source=codex"]\n',
+      "utf8",
+    );
+    await writeFile(
+      originalBackupPath,
+      JSON.stringify({ notify: ["bash", "-lc", 'echo "hello"'] }),
+      "utf8",
+    );
+
+    const result = await uninstallCodexNotifier({
+      configPath,
+      notifyPath,
+      originalBackupPath,
+    });
+    const updated = await readFile(configPath, "utf8");
+
+    expect(result.changed).toBe(true);
+    // formatTomlStringArray uses JSON.stringify which correctly escapes
+    expect(updated).toContain('notify = ["bash", "-lc", "echo \\"hello\\""]');
+  });
+
+  it("handles multiline notify with escaped quotes", async () => {
+    await writeFile(
+      configPath,
+      [
+        'model = "gpt-5"',
+        "notify = [",
+        '  "bash",',
+        '  "-lc",',
+        '  "echo \\"done\\""',
+        "]",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = await installCodexNotifier({
+      configPath,
+      notifyPath,
+      originalBackupPath,
+    });
+    const backup = JSON.parse(await readFile(originalBackupPath, "utf8"));
+
+    expect(result.changed).toBe(true);
+    expect(backup.notify).toEqual(["bash", "-lc", 'echo "done"']);
+  });
 });
