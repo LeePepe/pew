@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.9.0
+
+### Features
+
+- **Leaderboard armory refactor** — Extracted shared layout and reusable components (`LeaderboardTable`, `LeaderboardTabs`, `PageHeader`) for all leaderboard pages
+- **Underline-style tabs** — Replaced pill-style nav with underline tabs for a cleaner leaderboard navigation
+- **Teal gradient header** — Added subtle teal gradient glow to leaderboard page header
+- **Token tier badges** — Display token counts with K/M/B tier badges on leaderboard rows
+- **Table polish** — Compact density, input/output color coding, and improved header styling across individual and season leaderboard pages
+
+### Tests
+
+- **UUID vs slug coverage** — Added branch coverage for UUID vs slug season parameter in leaderboard API
+
 ## v1.8.2
 
 ### Features
