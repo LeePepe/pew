@@ -23,6 +23,7 @@ import {
   Ticket,
   ArrowUpRight,
   FolderKanban,
+  Database,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { APP_VERSION } from "@/lib/version";
@@ -62,6 +63,7 @@ const ICON_MAP: Record<string, ElementType> = {
   Ticket,
   ArrowUpRight,
   FolderKanban,
+  Database,
 };
 
 interface NavItem {

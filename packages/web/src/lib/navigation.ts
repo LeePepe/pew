@@ -67,6 +67,7 @@ export const ADMIN_NAV_GROUP: NavGroupDef = {
     { href: "/admin/pricing", label: "Token Pricing", icon: "DollarSign" },
     { href: "/admin/invites", label: "Invite Codes", icon: "Ticket" },
     { href: "/admin/seasons", label: "Seasons", icon: "Trophy" },
+    { href: "/admin/storage", label: "Storage", icon: "Database" },
   ],
 };
 
@@ -90,6 +91,7 @@ export const ROUTE_LABELS: Record<string, string> = {
   "manage-devices": "Devices",
   leaderboard: "Leaderboard",
   seasons: "Seasons",
+  storage: "Storage",
 };
 
 export function breadcrumbsFromPathname(pathname: string) {

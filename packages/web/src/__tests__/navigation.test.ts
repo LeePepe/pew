@@ -143,6 +143,15 @@ describe("sidebar navigation", () => {
       expect(inviteItem!.href).toBe("/admin/invites");
       expect(inviteItem!.icon).toBe("Ticket");
     });
+
+    it("should include Storage nav item", () => {
+      const storageItem = ADMIN_NAV_GROUP.items.find(
+        (i) => i.label === "Storage"
+      );
+      expect(storageItem).toBeDefined();
+      expect(storageItem!.href).toBe("/admin/storage");
+      expect(storageItem!.icon).toBe("Database");
+    });
   });
 });
 
@@ -180,6 +189,7 @@ describe("route labels", () => {
       "manage-devices": "Devices",
       leaderboard: "Leaderboard",
       seasons: "Seasons",
+      storage: "Storage",
     });
   });
 });
