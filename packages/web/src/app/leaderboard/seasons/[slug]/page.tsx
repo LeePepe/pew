@@ -27,6 +27,28 @@ import { PageHeader } from "@/components/leaderboard/page-header";
 import { Trophy } from "lucide-react";
 
 // ---------------------------------------------------------------------------
+// Season table header
+// ---------------------------------------------------------------------------
+
+function SeasonTableHeader() {
+  return (
+    <div className="animate-fade-up" style={{ animationDelay: "200ms" }}>
+      <div className="flex items-center px-4 pb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
+        <span className="w-8 shrink-0 text-center">Rank</span>
+        <span className="w-3 shrink-0" />
+        <span className="flex-1">Team</span>
+        <span className="hidden sm:block w-20 text-right">In</span>
+        <span className="hidden sm:block w-20 text-right">Out</span>
+        <span className="w-[140px] shrink-0 text-right">Tokens</span>
+        {/* Expand chevron spacer */}
+        <span className="w-4 shrink-0" />
+      </div>
+      <div className="h-px bg-border/50" />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Breadcrumb navigation
 // ---------------------------------------------------------------------------
 
@@ -84,7 +106,7 @@ function TeamRow({
       <button
         onClick={() => hasMembers && setExpanded(!expanded)}
         className={cn(
-          "relative flex w-full items-center gap-4 overflow-hidden rounded-[var(--radius-card)] bg-secondary px-4 py-4 text-left transition-colors",
+          "relative flex w-full items-center gap-3 overflow-hidden rounded-[var(--radius-card)] bg-secondary px-4 py-3 text-left transition-colors",
           hasMembers && "hover:bg-accent cursor-pointer",
           entry.rank <= 3 && "ring-1 ring-border/50",
           expanded && "rounded-b-none",
@@ -92,8 +114,8 @@ function TeamRow({
       >
         <CheckRuling />
 
-        {/* Rank */}
-        <div className="flex w-8 shrink-0 items-center justify-center">
+        {/* Rank — fixed w-8, tabular-nums */}
+        <div className="flex w-8 shrink-0 items-center justify-center tabular-nums">
           <RankBadge rank={entry.rank} />
         </div>
 
@@ -115,18 +137,22 @@ function TeamRow({
           </div>
         </div>
 
-        {/* Token breakdown (hidden on mobile) */}
-        <div className="hidden sm:flex items-center gap-6 text-xs text-muted-foreground">
-          <span title="Input tokens">
-            {formatTokens(entry.input_tokens)} in
+        {/* Input tokens — cyan tint (hidden on mobile) */}
+        <div className="hidden sm:block w-20 text-right">
+          <span className="text-xs tabular-nums text-cyan-400/80" title="Input tokens">
+            {formatTokens(entry.input_tokens)}
           </span>
-          <span title="Output tokens">
-            {formatTokens(entry.output_tokens)} out
+        </div>
+
+        {/* Output tokens — amber/warm tint (hidden on mobile) */}
+        <div className="hidden sm:block w-20 text-right">
+          <span className="text-xs tabular-nums text-amber-400/80" title="Output tokens">
+            {formatTokens(entry.output_tokens)}
           </span>
         </div>
 
         {/* Total */}
-        <div className="relative z-10 shrink-0 text-right">
+        <div className="relative z-10 w-[140px] shrink-0 text-right">
           <span className="font-handwriting text-[39px] leading-none tracking-tight text-foreground">
             {formatTokensFull(entry.total_tokens)}
           </span>
@@ -165,9 +191,9 @@ function TeamRow({
                 <span className="text-sm text-foreground truncate flex-1 min-w-0">
                   {displayName}
                 </span>
-                <div className="hidden sm:flex items-center gap-4 text-xs text-muted-foreground">
-                  <span>{formatTokens(member.input_tokens)} in</span>
-                  <span>{formatTokens(member.output_tokens)} out</span>
+                <div className="hidden sm:flex items-center gap-4 text-xs">
+                  <span className="tabular-nums text-cyan-400/80">{formatTokens(member.input_tokens)}</span>
+                  <span className="tabular-nums text-amber-400/80">{formatTokens(member.output_tokens)}</span>
                 </div>
                 <span className="text-sm font-medium text-foreground tabular-nums shrink-0">
                   {formatTokensFull(member.total_tokens)}
@@ -246,11 +272,14 @@ export default function SeasonLeaderboardPage() {
         {/* Loading */}
         {isLoading && <LeaderboardSkeleton count={5} />}
 
+        {/* Table header */}
+        {data && data.entries.length > 0 && <SeasonTableHeader />}
+
         {/* Content */}
         {data && (
           <div
             className={cn(
-              "space-y-3 transition-opacity duration-200",
+              "space-y-2 transition-opacity duration-200",
               refreshing && "opacity-60",
             )}
           >

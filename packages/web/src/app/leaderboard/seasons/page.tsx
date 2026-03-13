@@ -25,7 +25,7 @@ function SeasonCard({ season, index }: { season: SeasonListItem; index: number }
     <Link
       href={`/leaderboard/seasons/${season.slug}`}
       className={cn(
-        "group relative block overflow-hidden rounded-[var(--radius-card)] bg-secondary px-4 py-4 transition-colors animate-fade-up",
+        "group relative block overflow-hidden rounded-[var(--radius-card)] bg-secondary px-4 py-3 transition-colors animate-fade-up",
         "hover:bg-accent cursor-pointer",
       )}
       style={{ animationDelay: `${index * 50}ms` }}
@@ -77,7 +77,7 @@ function SeasonCard({ season, index }: { season: SeasonListItem; index: number }
 
 function SeasonCardSkeleton() {
   return (
-    <div className="rounded-[var(--radius-card)] bg-secondary px-4 py-4">
+    <div className="rounded-[var(--radius-card)] bg-secondary px-4 py-3">
       <div className="flex items-start justify-between">
         <div className="flex-1 space-y-3">
           <div className="flex items-center gap-2">
@@ -131,7 +131,7 @@ export default function SeasonsPage() {
 
         {/* Loading */}
         {loading && !data && (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {Array.from({ length: 3 }).map((_, i) => (
               <SeasonCardSkeleton key={i} />
             ))}
@@ -140,7 +140,7 @@ export default function SeasonsPage() {
 
         {/* Content */}
         {data && (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {data.seasons.length === 0 ? (
               <div className="rounded-[var(--radius-card)] bg-secondary p-8 text-center text-sm text-muted-foreground">
                 <Trophy className="mx-auto h-12 w-12 mb-4 opacity-30" />
