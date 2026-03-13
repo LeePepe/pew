@@ -132,23 +132,10 @@ Extend the existing PATCH body to accept:
 - `remove_tags`: silently ignored if the tag doesn't exist on this project
 - Both are optional; only provided fields are processed
 
-### 2.3. `GET /api/projects/tags` — List all user tags
-
-Returns all distinct tags for the authenticated user (for autocomplete/filter).
-
-```json
-{
-  "tags": ["frontend", "open-source", "work"]
-}
-```
-
-**Query:**
-
-```sql
-SELECT DISTINCT tag FROM project_tags
-WHERE user_id = ?
-ORDER BY tag
-```
+> **Note**: No separate `GET /api/projects/tags` endpoint is needed. The
+> `allTags` list is derived client-side from the `tags` arrays already present
+> in the `useProjects()` response. If a cross-page tags API becomes necessary
+> in the future, it can be added then.
 
 ---
 
@@ -161,10 +148,20 @@ Update the `Project` type to include `tags: string[]`.
 Add `addTags` and `removeTags` to `updateProject` (already exists, just
 extend the body shape).
 
-Add a `useProjectTags()` hook or fold the tags list into `useProjects()` return
-value. Given the data is small and changes infrequently, folding into the
-existing hook is simpler — add a `allTags: string[]` field derived from the
-projects data.
+Derive `allTags: string[]` client-side from the projects array:
+
+```typescript
+const allTags = useMemo(() => {
+  const set = new Set<string>();
+  for (const p of data?.projects ?? []) {
+    for (const t of p.tags) set.add(t);
+  }
+  return Array.from(set).sort();
+}, [data]);
+```
+
+No separate API endpoint needed — the tags are already embedded in each
+project's response.
 
 ### 3.2. Sessions page cleanup
 
@@ -250,8 +247,8 @@ Three cards matching the `/devices` pattern:
 | Card | Value | Source |
 |------|-------|--------|
 | Projects | Count of named projects | `projects.length` |
-| Most Active | Name of project with highest session count | `projects[0].name` (already sorted) |
-| Active (7d) | Count of projects with `last_active` within 7 days | Filter by date |
+| Most Active | Name of project with highest session count | Client-side sort by `session_count` desc, take first. **Do not** rely on API order — `GET /api/projects` returns projects ordered by `created_at DESC`, not by activity. |
+| Active (7d) | Count of projects with `last_active` within 7 wall-clock days | Always computed from wall-clock `now - 7d`, regardless of the period selector. This matches the `/devices` page pattern (`page.tsx:45`). When a period is active, this card still shows real recency — it is intentionally **not** scoped by `from`/`to`. |
 
 #### Project Breakdown Chart
 
@@ -302,12 +299,19 @@ Full-width table at the bottom with columns:
 | Column | Content | Responsive |
 |--------|---------|------------|
 | Project | Name + color dot | Always |
-| Tools | Source chips (from `aliases`) | `hidden lg:table-cell` |
+| Tools | Source chips — **period-scoped** (see note below) | `hidden lg:table-cell` |
 | Sessions | `session_count` | Always |
 | Messages | `total_messages` | `hidden sm:table-cell` |
 | Duration | `total_duration` formatted | `hidden md:table-cell` |
 | Tags | Tag chips with quick-add | Always |
 | Last Active | Relative time | `hidden md:table-cell` |
+
+> **Tools column scoping**: When a period is active, the Tools column must show
+> only the sources that had sessions in the selected period, not the full
+> historical alias list. The API already returns per-alias `session_count` in
+> Query 2 (section 5) — the frontend filters to aliases with `session_count > 0`
+> for the chips. When no period is active (all-time), all aliased sources are
+> shown. This keeps every column in the table consistent with the period scope.
 
 #### Tag Interaction in Summary Table
 
@@ -324,13 +328,18 @@ analytics page.
 ### 4.5. Tag Filter
 
 A `FilterDropdown` at the top of the page (alongside `PeriodSelector`) that
-filters projects by tag:
+filters projects by tag. **The filter scopes the entire page** — stat grid,
+all charts, and the summary table are all filtered to only include projects
+matching the selected tag. This is consistent with how the period selector
+works (page-wide scope).
 
 - "All Tags" (default) — shows all projects
 - Specific tag — filters to projects with that tag
 
 The filter is **client-side only** since `useProjects()` returns all projects
-with their tags. No API-level tag filtering needed.
+with their tags. Filtering is applied by the page component before passing data
+to child components. The stat grid, breakdown chart, trend chart, share chart,
+and summary table all receive the filtered project list.
 
 ### 4.6. New API: `GET /api/projects/timeline`
 
@@ -392,10 +401,70 @@ GET /api/projects?from=2026-03-01&to=2026-03-14
 
 When `from`/`to` are provided, the session stats (session_count, last_active,
 total_messages, total_duration, models) are scoped to sessions within that
-range. The project/alias metadata itself is always returned in full.
+range. The project/alias metadata itself is always returned in full — **zero-
+activity projects within the selected period still appear** (with zeroed stats).
 
-This requires modifying the SQL queries in the projects API route to add
-date-range WHERE clauses on the `session_records` join.
+### Critical: date conditions go in JOIN ON, not WHERE
+
+The current API uses `LEFT JOIN session_records` to retain aliases/projects
+that have no matching sessions (`route.ts:86`). If date conditions are placed
+in a `WHERE` clause, the LEFT JOIN degrades to an INNER JOIN, and projects
+with zero sessions in the period silently disappear.
+
+**Correct pattern — date filter in the JOIN ON clause:**
+
+```sql
+-- Query 2 (aliases with period-scoped stats)
+SELECT
+  pa.project_id,
+  pa.source,
+  pa.project_ref,
+  COUNT(sr.id) AS session_count,
+  MAX(sr.last_message_at) AS last_active,
+  SUM(COALESCE(sr.total_messages, 0)) AS total_messages,
+  SUM(COALESCE(sr.duration_seconds, 0)) AS total_duration
+FROM project_aliases pa
+LEFT JOIN session_records sr
+  ON sr.user_id = pa.user_id
+  AND sr.source = pa.source
+  AND sr.project_ref = pa.project_ref
+  AND sr.started_at >= ?             -- date range in JOIN ON
+  AND sr.started_at < ?              -- NOT in WHERE
+WHERE pa.user_id = ?
+GROUP BY pa.project_id, pa.source, pa.project_ref
+```
+
+```sql
+-- Query 3 (unassigned refs with period-scoped stats)
+SELECT
+  sr.source,
+  sr.project_ref,
+  COUNT(*) AS session_count,
+  MAX(sr.last_message_at) AS last_active,
+  SUM(sr.total_messages) AS total_messages,
+  SUM(sr.duration_seconds) AS total_duration
+FROM session_records sr
+WHERE sr.user_id = ?
+  AND sr.project_ref IS NOT NULL
+  AND sr.started_at >= ?
+  AND sr.started_at < ?
+  AND NOT EXISTS (
+    SELECT 1 FROM project_aliases pa
+    WHERE pa.user_id = sr.user_id
+      AND pa.source = sr.source
+      AND pa.project_ref = sr.project_ref
+  )
+GROUP BY sr.source, sr.project_ref
+ORDER BY last_active DESC
+```
+
+> **Note**: Query 3 (unassigned) uses `WHERE` for dates because there is no
+> LEFT JOIN to protect — unassigned refs with zero sessions in the period
+> simply don't appear, which is correct (they have no project entity to anchor).
+
+When `from`/`to` are absent, the JOIN ON date conditions are omitted entirely
+(not "set to min/max dates") — the query falls back to the current all-time
+behavior.
 
 Update `useProjects()` hook to accept optional `{ from, to }` options.
 
@@ -407,20 +476,19 @@ Update `useProjects()` hook to accept optional `{ from, to }` options.
 |---|------|--------|-------------|
 | 1 | `scripts/migrations/001-init.sql` | Edit | Add `project_tags` table |
 | 2 | `scripts/migrations/008-project-tags.sql` | Create | Standalone migration for `project_tags` |
-| 3 | `packages/web/src/app/api/projects/route.ts` | Edit | Add tags to GET response; add `from`/`to` filtering |
+| 3 | `packages/web/src/app/api/projects/route.ts` | Edit | Add tags to GET response; add `from`/`to` filtering (JOIN ON, not WHERE) |
 | 4 | `packages/web/src/app/api/projects/[id]/route.ts` | Edit | Add `add_tags`/`remove_tags` to PATCH |
-| 5 | `packages/web/src/app/api/projects/tags/route.ts` | Create | `GET` — list all user tags |
-| 6 | `packages/web/src/app/api/projects/timeline/route.ts` | Create | `GET` — daily session counts per project |
-| 7 | `packages/web/src/hooks/use-projects.ts` | Edit | Add `tags` to types; add `from`/`to` options; add `allTags` |
-| 8 | `packages/web/src/lib/navigation.ts` | Edit | Add "By Project" to Analytics group + `ROUTE_LABELS` |
-| 9 | `packages/web/src/components/layout/sidebar.tsx` | Edit | Add `FolderGit2` to `ICON_MAP` |
-| 10 | `packages/web/src/app/(dashboard)/by-project/page.tsx` | Create | Main analytics page |
-| 11 | `packages/web/src/components/dashboard/project-trend-chart.tsx` | Create | Stacked area chart for daily project sessions |
-| 12 | `packages/web/src/components/dashboard/project-share-chart.tsx` | Create | Pie/donut chart for project session share |
-| 13 | `packages/web/src/app/(dashboard)/sessions/page.tsx` | Edit | Remove project filter + breakdown chart |
-| 14 | `packages/web/src/hooks/use-session-data.ts` | Edit | Remove `project` option (now unused) |
-| 15 | `packages/web/src/app/api/sessions/route.ts` | Edit | Remove `?project=` filter support |
-| 16 | `packages/worker/src/index.ts` | Edit | Add `project_tags` to Worker migration if applicable |
+| 5 | `packages/web/src/app/api/projects/timeline/route.ts` | Create | `GET` — daily session counts per project |
+| 6 | `packages/web/src/hooks/use-projects.ts` | Edit | Add `tags` to types; add `from`/`to` options; derive `allTags` client-side |
+| 7 | `packages/web/src/lib/navigation.ts` | Edit | Add "By Project" to Analytics group + `ROUTE_LABELS` |
+| 8 | `packages/web/src/components/layout/sidebar.tsx` | Edit | Add `FolderGit2` to `ICON_MAP` |
+| 9 | `packages/web/src/app/(dashboard)/by-project/page.tsx` | Create | Main analytics page |
+| 10 | `packages/web/src/components/dashboard/project-trend-chart.tsx` | Create | Stacked area chart for daily project sessions |
+| 11 | `packages/web/src/components/dashboard/project-share-chart.tsx` | Create | Pie/donut chart for project session share |
+| 12 | `packages/web/src/app/(dashboard)/sessions/page.tsx` | Edit | Remove project filter + breakdown chart |
+| 13 | `packages/web/src/hooks/use-session-data.ts` | Edit | Remove `project` option (now unused) |
+| 14 | `packages/web/src/app/api/sessions/route.ts` | Edit | Remove `?project=` filter support |
+| 15 | `packages/worker/src/index.ts` | Edit | Add `project_tags` to Worker migration if applicable |
 
 ---
 
@@ -429,34 +497,33 @@ Update `useProjects()` hook to accept optional `{ from, to }` options.
 ### Phase A: Schema + API (backend)
 
 1. **Migration** — Create `008-project-tags.sql` + update `001-init.sql`
-2. **Tags API** — `GET /api/projects/tags` endpoint
-3. **Projects API: tags** — Add `tags` to GET response; `add_tags`/`remove_tags` to PATCH
-4. **Projects API: date range** — Add `from`/`to` query params to GET
-5. **Timeline API** — `GET /api/projects/timeline` endpoint
+2. **Projects API: tags** — Add `tags` to GET response; `add_tags`/`remove_tags` to PATCH
+3. **Projects API: date range** — Add `from`/`to` query params to GET (JOIN ON pattern)
+4. **Timeline API** — `GET /api/projects/timeline` endpoint
 
 ### Phase B: Sessions page cleanup
 
-6. **Sessions page** — Remove project filter dropdown, `ProjectBreakdownChart`,
+5. **Sessions page** — Remove project filter dropdown, `ProjectBreakdownChart`,
    dual-fetch pattern, and related imports
-7. **Sessions hook** — Remove `project` option from `useSessionData` (verify
+6. **Sessions hook** — Remove `project` option from `useSessionData` (verify
    no other consumers use it)
-8. **Sessions API** — Remove `?project=` query param support
+7. **Sessions API** — Remove `?project=` query param support
 
 ### Phase C: By Project page (frontend)
 
-9. **Navigation** — Add sidebar entry + route label + icon
-10. **Hook update** — Add `tags`, `allTags`, `from`/`to` to `useProjects()`
-11. **Page skeleton** — Create `/by-project/page.tsx` with stat grid + existing
+8. **Navigation** — Add sidebar entry + route label + icon
+9. **Hook update** — Add `tags`, `allTags`, `from`/`to` to `useProjects()`
+10. **Page skeleton** — Create `/by-project/page.tsx` with stat grid + existing
     `ProjectBreakdownChart` (data from `useProjects`)
-12. **Trend chart** — `ProjectTrendChart` component + wire to timeline API
-13. **Share chart** — `ProjectShareChart` component
-14. **Summary table** — Full table with tag chips + inline tag editing
-15. **Tag filter** — `FilterDropdown` for tag-based filtering
+11. **Trend chart** — `ProjectTrendChart` component + wire to timeline API
+12. **Share chart** — `ProjectShareChart` component
+13. **Summary table** — Full table with tag chips + inline tag editing
+14. **Tag filter** — `FilterDropdown` for tag-based filtering (whole-page scope)
 
 ### Phase D: Polish
 
-16. **Empty states** — Handle zero projects, loading, errors
-17. **Worker migration** — Update Worker if it runs schema migrations
+15. **Empty states** — Handle zero projects, loading, errors
+16. **Worker migration** — Update Worker if it runs schema migrations
 
 ---
 
