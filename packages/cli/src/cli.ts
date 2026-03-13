@@ -617,13 +617,6 @@ const resetCommand = defineCommand({
     name: "reset",
     description: "Clear all sync/upload state for a clean re-sync",
   },
-  args: {
-    dev: {
-      type: "boolean",
-      description: "Use dev configuration",
-      default: false,
-    },
-  },
   async run() {
     const paths = resolveDefaultPaths();
     consola.start("Resetting pew state...\n");
