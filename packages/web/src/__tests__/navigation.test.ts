@@ -48,7 +48,8 @@ describe("sidebar navigation", () => {
       const allHrefs = BASE_NAV_GROUPS.flatMap((g) => g.items.map((i) => i.href));
       expect(allHrefs).toContain("/dashboard");
       expect(allHrefs).toContain("/leaderboard");
-      expect(allHrefs).toContain("/details");
+      expect(allHrefs).toContain("/recent");
+      expect(allHrefs).toContain("/daily-usage");
       expect(allHrefs).toContain("/sessions");
       expect(allHrefs).toContain("/agents");
       expect(allHrefs).toContain("/models");
@@ -182,7 +183,8 @@ describe("route labels", () => {
       settings: "General",
       teams: "Teams",
       projects: "Projects",
-      details: "Daily Usage",
+      recent: "Recent",
+      "daily-usage": "Daily Usage",
       agents: "By Agent",
       models: "By Model",
       devices: "By Device",
@@ -225,7 +227,7 @@ describe("breadcrumbsFromPathname", () => {
   });
 
   it("should use route label for known segments", () => {
-    const crumbs = breadcrumbsFromPathname("/details");
+    const crumbs = breadcrumbsFromPathname("/daily-usage");
     expect(crumbs).toEqual([
       { label: "Home", href: "/dashboard" },
       { label: "Daily Usage" },
