@@ -97,8 +97,8 @@ export default function DashboardPage() {
 
   // Budget status (only meaningful when budget exists + forecast available)
   const currentMonthTokens = useMemo(
-    () => (yearHalfHourData.data ? computeCurrentMonthTokens(yearHalfHourData.data.records) : 0),
-    [yearHalfHourData.data],
+    () => (yearHalfHourData.data ? computeCurrentMonthTokens(yearHalfHourData.data.records, undefined, tzOffset) : 0),
+    [yearHalfHourData.data, tzOffset],
   );
 
   const budgetStatus = useMemo(() => {

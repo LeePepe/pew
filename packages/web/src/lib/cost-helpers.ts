@@ -185,13 +185,14 @@ export function forecastMonthlyCost(
 export function computeCurrentMonthTokens(
   rows: UsageRow[],
   now?: Date,
+  tzOffset: number = 0,
 ): number {
   const ref = now ?? new Date();
   const monthPrefix = `${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, "0")}`;
 
   let total = 0;
   for (const r of rows) {
-    if (r.hour_start.startsWith(monthPrefix)) {
+    if (toLocalDateStr(r.hour_start, tzOffset).startsWith(monthPrefix)) {
       total += r.total_tokens;
     }
   }
