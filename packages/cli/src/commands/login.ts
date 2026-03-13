@@ -167,7 +167,7 @@ export async function executeLogin(options: LoginOptions): Promise<LoginResult> 
     server.listen(0, "127.0.0.1", () => {
       const addr = server.address();
       const port = typeof addr === "object" && addr ? addr.port : 0;
-      const callbackUrl = `http://localhost:${port}/callback`;
+      const callbackUrl = `http://127.0.0.1:${port}/callback`;
       const loginUrl = `${apiUrl}/api/auth/cli?callback=${encodeURIComponent(callbackUrl)}&state=${encodeURIComponent(expectedState)}`;
 
       // 4. Set timeout

@@ -318,7 +318,7 @@ describe("executeLogin", () => {
     });
 
     await loginPromise;
-    expect(serverAddress).toBe("localhost");
+    expect(serverAddress).toBe("127.0.0.1");
   });
 
   // ---- Security: HTML escaping ----
