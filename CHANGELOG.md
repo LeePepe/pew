@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.8.1
+
+### Features
+
+- **Admin storage columns** — Replaced input/output token columns with total, 7-day, and 30-day token columns for more actionable usage visibility
+
+### Fixes
+
+- **ISO8601 datetime normalization** — Wrapped `hour_start` in `datetime()` for 7d/30d SQL queries to prevent over-counting caused by string comparison mismatch between `T`-separated and space-separated ISO formats
+- **Recent page time window** — Changed from bare-date params (which expanded to ~96 hours via API +1 day logic) to full ISO timestamps for a true 72-hour rolling window
+- **Leaderboard period labels** — Changed "This Week"/"This Month" to "Last 7 Days"/"Last 30 Days" to accurately reflect the rolling-window backend semantics
+- **Dashboard weekday/weekend date** — Replaced `new Date().toISOString().slice(0, 10)` (UTC date) with `getLocalToday(tzOffset)` for correct local-date comparison in weekday vs weekend analysis
+- **Devices active cutoff** — Changed 7-day active device cutoff from bare date string to full ISO timestamp for precise comparison against `last_seen`
+
 ## v1.8.0
 
 ### Features
