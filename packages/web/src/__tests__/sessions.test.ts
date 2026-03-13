@@ -298,6 +298,16 @@ describe("GET /api/sessions", () => {
       expect(sql).toContain("started_at DESC");
     });
 
+    it("should apply a protective LIMIT to the SQL query", async () => {
+      mockClient.query.mockResolvedValueOnce({ results: [], meta: {} });
+
+      const res = await GET(makeRequest());
+
+      expect(res.status).toBe(200);
+      const [sql] = mockClient.query.mock.calls[0]!;
+      expect(sql).toContain("LIMIT");
+    });
+
     it("should return 500 on D1 error", async () => {
       mockClient.query.mockRejectedValueOnce(new Error("D1 down"));
 

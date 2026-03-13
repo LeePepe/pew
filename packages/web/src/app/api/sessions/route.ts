@@ -32,8 +32,11 @@ const VALID_KINDS = new Set(["human", "automated"]);
 const DATE_RE = /^\d{4}-\d{2}-\d{2}/;
 
 // ---------------------------------------------------------------------------
-// Types
+// Limits
 // ---------------------------------------------------------------------------
+
+/** Protective upper bound — prevents extreme full-table scans. */
+const MAX_ROWS = 5000;
 
 interface SessionRow {
   session_key: string;
@@ -162,6 +165,7 @@ export async function GET(request: Request) {
     LEFT JOIN projects p ON p.id = pa.project_id
     WHERE ${conditions.join(" AND ")}
     ORDER BY sr.started_at DESC
+    LIMIT ${MAX_ROWS}
   `;
 
   // 4. Execute
