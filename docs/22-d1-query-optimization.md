@@ -192,16 +192,18 @@ If `usage_records` grows beyond 50k rows, consider a `user_daily_totals` table u
 
 ---
 
-## Redundant Indexes
+## Potentially Redundant Indexes
 
-| Index | Reason |
-|-------|--------|
-| `idx_project_aliases_lookup (user_id, source, project_ref)` | Duplicates UNIQUE constraint autoindex on same columns |
-| `idx_usage_source (source)` | Never appears in any top query; source is always filtered after user_id |
-| `idx_session_source (source)` | Same — never queried alone |
-| `idx_session_kind (kind)` | Same — never queried alone |
+> **⚠️ Validation required**: The assessment below is based on D1 Insights top queries over a 7-day window. "Not appearing in top queries" does not prove an index is unused — it may serve infrequent queries, admin tools, or future features not yet deployed. Before dropping any index, perform a **full query surface audit** (grep all SQL in the repo) and verify with `EXPLAIN QUERY PLAN` that no query plan relies on the index.
 
-These can be dropped to reduce write amplification on INSERTs (each INSERT must update every index). Dropping 4 redundant indexes saves ~4 index writes per row on high-volume tables.
+| Index | Observation | Safe to drop? |
+|-------|-------------|---------------|
+| `idx_project_aliases_lookup (user_id, source, project_ref)` | Duplicates UNIQUE constraint autoindex on identical columns | **Yes** — SQLite autoindex on UNIQUE covers this exactly |
+| `idx_usage_source (source)` | Not in any top query; `source` is always filtered after `user_id` | **Needs verification** — audit repo queries first |
+| `idx_session_source (source)` | Same pattern as above | **Needs verification** |
+| `idx_session_kind (kind)` | Same pattern as above | **Needs verification** |
+
+Only `idx_project_aliases_lookup` is provably redundant (duplicate of UNIQUE autoindex). The other three require a repo-wide query audit before removal — dropping an index that serves an infrequent but important query path would cause a silent performance regression.
 
 ---
 
