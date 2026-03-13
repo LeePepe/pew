@@ -246,7 +246,11 @@ export async function GET(request: Request) {
       cached_input_tokens: row.cached_input_tokens,
     }));
 
-    return NextResponse.json({ period, entries });
+    const headers: HeadersInit = isAdminMode || teamId
+      ? { "Cache-Control": "private, no-store" }
+      : { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" };
+
+    return NextResponse.json({ period, entries }, { headers });
   } catch (err) {
     console.error("Failed to query leaderboard:", err);
     return NextResponse.json(

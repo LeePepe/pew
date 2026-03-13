@@ -573,6 +573,42 @@ describe("GET /api/leaderboard", () => {
     });
   });
 
+  describe("cache headers", () => {
+    it("should set cache headers for public leaderboard", async () => {
+      mockClient.query.mockResolvedValueOnce({ results: [] });
+
+      const res = await GET(makeRequest());
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Cache-Control")).toBe(
+        "public, s-maxage=60, stale-while-revalidate=120",
+      );
+    });
+
+    it("should NOT set cache headers for admin mode", async () => {
+      resolveAdmin.mockResolvedValueOnce({ userId: "admin-1", email: "a@b.com" });
+      mockClient.query.mockResolvedValueOnce({ results: [] });
+
+      const res = await GET(makeRequest({ admin: "true" }));
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Cache-Control")).toBe(
+        "private, no-store",
+      );
+    });
+
+    it("should NOT set cache headers for team-scoped leaderboard", async () => {
+      mockClient.query.mockResolvedValueOnce({ results: [] });
+
+      const res = await GET(makeRequest({ team: "team-abc" }));
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Cache-Control")).toBe(
+        "private, no-store",
+      );
+    });
+  });
+
   describe("teams in response", () => {
     it("should return empty teams array when teams query fails", async () => {
       mockClient.query
