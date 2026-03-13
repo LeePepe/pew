@@ -494,6 +494,45 @@ describe("computeMoMGrowth", () => {
     expect(result.previousMonth.days).toBe(1);
     expect(result.currentMonth.days).toBe(2);
   });
+
+  it("should assign UTC midnight row to previous month for west-of-UTC timezone (tzOffset=480, PST)", () => {
+    // 2026-03-01T01:00:00Z → PST local = 2026-02-28T17:00:00 → February
+    const rows = [
+      makeRow({ hour_start: "2026-03-01T01:00:00Z", total_tokens: 1000, input_tokens: 800, output_tokens: 200, cached_input_tokens: 100 }),
+    ];
+
+    const result = computeMoMGrowth(rows, makePricingMap(), new Date("2026-03-15"), 480);
+
+    // Should be assigned to February (previous month), not March
+    expect(result.previousMonth.tokens).toBe(1000);
+    expect(result.currentMonth.tokens).toBe(0);
+  });
+
+  it("should keep row in current month for east-of-UTC timezone (tzOffset=-540, JST)", () => {
+    // 2026-02-28T20:00:00Z → JST local = 2026-03-01T05:00:00 → March
+    const rows = [
+      makeRow({ hour_start: "2026-02-28T20:00:00Z", total_tokens: 2000, input_tokens: 1600, output_tokens: 400, cached_input_tokens: 200 }),
+    ];
+
+    const result = computeMoMGrowth(rows, makePricingMap(), new Date("2026-03-15"), -540);
+
+    // Should be assigned to March (current month), not February
+    expect(result.currentMonth.tokens).toBe(2000);
+    expect(result.previousMonth.tokens).toBe(0);
+  });
+
+  it("should match zero-offset behavior when tzOffset=0", () => {
+    const rows = [
+      makeRow({ hour_start: "2026-02-10T10:00:00Z", total_tokens: 1000, input_tokens: 800, output_tokens: 200, cached_input_tokens: 100 }),
+      makeRow({ hour_start: "2026-03-05T10:00:00Z", total_tokens: 4000, input_tokens: 3200, output_tokens: 800, cached_input_tokens: 400 }),
+    ];
+
+    const withTz = computeMoMGrowth(rows, makePricingMap(), new Date("2026-03-15"), 0);
+    const without = computeMoMGrowth(rows, makePricingMap(), new Date("2026-03-15"));
+
+    expect(withTz.currentMonth.tokens).toBe(without.currentMonth.tokens);
+    expect(withTz.previousMonth.tokens).toBe(without.previousMonth.tokens);
+  });
 });
 
 // ---------------------------------------------------------------------------

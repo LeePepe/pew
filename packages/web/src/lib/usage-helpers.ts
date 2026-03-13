@@ -495,6 +495,7 @@ export function computeMoMGrowth(
   rows: UsageRow[],
   pricingMap: PricingMap,
   now?: Date,
+  tzOffset: number = 0,
 ): MoMComparison {
   const ref = now ?? new Date();
   const currentYear = ref.getFullYear();
@@ -513,10 +514,9 @@ export function computeMoMGrowth(
   const prevDays = new Set<string>();
 
   for (const r of rows) {
-    const d = new Date(r.hour_start);
-    const y = d.getUTCFullYear();
-    const m = d.getUTCMonth();
-    const dateStr = r.hour_start.slice(0, 10);
+    const dateStr = toLocalDateStr(r.hour_start, tzOffset);
+    const y = parseInt(dateStr.slice(0, 4), 10);
+    const m = parseInt(dateStr.slice(5, 7), 10) - 1; // 0-indexed
 
     const pricing = lookupPricing(pricingMap, r.model, r.source);
     const cost = estimateCost(

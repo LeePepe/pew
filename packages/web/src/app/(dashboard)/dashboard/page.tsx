@@ -120,8 +120,8 @@ export default function DashboardPage() {
   // MoM growth (needs 2 months of data — use half-hour records)
 
   const mom = useMemo(
-    () => (halfHourData.data ? computeMoMGrowth(halfHourData.data.records, pricingMap) : null),
-    [halfHourData.data, pricingMap],
+    () => (halfHourData.data ? computeMoMGrowth(halfHourData.data.records, pricingMap, undefined, tzOffset) : null),
+    [halfHourData.data, pricingMap, tzOffset],
   );
 
   // Weekday vs weekend comparison
