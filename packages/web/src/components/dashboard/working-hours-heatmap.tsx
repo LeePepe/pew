@@ -74,7 +74,7 @@ export function WorkingHoursHeatmap({
     >
       <div className="mb-4 flex items-center justify-between">
         <p className="text-xs md:text-sm text-muted-foreground">
-          Working Hours (UTC)
+          Working Hours
         </p>
         {/* Legend */}
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
