@@ -9,11 +9,16 @@
 
 | # | Commit | Description | Status |
 |---|--------|-------------|--------|
-| 1 | `docs: add leaderboard armory refactor plan` | This document | todo |
-| 2 | `refactor: extract shared leaderboard components` | CheckRuling, RankBadge, StatusBadge, LeaderboardSkeleton | todo |
-| 3 | `feat: add leaderboard layout and nav components` | `layout.tsx`, `LeaderboardNav`, `PageHeader` | todo |
-| 4 | `refactor: rewrite leaderboard pages to use shared shell` | Remove duplicated shell from all 3 pages | todo |
-| 5 | `feat: support slug in season leaderboard API` | `[seasonId]` accepts UUID or slug, delete `useSeasonIdFromSlug` | todo |
+| 1 | `docs: add leaderboard armory refactor plan` | This document | done |
+| 2 | `refactor: extract shared leaderboard components` | CheckRuling, RankBadge, StatusBadge, LeaderboardSkeleton | done |
+| 3 | `feat: add leaderboard layout and nav components` | `layout.tsx`, `LeaderboardNav`, `PageHeader` | done |
+| 4 | `refactor: rewrite leaderboard pages to use shared shell` | Remove duplicated shell from all 3 pages | done |
+| 5 | `feat: support slug in season leaderboard API` | `[seasonId]` accepts UUID or slug, delete `useSeasonIdFromSlug` | done |
+| 6 | `feat: switch leaderboard nav to underline tabs` | Armory-style underline navigation | done |
+| 7 | `feat: add table header, compact density, color-coded tokens` | TableHeader, py-3 density, cyan/amber In/Out | done |
+| 8 | `feat: add hero header gradient` | Teal radial-gradient glow on PageHeader | done |
+| 9 | `feat: polish season pages` | SeasonTableHeader, compact density, color-coded tokens | done |
+| 10 | `feat: add token tier badges (K/M/B)` | Pill badges by token magnitude | done |
 
 ---
 
@@ -53,7 +58,7 @@ This wastes a network round-trip.
 | Header ownership | Each page renders its own header + nav section | Season detail needs season name + status badge in header, not generic title |
 | API slug support | `[seasonId]` route accepts UUID or slug via `isUUID()` check | Eliminates two-step resolution; single network call |
 | Old routes | Keep all existing routes, no redirects | No breaking changes |
-| Visual style | Keep Basalt design system unchanged | This is an IA/structure refactor, not a visual redesign |
+| Visual style | Basalt design system + Armory-inspired visual polish | Started as IA refactor, expanded to include visual refinements (see below) |
 
 ---
 
@@ -124,12 +129,15 @@ const TABS = [
 export function LeaderboardNav() { ... }
 ```
 
-Visual style: same pill-tab pattern as the period selector (bg-secondary
-container, bg-background + shadow for active tab).
+Visual style: Armory-inspired underline tabs — uppercase tracking-wider labels
+with a teal active underline indicator (border-b), gap-6 spacing. This
+differentiates top-level route navigation from the period selector (which
+keeps the pill-tab pattern).
 
 #### `page-header.tsx`
 
-Reusable header pattern: logo (links to `/`) + title area (children slot).
+Reusable header pattern: logo (links to `/`) + title area (children slot) +
+subtle teal radial-gradient glow at top.
 
 ```tsx
 export function PageHeader({ children }: { children: React.ReactNode }) { ... }
@@ -239,14 +247,35 @@ slug directly to `useSeasonLeaderboard(slug)`.
 | 4 | Create | `src/components/leaderboard/leaderboard-skeleton.tsx` | ~25 |
 | 5 | Create | `src/components/leaderboard/leaderboard-nav.tsx` | ~40 |
 | 6 | Create | `src/components/leaderboard/page-header.tsx` | ~30 |
-| 7 | Create | `src/app/leaderboard/layout.tsx` | ~40 |
-| 8 | Rewrite | `src/app/leaderboard/page.tsx` | 610 -> ~230 |
-| 9 | Rewrite | `src/app/leaderboard/seasons/page.tsx` | 284 -> ~150 |
-| 10 | Rewrite | `src/app/leaderboard/seasons/[slug]/page.tsx` | 457 -> ~250 |
-| 11 | Modify | `src/app/api/seasons/[seasonId]/leaderboard/route.ts` | +10 |
-| 12 | Modify | `src/hooks/use-season-leaderboard.ts` | rename param |
+| 7 | Create | `src/components/leaderboard/table-header.tsx` | ~25 |
+| 8 | Create | `src/components/leaderboard/token-tier-badge.tsx` | ~60 |
+| 9 | Create | `src/app/leaderboard/layout.tsx` | ~40 |
+| 10 | Rewrite | `src/app/leaderboard/page.tsx` | 610 -> ~490 |
+| 11 | Rewrite | `src/app/leaderboard/seasons/page.tsx` | 284 -> ~150 |
+| 12 | Rewrite | `src/app/leaderboard/seasons/[slug]/page.tsx` | 457 -> ~305 |
+| 13 | Modify | `src/app/api/seasons/[seasonId]/leaderboard/route.ts` | +10 |
+| 14 | Modify | `src/hooks/use-season-leaderboard.ts` | rename param |
 
 All paths relative to `packages/web/`.
+
+---
+
+## Visual Polish (Scope Extension)
+
+The refactor expanded beyond pure IA/structure to include Armory-inspired
+visual refinements. All changes stay within the Basalt design system (teal
+primary, 3-tier luminance, Caveat handwriting font) but introduce new
+visual patterns:
+
+| Change | File(s) | Description |
+|--------|---------|-------------|
+| Underline nav | `leaderboard-nav.tsx` | Route tabs use border-b + teal underline instead of pill-tabs, differentiating from period selector |
+| Table header | `table-header.tsx` | Uppercase column labels (Rank, Player, In, Out, Tokens) + thin divider, Armory `SortTable-head` pattern |
+| Compact density | `page.tsx`, `[slug]/page.tsx` | Row padding py-4→py-3, gap-4→gap-3, space-y-3→space-y-2 |
+| Color-coded tokens | `page.tsx`, `[slug]/page.tsx` | Input tokens: cyan-400/80, Output tokens: amber-400/80 (hidden on mobile) |
+| Hero gradient | `page-header.tsx` | Subtle teal radial-gradient glow at top (`hsl(186 60% 35% / 0.08)`) |
+| Token tier badges | `token-tier-badge.tsx` | Pill badge next to total: K (gray, ≥1K), M (teal, ≥1M), B (amber, ≥1B); <1K hidden |
+| Tabular nums | `rank-badge.tsx` | Plain rank numbers use `tabular-nums` for column alignment |
 
 ---
 
