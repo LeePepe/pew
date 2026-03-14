@@ -2140,4 +2140,208 @@ describe("executeSync", () => {
     const offset = await queue.loadOffset();
     expect(offset).toBe(0);
   });
+
+  // ===== Dirty-key tracking (doc 24) =====
+
+  it("should populate dirtyKeys with all bucket keys on full scan", async () => {
+    // Full scan (empty cursors) → dirtyKeys should contain every bucket key
+    const claudeDir = join(dataDir, ".claude", "projects", "proj-dk-full");
+    await mkdir(claudeDir, { recursive: true });
+    await writeFile(
+      join(claudeDir, "session.jsonl"),
+      [
+        claudeLine("2026-03-07T10:15:00.000Z", 1000, 100),
+        claudeLine("2026-03-07T11:15:00.000Z", 2000, 200),
+      ].join("\n") + "\n",
+    );
+
+    await executeSync({
+      stateDir,
+      deviceId: "dev-dk",
+      claudeDir: join(dataDir, ".claude"),
+    });
+
+    const { LocalQueue } = await import("../storage/local-queue.js");
+    const queue = new LocalQueue(stateDir);
+    const dirtyKeys = await queue.loadDirtyKeys();
+
+    // Should be an array (not undefined — we're past legacy)
+    expect(dirtyKeys).toBeDefined();
+    expect(dirtyKeys).toBeInstanceOf(Array);
+    // Two distinct hour buckets → two dirty keys
+    expect(dirtyKeys!.sort()).toEqual([
+      "claude-code|glm-5|2026-03-07T10:00:00.000Z|dev-dk",
+      "claude-code|glm-5|2026-03-07T11:00:00.000Z|dev-dk",
+    ]);
+  });
+
+  it("should track only new bucket keys on incremental sync", async () => {
+    // First sync → populates cursors; second sync with new data in a
+    // different hour bucket → dirtyKeys should contain only the new bucket.
+    const claudeDir = join(dataDir, ".claude", "projects", "proj-dk-incr");
+    await mkdir(claudeDir, { recursive: true });
+    const filePath = join(claudeDir, "session.jsonl");
+    await writeFile(
+      filePath,
+      claudeLine("2026-03-07T10:15:00.000Z", 1000, 100) + "\n",
+    );
+
+    // First sync (full scan)
+    await executeSync({
+      stateDir,
+      deviceId: "dev-dk",
+      claudeDir: join(dataDir, ".claude"),
+    });
+
+    // Simulate successful upload: clear dirtyKeys
+    const { LocalQueue } = await import("../storage/local-queue.js");
+    const queue = new LocalQueue(stateDir);
+    await queue.saveDirtyKeys([]);
+
+    // Append new data in a DIFFERENT hour bucket
+    const existing = await readFile(filePath, "utf-8");
+    await writeFile(
+      filePath,
+      existing + claudeLine("2026-03-07T12:15:00.000Z", 3000, 300) + "\n",
+    );
+
+    // Second sync — incremental
+    await executeSync({
+      stateDir,
+      deviceId: "dev-dk",
+      claudeDir: join(dataDir, ".claude"),
+    });
+
+    const dirtyKeys = await queue.loadDirtyKeys();
+    expect(dirtyKeys).toBeDefined();
+    // Only the NEW bucket key should be dirty (not the old 10:00 one)
+    expect(dirtyKeys!).toEqual([
+      "claude-code|glm-5|2026-03-07T12:00:00.000Z|dev-dk",
+    ]);
+  });
+
+  it("should union new dirty keys with existing ones on incremental sync", async () => {
+    // If dirtyKeys already has entries (e.g., upload hasn't run yet), a new
+    // incremental sync should union (not replace) new keys into the set.
+    const claudeDir = join(dataDir, ".claude", "projects", "proj-dk-union");
+    await mkdir(claudeDir, { recursive: true });
+    const filePath = join(claudeDir, "session.jsonl");
+    await writeFile(
+      filePath,
+      claudeLine("2026-03-07T10:15:00.000Z", 1000, 100) + "\n",
+    );
+
+    // First sync (full scan)
+    await executeSync({
+      stateDir,
+      deviceId: "dev-dk",
+      claudeDir: join(dataDir, ".claude"),
+    });
+
+    // DON'T clear dirtyKeys — simulate no upload yet
+    // dirtyKeys should have the 10:00 bucket from full scan
+
+    // Append data in a NEW hour bucket
+    const existing = await readFile(filePath, "utf-8");
+    await writeFile(
+      filePath,
+      existing + claudeLine("2026-03-07T13:15:00.000Z", 4000, 400) + "\n",
+    );
+
+    // Second sync — incremental, dirtyKeys not cleared
+    await executeSync({
+      stateDir,
+      deviceId: "dev-dk",
+      claudeDir: join(dataDir, ".claude"),
+    });
+
+    const { LocalQueue } = await import("../storage/local-queue.js");
+    const queue = new LocalQueue(stateDir);
+    const dirtyKeys = await queue.loadDirtyKeys();
+    expect(dirtyKeys).toBeDefined();
+    // Both the old and new bucket should be dirty
+    expect(dirtyKeys!.sort()).toEqual([
+      "claude-code|glm-5|2026-03-07T10:00:00.000Z|dev-dk",
+      "claude-code|glm-5|2026-03-07T13:00:00.000Z|dev-dk",
+    ]);
+  });
+
+  it("should not modify dirtyKeys on no-op sync (no new data)", async () => {
+    // Sync with no changes → skip queue write entirely → dirtyKeys unchanged
+    const claudeDir = join(dataDir, ".claude", "projects", "proj-dk-noop");
+    await mkdir(claudeDir, { recursive: true });
+    await writeFile(
+      join(claudeDir, "session.jsonl"),
+      claudeLine("2026-03-07T10:15:00.000Z", 1000, 100) + "\n",
+    );
+
+    // First sync
+    await executeSync({
+      stateDir,
+      deviceId: "dev-dk",
+      claudeDir: join(dataDir, ".claude"),
+    });
+
+    // Simulate upload cleared dirtyKeys
+    const { LocalQueue } = await import("../storage/local-queue.js");
+    const queue = new LocalQueue(stateDir);
+    await queue.saveDirtyKeys([]);
+
+    // Second sync — no new data
+    const r2 = await executeSync({
+      stateDir,
+      deviceId: "dev-dk",
+      claudeDir: join(dataDir, ".claude"),
+    });
+    expect(r2.totalRecords).toBe(0);
+
+    // dirtyKeys should still be [] (not modified)
+    const dirtyKeys = await queue.loadDirtyKeys();
+    expect(dirtyKeys).toEqual([]);
+  });
+
+  it("should include existing-bucket key when incremental data lands in same bucket", async () => {
+    // Incremental data in the SAME hour bucket as existing → that key must
+    // appear in dirtyKeys even though the bucket already existed in the queue.
+    const claudeDir = join(dataDir, ".claude", "projects", "proj-dk-same");
+    await mkdir(claudeDir, { recursive: true });
+    const filePath = join(claudeDir, "session.jsonl");
+    await writeFile(
+      filePath,
+      claudeLine("2026-03-07T10:15:00.000Z", 1000, 100) + "\n",
+    );
+
+    // First sync
+    await executeSync({
+      stateDir,
+      deviceId: "dev-dk",
+      claudeDir: join(dataDir, ".claude"),
+    });
+
+    // Simulate upload
+    const { LocalQueue } = await import("../storage/local-queue.js");
+    const queue = new LocalQueue(stateDir);
+    await queue.saveDirtyKeys([]);
+
+    // Append more data in the SAME hour bucket
+    const existing = await readFile(filePath, "utf-8");
+    await writeFile(
+      filePath,
+      existing + claudeLine("2026-03-07T10:25:00.000Z", 2000, 200) + "\n",
+    );
+
+    // Second sync — incremental, same bucket
+    await executeSync({
+      stateDir,
+      deviceId: "dev-dk",
+      claudeDir: join(dataDir, ".claude"),
+    });
+
+    const dirtyKeys = await queue.loadDirtyKeys();
+    expect(dirtyKeys).toBeDefined();
+    // The existing bucket is dirty because its values changed
+    expect(dirtyKeys!).toEqual([
+      "claude-code|glm-5|2026-03-07T10:00:00.000Z|dev-dk",
+    ]);
+  });
 });

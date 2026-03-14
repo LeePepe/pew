@@ -527,21 +527,37 @@ export async function executeSync(opts: SyncOptions): Promise<SyncResult> {
   // files → overwrite queue entirely (discard any stale accumulated values).
   //
   // Incremental (cursors exist): records are deltas since last sync → SUM
-  // with existing queue contents to accumulate across multiple sync cycles
-  // that haven't been uploaded yet.
+   // with existing queue contents to accumulate across multiple sync cycles
+   // that haven't been uploaded yet.
+   //
+   // Dirty-key tracking: each branch saves the set of bucket keys that were
+   // modified in this sync cycle. The upload engine uses dirtyKeys to filter
+   // which records actually need sending, avoiding full re-upload on every sync.
   if (initialCursorEmpty) {
     // Full scan: overwrite queue with complete snapshot
     await queue.overwrite(records);
     await queue.saveOffset(0);
+    // All records are dirty (fresh full scan)
+    const newKeys = records.map(
+      (r) => `${r.source}|${r.model}|${r.hour_start}|${r.device_id}`,
+    );
+    await queue.saveDirtyKeys([...new Set(newKeys)]);
   } else if (records.length > 0) {
     // Incremental with new data: SUM with existing queue records
     const { records: oldRecords } = await queue.readFromOffset(0);
     const merged = aggregateRecords([...oldRecords, ...records]);
     await queue.overwrite(merged);
     await queue.saveOffset(0);
+    // Union new bucket keys into existing dirtyKeys
+    const newKeys = records.map(
+      (r) => `${r.source}|${r.model}|${r.hour_start}|${r.device_id}`,
+    );
+    const existingDirty = (await queue.loadDirtyKeys()) ?? [];
+    const unionSet = new Set([...existingDirty, ...newKeys]);
+    await queue.saveDirtyKeys([...unionSet]);
   }
   // else: incremental with no new data — skip queue write entirely
-  // to preserve the upload offset (Bug B: re-marking uploaded records)
+  // to preserve the upload offset and dirtyKeys (Bug B: re-marking uploaded records)
 
   // ---------- Save cursor state AFTER queue ----------
   // Queue must be written before cursor so that a crash between the two
