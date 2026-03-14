@@ -1,10 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useProjects } from "@/hooks/use-projects";
 import type { Project } from "@/hooks/use-projects";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProjectBreakdownChart } from "@/components/dashboard/project-breakdown-chart";
+import {
+  ProjectTrendChart,
+  type ProjectTimelinePoint,
+} from "@/components/dashboard/project-trend-chart";
 import type { ProjectBreakdownItem } from "@/lib/session-helpers";
 import { PeriodSelector } from "@/components/dashboard/period-selector";
 import { periodToDateRange, periodLabel } from "@/lib/date-helpers";
@@ -101,6 +105,30 @@ export default function ProjectsPage() {
     ...(to ? { to } : {}),
   });
 
+  // -------------------------------------------------------------------------
+  // Timeline fetch
+  // -------------------------------------------------------------------------
+
+  const [timeline, setTimeline] = useState<ProjectTimelinePoint[]>([]);
+
+  const fetchTimeline = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+      params.set("from", from);
+      if (to) params.set("to", to);
+      const res = await fetch(`/api/projects/timeline?${params}`);
+      if (!res.ok) return;
+      const json = (await res.json()) as { timeline: ProjectTimelinePoint[] };
+      setTimeline(json.timeline);
+    } catch {
+      // Timeline is non-critical — silently degrade
+    }
+  }, [from, to]);
+
+  useEffect(() => {
+    fetchTimeline();
+  }, [fetchTimeline]);
+
   const projects = useMemo(() => data?.projects ?? [], [data]);
   const unassigned = useMemo(() => data?.unassigned ?? [], [data]);
 
@@ -180,7 +208,11 @@ export default function ProjectsPage() {
               {/* Stat grid */}
               <StatGrid projects={projects} />
 
-              {/* Charts row — trend + share charts wired in steps 11-12 */}
+              {/* Charts row */}
+              <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
+                <ProjectTrendChart timeline={timeline} />
+                {/* ProjectShareChart placeholder for step 12 */}
+              </div>
 
               {/* Breakdown chart */}
               <ProjectBreakdownChart data={breakdownData} />
