@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.10.1
+
+### Fixes
+
+- **Chart focus outline** — Removed blue highlight border on chart click via global CSS reset
+- **Chart tooltip animation** — Disabled recharts tooltip slide-in animation across all 16 dashboard charts so tooltips appear instantly at cursor position
+- **Leaderboard responsive overflow** — Fixed token columns overflowing on narrow screens with responsive column hiding and compact number formatting
+- **Leaderboard design alignment** — Unified spacing, badge sizing, and rank medal alignment across leaderboard pages
+
 ## v1.10.0
 
 ### Features
