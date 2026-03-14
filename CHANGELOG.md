@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.10.3
+
+### Features
+
+- **Season datetime precision** — Upgraded season `start_date`/`end_date` from `YYYY-MM-DD` to ISO 8601 UTC datetime with minute precision (e.g. `2026-03-15T00:00:00Z`). Resolves timezone ambiguity where UTC+8 users saw "upcoming" on the actual start day.
+
+### Fixes
+
+- **Migration end_date semantics** — End dates now migrate to `T23:59:00Z` (not `T00:00:00Z`) to preserve inclusive whole-day semantics
+- **SQL datetime format mismatch** — Wrapped season date comparisons in `datetime()` to normalize ISO `T` format vs SQLite space-separated format in roster sync queries
+- **Admin datetime-local inputs** — Inputs now display local timezone and convert to UTC on submit via `utcToLocalDatetimeValue()`/`localDatetimeValueToUtc()`, matching the project's UTC-in/local-out strategy
+- **API date comparison** — Switched `end_date < start_date` validation from string comparison to epoch ms, fixing unstable ordering with mixed `HH:mmZ` / `HH:mm:ssZ` formats
+
+### Refactor
+
+- **DateTime helpers** — Moved `utcToLocalDatetimeValue()`/`localDatetimeValueToUtc()` to `date-helpers.ts` as project-wide utilities
+
+### Docs
+
+- **DateTime Strategy** — Updated CLAUDE.md with form input conversion rules, date comparison rules, and removed stale "interpreted as UTC" claim
+
 ## v1.10.2
 
 ### Features
