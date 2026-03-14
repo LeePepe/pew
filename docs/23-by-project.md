@@ -548,16 +548,16 @@ Update `useProjects()` hook to accept optional `{ from, to }` options.
 
 ### Phase B: Sessions page cleanup
 
-5. **Sessions page** — Remove project filter dropdown, `ProjectBreakdownChart`,
-   dual-fetch pattern, and related imports
-6. **Sessions hook** — Remove `project` option from `useSessionData` (verify
-   no other consumers use it)
-7. **Sessions API** — Remove `?project=` query param support
+5. ~~**Sessions page** — Remove project filter dropdown, `ProjectBreakdownChart`,
+   dual-fetch pattern, and related imports~~ ✅
+6. ~~**Sessions hook** — Remove `project` option from `useSessionData` (verify
+   no other consumers use it)~~ ✅
+7. ~~**Sessions API** — Remove `?project=` query param support~~ ✅
 
 ### Phase C: By Project page (frontend)
 
-8. **Navigation** — Add sidebar entry + route label + icon
-9. **Hook update** — Add `tags`, `allTags`, `from`/`to` to `useProjects()`
+8. ~~**Navigation** — Add sidebar entry + route label + icon~~ ✅
+9. ~~**Hook update** — Add `tags`, `allTags`, `from`/`to` to `useProjects()`~~ ✅
 10. **Page skeleton** — Create `/by-project/page.tsx` with stat grid + existing
     `ProjectBreakdownChart` (data from `useProjects`)
 11. **Trend chart** — `ProjectTrendChart` component + wire to timeline API

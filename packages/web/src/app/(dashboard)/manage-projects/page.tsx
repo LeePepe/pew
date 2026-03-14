@@ -18,6 +18,7 @@ import {
   useProjects,
   type Project,
   type ProjectAlias,
+  type ProjectAliasInput,
   type UnassignedRef,
 } from "@/hooks/use-projects";
 
@@ -47,9 +48,9 @@ function CreateProjectForm({
   onCancel,
   initialAlias,
 }: {
-  onCreated: (name: string, aliases?: ProjectAlias[]) => Promise<void>;
+  onCreated: (name: string, aliases?: ProjectAliasInput[]) => Promise<void>;
   onCancel: () => void;
-  initialAlias?: ProjectAlias;
+  initialAlias?: ProjectAliasInput;
 }) {
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -326,7 +327,7 @@ export default function ProjectsPage() {
   } = useProjects();
 
   const [showCreate, setShowCreate] = useState(false);
-  const [createForAlias, setCreateForAlias] = useState<ProjectAlias | null>(
+  const [createForAlias, setCreateForAlias] = useState<ProjectAliasInput | null>(
     null,
   );
   const [openDropdownKey, setOpenDropdownKey] = useState<string | null>(null);
@@ -336,7 +337,7 @@ export default function ProjectsPage() {
   // Handlers
   // ---------------------------------------------------------------------------
 
-  const handleCreate = async (name: string, aliases?: ProjectAlias[]) => {
+  const handleCreate = async (name: string, aliases?: ProjectAliasInput[]) => {
     setActionError(null);
     const result = await createProject(name, aliases);
     if (result) {
