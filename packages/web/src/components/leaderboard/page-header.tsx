@@ -38,7 +38,7 @@ export function PageHeader({ children }: { children: React.ReactNode }) {
             height={48}
           />
         </Link>
-        <div className="flex flex-col">{children}</div>
+        <div className="flex flex-col min-w-0">{children}</div>
       </div>
     </header>
   );
