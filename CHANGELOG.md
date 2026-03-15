@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.10.4
+
+### Features
+
+- **Leaderboard session columns** — Replaced input/output token breakdown (In/Out) with session count and total duration on both individual and season leaderboards. APIs now query `session_records` and return `session_count` + `total_duration_seconds` alongside token totals.
+
 ## v1.10.3
 
 ### Features
