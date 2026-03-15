@@ -18,6 +18,8 @@ export interface SeasonTeamEntry {
   input_tokens: number;
   output_tokens: number;
   cached_input_tokens: number;
+  session_count: number;
+  total_duration_seconds: number;
   members?: SeasonMember[];
 }
 
@@ -29,6 +31,8 @@ export interface SeasonMember {
   input_tokens: number;
   output_tokens: number;
   cached_input_tokens: number;
+  session_count: number;
+  total_duration_seconds: number;
 }
 
 export interface SeasonLeaderboardData {

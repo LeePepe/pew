@@ -40,6 +40,12 @@ interface LeaderboardRow {
   cached_input_tokens: number;
 }
 
+interface SessionStatsRow {
+  user_id: string;
+  session_count: number;
+  total_duration_seconds: number;
+}
+
 interface UserTeamRow {
   user_id: string;
   team_id: string;
@@ -229,22 +235,61 @@ export async function GET(request: Request) {
       }
     }
 
-    const entries = result.results.map((row, index) => ({
-      rank: index + 1,
-      user: {
-        name: row.nickname ?? row.name,
-        image: row.image,
-        slug: row.slug,
-        ...(isAdminMode && {
-          is_public: row.is_public == null ? null : row.is_public === 1,
-        }),
-      },
-      teams: teamsByUser.get(row.user_id) ?? [],
-      total_tokens: row.total_tokens,
-      input_tokens: row.input_tokens,
-      output_tokens: row.output_tokens,
-      cached_input_tokens: row.cached_input_tokens,
-    }));
+    // Fetch session stats for all users in the leaderboard
+    const sessionStatsByUser = new Map<string, { session_count: number; total_duration_seconds: number }>();
+
+    if (userIds.length > 0) {
+      try {
+        const placeholders = userIds.map(() => "?").join(",");
+        const sessionConditions = [`sr.user_id IN (${placeholders})`];
+        const sessionParams: unknown[] = [...userIds];
+
+        if (fromDate) {
+          sessionConditions.push("sr.started_at >= ?");
+          sessionParams.push(fromDate);
+        }
+
+        const sessionResult = await client.query<SessionStatsRow>(
+          `SELECT sr.user_id,
+                  COUNT(*) AS session_count,
+                  COALESCE(SUM(sr.duration_seconds), 0) AS total_duration_seconds
+           FROM session_records sr
+           WHERE ${sessionConditions.join(" AND ")}
+           GROUP BY sr.user_id`,
+          sessionParams,
+        );
+        for (const row of sessionResult.results) {
+          sessionStatsByUser.set(row.user_id, {
+            session_count: row.session_count,
+            total_duration_seconds: row.total_duration_seconds,
+          });
+        }
+      } catch {
+        // Silently skip if session_records table doesn't exist yet
+      }
+    }
+
+    const entries = result.results.map((row, index) => {
+      const sessionStats = sessionStatsByUser.get(row.user_id);
+      return {
+        rank: index + 1,
+        user: {
+          name: row.nickname ?? row.name,
+          image: row.image,
+          slug: row.slug,
+          ...(isAdminMode && {
+            is_public: row.is_public == null ? null : row.is_public === 1,
+          }),
+        },
+        teams: teamsByUser.get(row.user_id) ?? [],
+        total_tokens: row.total_tokens,
+        input_tokens: row.input_tokens,
+        output_tokens: row.output_tokens,
+        cached_input_tokens: row.cached_input_tokens,
+        session_count: sessionStats?.session_count ?? 0,
+        total_duration_seconds: sessionStats?.total_duration_seconds ?? 0,
+      };
+    });
 
     const headers: HeadersInit = isAdminMode || teamId
       ? { "Cache-Control": "private, no-store" }

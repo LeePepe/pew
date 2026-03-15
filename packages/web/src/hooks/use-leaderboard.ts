@@ -21,6 +21,8 @@ export interface LeaderboardEntry {
   input_tokens: number;
   output_tokens: number;
   cached_input_tokens: number;
+  session_count: number;
+  total_duration_seconds: number;
 }
 
 export interface LeaderboardData {

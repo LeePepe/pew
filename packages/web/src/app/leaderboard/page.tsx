@@ -9,8 +9,8 @@ import {
   EyeOff,
   ChevronDown,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { formatTokens, formatTokensFull } from "@/lib/utils";
+import { cn, formatTokensFull } from "@/lib/utils";
+import { formatDuration } from "@/lib/date-helpers";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   useLeaderboard,
@@ -265,7 +265,7 @@ function LeaderboardRow({
   showHiddenBadge?: boolean;
   index: number;
 }) {
-  const { rank, user, teams, total_tokens, input_tokens, output_tokens } =
+  const { rank, user, teams, total_tokens, session_count, total_duration_seconds } =
     entry;
   const displayName = user.name ?? "Anonymous";
   const initial = displayName[0]?.toUpperCase() ?? "?";
@@ -323,17 +323,17 @@ function LeaderboardRow({
         </div>
       </div>
 
-      {/* Input tokens — sky blue tint (hidden on mobile) */}
+      {/* Session count (hidden on mobile) */}
       <div className="hidden sm:block w-24 shrink-0 text-right">
-        <span className="text-xs tabular-nums text-chart-2" title="Input tokens">
-          {formatTokens(input_tokens)}
+        <span className="text-xs tabular-nums text-chart-2" title="Sessions">
+          {session_count.toLocaleString("en-US")}
         </span>
       </div>
 
-      {/* Output tokens — orange tint (hidden on mobile) */}
+      {/* Duration (hidden on mobile) */}
       <div className="hidden sm:block w-24 shrink-0 text-right">
-        <span className="text-xs tabular-nums text-chart-7" title="Output tokens">
-          {formatTokens(output_tokens)}
+        <span className="text-xs tabular-nums text-chart-7" title="Total duration">
+          {formatDuration(total_duration_seconds)}
         </span>
       </div>
 

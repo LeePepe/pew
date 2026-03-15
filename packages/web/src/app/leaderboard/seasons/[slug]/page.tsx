@@ -11,8 +11,8 @@ import {
   Camera,
   Calendar,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { formatTokens, formatTokensFull } from "@/lib/utils";
+import { cn, formatTokensFull } from "@/lib/utils";
+import { formatDuration } from "@/lib/date-helpers";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -39,8 +39,8 @@ function SeasonTableHeader() {
         <span className="w-8 shrink-0 text-center">Rank</span>
         <span className="w-3 shrink-0" />
         <span className="flex-1">Team</span>
-        <span className="hidden sm:block w-24 shrink-0 text-right">In</span>
-        <span className="hidden sm:block w-24 shrink-0 text-right">Out</span>
+        <span className="hidden sm:block w-24 shrink-0 text-right">Sessions</span>
+        <span className="hidden sm:block w-24 shrink-0 text-right">Duration</span>
         <span className="w-[140px] sm:w-[220px] shrink-0 text-right">Tokens</span>
         {/* Expand chevron spacer */}
         <span className="w-4 shrink-0" />
@@ -142,17 +142,17 @@ function TeamRow({
           </div>
         </div>
 
-        {/* Input tokens — sky blue tint (hidden on mobile) */}
+        {/* Session count (hidden on mobile) */}
         <div className="hidden sm:block w-24 shrink-0 text-right">
-          <span className="text-xs tabular-nums text-chart-2" title="Input tokens">
-            {formatTokens(entry.input_tokens)}
+          <span className="text-xs tabular-nums text-chart-2" title="Sessions">
+            {entry.session_count.toLocaleString("en-US")}
           </span>
         </div>
 
-        {/* Output tokens — orange tint (hidden on mobile) */}
+        {/* Duration (hidden on mobile) */}
         <div className="hidden sm:block w-24 shrink-0 text-right">
-          <span className="text-xs tabular-nums text-chart-7" title="Output tokens">
-            {formatTokens(entry.output_tokens)}
+          <span className="text-xs tabular-nums text-chart-7" title="Total duration">
+            {formatDuration(entry.total_duration_seconds)}
           </span>
         </div>
 
@@ -197,8 +197,8 @@ function TeamRow({
                   {displayName}
                 </span>
                 <div className="hidden sm:flex items-center gap-4 text-xs">
-                  <span className="tabular-nums text-chart-2">{formatTokens(member.input_tokens)}</span>
-                  <span className="tabular-nums text-chart-7">{formatTokens(member.output_tokens)}</span>
+                  <span className="tabular-nums text-chart-2">{member.session_count.toLocaleString("en-US")}</span>
+                  <span className="tabular-nums text-chart-7">{formatDuration(member.total_duration_seconds)}</span>
                 </div>
                 <span className="text-sm font-medium text-foreground tabular-nums shrink-0">
                   {formatTokensFull(member.total_tokens)}

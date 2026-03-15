@@ -158,6 +158,8 @@ describe("GET /api/leaderboard", () => {
         input_tokens: 3000000,
         output_tokens: 1500000,
         cached_input_tokens: 500000,
+        session_count: 0,
+        total_duration_seconds: 0,
       });
 
       expect(body.entries[1].rank).toBe(2);

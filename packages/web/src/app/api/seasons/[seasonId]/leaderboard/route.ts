@@ -75,6 +75,19 @@ interface MemberSnapshotRow {
   cached_input_tokens: number;
 }
 
+interface TeamSessionStatsRow {
+  team_id: string;
+  session_count: number;
+  total_duration_seconds: number;
+}
+
+interface MemberSessionStatsRow {
+  team_id: string;
+  user_id: string;
+  session_count: number;
+  total_duration_seconds: number;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -196,6 +209,8 @@ export async function GET(
         input_tokens: row.input_tokens,
         output_tokens: row.output_tokens,
         cached_input_tokens: row.cached_input_tokens,
+        session_count: 0,
+        total_duration_seconds: 0,
         ...(expandMembers && {
           members: (membersByTeam.get(row.team_id) ?? []).map((m) => ({
             user_id: m.user_id,
@@ -205,9 +220,71 @@ export async function GET(
             input_tokens: m.input_tokens,
             output_tokens: m.output_tokens,
             cached_input_tokens: m.cached_input_tokens,
+            session_count: 0,
+            total_duration_seconds: 0,
           })),
         }),
       }));
+
+      // Enrich snapshot entries with live session stats
+      const snapshotTeamIds = snapshots.results.map((r) => r.team_id);
+      if (snapshotTeamIds.length > 0) {
+        try {
+          const placeholders = snapshotTeamIds.map(() => "?").join(",");
+          const teamSessionResult = await client.query<TeamSessionStatsRow>(
+            `SELECT stm.team_id,
+                    COUNT(*) AS session_count,
+                    COALESCE(SUM(sr.duration_seconds), 0) AS total_duration_seconds
+             FROM season_team_members stm
+             JOIN session_records sr ON sr.user_id = stm.user_id
+               AND sr.started_at >= ?
+               AND sr.started_at < ?
+             WHERE stm.season_id = ?
+               AND stm.team_id IN (${placeholders})
+             GROUP BY stm.team_id`,
+            [fromDate, toDate, season.id, ...snapshotTeamIds],
+          );
+          const teamSessionMap = new Map(teamSessionResult.results.map((r) => [r.team_id, r]));
+          for (const entry of entries) {
+            const stats = teamSessionMap.get(entry.team.id);
+            if (stats) {
+              entry.session_count = stats.session_count;
+              entry.total_duration_seconds = stats.total_duration_seconds;
+            }
+          }
+
+          if (expandMembers) {
+            const memberSessionResult = await client.query<MemberSessionStatsRow>(
+              `SELECT stm.team_id,
+                      stm.user_id,
+                      COUNT(*) AS session_count,
+                      COALESCE(SUM(sr.duration_seconds), 0) AS total_duration_seconds
+               FROM season_team_members stm
+               JOIN session_records sr ON sr.user_id = stm.user_id
+                 AND sr.started_at >= ?
+                 AND sr.started_at < ?
+               WHERE stm.season_id = ?
+                 AND stm.team_id IN (${placeholders})
+               GROUP BY stm.team_id, stm.user_id`,
+              [fromDate, toDate, season.id, ...snapshotTeamIds],
+            );
+            const memberSessionMap = new Map(memberSessionResult.results.map((r) => `${r.team_id}:${r.user_id}`).map((key, i) => [key, memberSessionResult.results[i]]));
+            for (const entry of entries) {
+              if (entry.members) {
+                for (const member of entry.members) {
+                  const stats = memberSessionMap.get(`${entry.team.id}:${member.user_id}`);
+                  if (stats) {
+                    member.session_count = stats.session_count;
+                    member.total_duration_seconds = stats.total_duration_seconds;
+                  }
+                }
+              }
+            }
+          }
+        } catch {
+          // Silently skip if session_records table doesn't exist yet
+        }
+      }
     } else {
       // Real-time aggregation from usage_records
       const teamRows = await client.query<TeamTokenRow>(
@@ -276,6 +353,8 @@ export async function GET(
         input_tokens: row.input_tokens,
         output_tokens: row.output_tokens,
         cached_input_tokens: row.cached_input_tokens,
+        session_count: 0,
+        total_duration_seconds: 0,
         ...(expandMembers && {
           members: (membersByTeam.get(row.team_id) ?? []).map((m) => ({
             user_id: m.user_id,
@@ -285,9 +364,71 @@ export async function GET(
             input_tokens: m.input_tokens,
             output_tokens: m.output_tokens,
             cached_input_tokens: m.cached_input_tokens,
+            session_count: 0,
+            total_duration_seconds: 0,
           })),
         }),
       }));
+
+      // Enrich with session stats
+      const liveTeamIds = teamRows.results.map((r) => r.team_id);
+      if (liveTeamIds.length > 0) {
+        try {
+          const placeholders = liveTeamIds.map(() => "?").join(",");
+          const teamSessionResult = await client.query<TeamSessionStatsRow>(
+            `SELECT stm.team_id,
+                    COUNT(*) AS session_count,
+                    COALESCE(SUM(sr.duration_seconds), 0) AS total_duration_seconds
+             FROM season_team_members stm
+             JOIN session_records sr ON sr.user_id = stm.user_id
+               AND sr.started_at >= ?
+               AND sr.started_at < ?
+             WHERE stm.season_id = ?
+               AND stm.team_id IN (${placeholders})
+             GROUP BY stm.team_id`,
+            [fromDate, toDate, season.id, ...liveTeamIds],
+          );
+          const teamSessionMap = new Map(teamSessionResult.results.map((r) => [r.team_id, r]));
+          for (const entry of entries) {
+            const stats = teamSessionMap.get(entry.team.id);
+            if (stats) {
+              entry.session_count = stats.session_count;
+              entry.total_duration_seconds = stats.total_duration_seconds;
+            }
+          }
+
+          if (expandMembers) {
+            const memberSessionResult = await client.query<MemberSessionStatsRow>(
+              `SELECT stm.team_id,
+                      stm.user_id,
+                      COUNT(*) AS session_count,
+                      COALESCE(SUM(sr.duration_seconds), 0) AS total_duration_seconds
+               FROM season_team_members stm
+               JOIN session_records sr ON sr.user_id = stm.user_id
+                 AND sr.started_at >= ?
+                 AND sr.started_at < ?
+               WHERE stm.season_id = ?
+                 AND stm.team_id IN (${placeholders})
+               GROUP BY stm.team_id, stm.user_id`,
+              [fromDate, toDate, season.id, ...liveTeamIds],
+            );
+            const memberSessionMap = new Map(memberSessionResult.results.map((r) => `${r.team_id}:${r.user_id}`).map((key, i) => [key, memberSessionResult.results[i]]));
+            for (const entry of entries) {
+              if (entry.members) {
+                for (const member of entry.members) {
+                  const stats = memberSessionMap.get(`${entry.team.id}:${member.user_id}`);
+                  if (stats) {
+                    member.session_count = stats.session_count;
+                    member.total_duration_seconds = stats.total_duration_seconds;
+                  }
+                }
+              }
+            }
+          }
+        } catch {
+          // Silently skip if session_records table doesn't exist yet
+        }
+      }
     }
 
     return NextResponse.json({

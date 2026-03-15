@@ -6,10 +6,10 @@
  * divider (Armory's Divider--thin--silver).
  *
  * Column widths must stay in sync with LeaderboardRow layout:
- *   Rank (w-8) | gap-3 | Avatar (w-8) + gap-3 + Name (flex-1) | In (w-24 shrink-0) | Out (w-24 shrink-0) | Total (w-[140px] sm:w-[220px])
+ *   Rank (w-8) | gap-3 | Avatar (w-8) + gap-3 + Name (flex-1) | Sessions (w-24 shrink-0) | Duration (w-24 shrink-0) | Total (w-[140px] sm:w-[220px])
  *
- * Responsive: In/Out columns are hidden on mobile (sm:), matching the
- * data rows that also hide token breakdown on narrow screens.
+ * Responsive: Sessions/Duration columns are hidden on mobile (sm:), matching the
+ * data rows that also hide these columns on narrow screens.
  */
 export function TableHeader() {
   return (
@@ -22,10 +22,10 @@ export function TableHeader() {
         <span className="w-3 shrink-0" />
         {/* Player — avatar (w-8) + gap-3 + name fills flex-1 */}
         <span className="flex-1">Player</span>
-        {/* In — matches row's input token column */}
-        <span className="hidden sm:block w-24 shrink-0 text-right">In</span>
-        {/* Out — matches row's output token column */}
-        <span className="hidden sm:block w-24 shrink-0 text-right">Out</span>
+        {/* Sessions — matches row's session count column */}
+        <span className="hidden sm:block w-24 shrink-0 text-right">Sessions</span>
+        {/* Duration — matches row's duration column */}
+        <span className="hidden sm:block w-24 shrink-0 text-right">Duration</span>
         {/* Tokens — matches row's total column */}
         <span className="w-[140px] sm:w-[220px] shrink-0 text-right">Tokens</span>
       </div>
