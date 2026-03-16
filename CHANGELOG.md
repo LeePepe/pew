@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.10.5
+
+### Fixes
+
+- **Trend chart date gaps** — All time-series charts (dashboard, models, devices, projects, sessions) now fill missing dates with zero values and always extend to the user's local "today". Previously charts ended abruptly at the last day with data, making recent idle days invisible. Added `fillDateRange()` and `fillTimelineGaps()` utilities in `date-helpers.ts`.
+
 ## v1.10.4
 
 ### Features
