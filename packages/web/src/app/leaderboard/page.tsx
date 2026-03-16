@@ -277,7 +277,7 @@ function LeaderboardRow({
         user.slug && "hover:bg-accent cursor-pointer",
         rank <= 3 && "ring-1 ring-border/50",
       )}
-      style={{ animationDelay: `${index * 40}ms` }}
+      style={{ animationDelay: `${Math.min(index * 40, 600)}ms` }}
     >
       <CheckRuling />
 
