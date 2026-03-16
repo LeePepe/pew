@@ -1,29 +1,22 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatGrid } from "./stat-card";
 import { DashboardSegment } from "./dashboard-segment";
+import { ChevronRight } from "lucide-react";
 
 /** Loading skeleton for the dashboard overview. */
 export function DashboardSkeleton() {
   return (
     <div className="space-y-4 md:space-y-6">
-      {/* ── Achievements ────────────────────────────────── */}
-      <DashboardSegment title="Achievements">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div
-              key={`ach-${i}`}
-              className="flex items-center gap-3 rounded-lg border border-border/50 bg-card px-3 py-2.5"
-            >
-              <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
-              <div className="flex-1 space-y-1.5">
-                <Skeleton className="h-3 w-16" />
-                <Skeleton className="h-2.5 w-24" />
-              </div>
-              <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
-            </div>
-          ))}
+      {/* ── Achievements (collapsed skeleton — matches real layout) ── */}
+      <section className="space-y-3 md:space-y-4">
+        <div className="flex items-center gap-3">
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <h2 className="shrink-0 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Achievements
+          </h2>
+          <div className="h-px flex-1 bg-border/60" />
         </div>
-      </DashboardSegment>
+      </section>
 
       {/* ── Overview ────────────────────────────────────── */}
       <DashboardSegment title="Overview">

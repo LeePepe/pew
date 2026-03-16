@@ -9,6 +9,7 @@ import {
   DollarSign,
   PiggyBank,
   TrendingUp,
+  ChevronRight,
 } from "lucide-react";
 import { useUsageData, toHeatmapData } from "@/hooks/use-usage-data";
 import { formatTokens, cn } from "@/lib/utils";
@@ -32,6 +33,7 @@ import { BudgetAlert } from "@/components/dashboard/budget-alert";
 import { BudgetDialog } from "@/components/dashboard/budget-dialog";
 import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
 import { DashboardSegment } from "@/components/dashboard/dashboard-segment";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { PeriodSelector } from "@/components/dashboard/period-selector";
 import { periodToDateRange, periodLabel, getLocalToday, fillDateRange } from "@/lib/date-helpers";
 import type { Period } from "@/lib/date-helpers";
@@ -199,10 +201,28 @@ export default function DashboardPage() {
       {/* Content */}
       {!loading && data && (
         <>
-          {/* ── Achievements ────────────────────────────────── */}
-          <DashboardSegment title="Achievements">
-            <AchievementShelf achievements={achievements} />
-          </DashboardSegment>
+          {/* ── Achievements (collapsible, default closed) ──── */}
+          {achievements.length > 0 && (
+            <Collapsible>
+              <section className="space-y-3 md:space-y-4">
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 group cursor-pointer"
+                  >
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform [[data-state=open]>&]:rotate-90" />
+                    <h2 className="shrink-0 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      Achievements
+                    </h2>
+                    <div className="h-px flex-1 bg-border/60" />
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <AchievementShelf achievements={achievements} />
+                </CollapsibleContent>
+              </section>
+            </Collapsible>
+          )}
 
           {/* ── Overview ────────────────────────────────────── */}
           <DashboardSegment title="Overview">
