@@ -161,11 +161,16 @@ export async function PATCH(
       values
     );
 
-    // Auto-backfill rosters when allow_roster_changes flips 0→1 on an active season
+    // Auto-backfill rosters when allow_roster_changes flips 0→1 on an active season.
+    // Use post-update dates so a single PATCH that transitions upcoming→active
+    // AND enables roster changes will still trigger backfill.
     const wasRosterOff = season.allow_roster_changes === 0;
     const isRosterOn = body.allow_roster_changes === true;
-    if (wasRosterOff && isRosterOn && status === "active") {
-      await syncAllRostersForSeason(client, seasonId);
+    if (wasRosterOff && isRosterOn) {
+      const finalStatus = deriveSeasonStatus(finalStartDate, finalEndDate);
+      if (finalStatus === "active") {
+        await syncAllRostersForSeason(client, seasonId);
+      }
     }
 
     // Return updated season

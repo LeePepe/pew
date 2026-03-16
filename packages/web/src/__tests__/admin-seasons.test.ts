@@ -461,4 +461,45 @@ describe("PATCH /api/admin/seasons/[seasonId]", () => {
     expect(res.status).toBe(200);
     expect(syncAllRostersForSeason).not.toHaveBeenCalled();
   });
+
+  it("should trigger roster backfill when dates change upcoming→active AND roster_changes flips 0→1", async () => {
+    resolveAdmin.mockResolvedValueOnce(ADMIN);
+
+    // Season is upcoming before the PATCH (dates in the future)
+    mockClient.firstOrNull
+      .mockResolvedValueOnce({
+        id: "season-1",
+        name: "Transition Season",
+        slug: "s-trans",
+        start_date: "2099-06-01T00:00:00Z",
+        end_date: "2099-06-30T23:59:00Z",
+        allow_roster_changes: 0,
+      })
+      .mockResolvedValueOnce({
+        id: "season-1",
+        name: "Transition Season",
+        slug: "s-trans",
+        start_date: "2020-01-01T00:00:00Z",
+        end_date: "2099-12-31T23:59:00Z",
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-03-16T00:00:00Z",
+        allow_late_registration: 0,
+        allow_roster_changes: 1,
+        allow_late_withdrawal: 0,
+      });
+    mockClient.execute.mockResolvedValue({ changes: 1, duration: 0.01 });
+    syncAllRostersForSeason.mockResolvedValueOnce(1);
+
+    // PATCH changes dates to make it active AND enables roster changes
+    const res = await PATCH(
+      makeRequest("PATCH", undefined, {
+        start_date: "2020-01-01T00:00:00Z",
+        end_date: "2099-12-31T23:59:00Z",
+        allow_roster_changes: true,
+      }),
+      { params: patchParams }
+    );
+    expect(res.status).toBe(200);
+    expect(syncAllRostersForSeason).toHaveBeenCalledWith(mockClient, "season-1");
+  });
 });
