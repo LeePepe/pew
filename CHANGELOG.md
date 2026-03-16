@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.11.0
+
+### Features
+
+- **Asset-notation tier badges** — Replaced K/M/B token badges with asset-style notation (e.g. A8.3 = 30M–39M tokens). Each digit-count magnitude has a distinct color from the project chart palette, making it easy to compare users at a glance. Badges now appear on season member rows too.
+- **Team logo on season leaderboard** — Season leaderboard team rows now display the uploaded team logo. When no logo is available, falls back to a Users icon with a deterministic color hashed from the team name (supports CJK/Unicode).
+
+### Improvements
+
+- **Season leaderboard alignment** — Member rows now use the same column structure as team rows (rank spacer, 8×8 avatar, fixed-width Sessions/Duration/Tokens columns, chevron spacer). Values use consistent font sizes for easy vertical comparison.
+- **Table header alignment** — Season table header now uses `gap-3` matching the data rows' flex gap, fixing misaligned Sessions/Duration/Tokens column headers.
+- **Hidden profile badge** — Simplified from "icon + hidden" pill to icon-only on the leaderboard, saving horizontal space.
+
+### Visual
+
+- **Heatmap percentile bucketing** — Switched heatmap color assignment from fixed thresholds to percentile-based bucketing for better visual distribution.
+- **WeekdayWeekend chart** — Replaced dual Y-axis line chart with comparison bar chart for clearer weekday vs weekend patterns.
+- **Chart polish** — Unified cached color to `chartMuted`, normalized WeekdayWeekend header/legend/tooltip, prefixed SVG gradient IDs to avoid collisions, capped leaderboard row animation stagger, replaced RankBadge raw colors with design tokens.
+
 ## v1.10.7
 
 ### Fixes
