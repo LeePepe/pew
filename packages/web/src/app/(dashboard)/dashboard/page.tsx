@@ -217,7 +217,7 @@ export default function DashboardPage() {
                     <div className="h-px flex-1 bg-border/60" />
                   </button>
                 </CollapsibleTrigger>
-                <CollapsibleContent>
+                <CollapsibleContent className="overflow-hidden data-[state=open]:animate-collapsible-down data-[state=closed]:animate-collapsible-up">
                   <AchievementShelf achievements={achievements} />
                 </CollapsibleContent>
               </section>
