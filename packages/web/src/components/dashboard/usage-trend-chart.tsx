@@ -10,13 +10,12 @@ import {
 } from "recharts";
 import { cn } from "@/lib/utils";
 import { formatTokens } from "@/lib/utils";
-import { chart, chartAxis, CHART_COLORS } from "@/lib/palette";
+import { chart, chartAxis, CHART_COLORS, chartMuted } from "@/lib/palette";
 import type { DailyPoint } from "@/hooks/use-usage-data";
 import { DashboardResponsiveContainer } from "./dashboard-responsive-container";
 
 // Safe color references (CHART_COLORS is guaranteed 8 elements)
 const colorOutput = CHART_COLORS[1]!;
-const colorCached = CHART_COLORS[2]!;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -137,7 +136,7 @@ export function UsageTrendChart({ data, className }: UsageTrendChartProps) {
           {[
             { key: "input", label: "Input", color: chart.teal },
             { key: "output", label: "Output", color: colorOutput },
-            { key: "cached", label: "Cached", color: colorCached },
+            { key: "cached", label: "Cached", color: chartMuted },
           ].map(({ key, label, color }) => (
             <div key={key} className="flex items-center gap-1.5">
               <div
@@ -176,12 +175,12 @@ export function UsageTrendChart({ data, className }: UsageTrendChartProps) {
               <linearGradient id="gradCached" x1="0" y1="0" x2="0" y2="1">
                 <stop
                   offset="0%"
-                  stopColor={colorCached}
+                  stopColor={chartMuted}
                   stopOpacity={0.3}
                 />
                 <stop
                   offset="100%"
-                  stopColor={colorCached}
+                  stopColor={chartMuted}
                   stopOpacity={0}
                 />
               </linearGradient>
@@ -227,7 +226,7 @@ export function UsageTrendChart({ data, className }: UsageTrendChartProps) {
               type="monotone"
               dataKey="cached"
               stackId="1"
-              stroke={colorCached}
+              stroke={chartMuted}
               strokeWidth={2}
               fill="url(#gradCached)"
             />
