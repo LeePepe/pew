@@ -301,9 +301,8 @@ function LeaderboardRow({
             </span>
             <TokenTierBadge totalTokens={total_tokens} />
             {showHiddenBadge && user.is_public === false && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+              <span className="inline-flex items-center justify-center rounded-full bg-muted p-1 text-muted-foreground" title="Hidden profile">
                 <EyeOff className="h-3 w-3" strokeWidth={1.5} />
-                hidden
               </span>
             )}
           </div>
