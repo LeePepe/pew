@@ -291,7 +291,7 @@ describe("executeLogin", () => {
 
   // ---- Security: loopback binding ----
 
-  it("should bind server to 127.0.0.1 only", async () => {
+  it("should bind server to localhost only", async () => {
     let serverAddress: string | undefined;
 
     const loginPromise = executeLogin({
@@ -306,7 +306,6 @@ describe("executeLogin", () => {
         const callbackUrl = new URL(callbackParam);
 
         // Extract the host the server is listening on from the callback URL
-        // The actual server address is verified via the address check below
         serverAddress = callbackUrl.hostname;
 
         callbackUrl.searchParams.set("api_key", "pk_test_bind");
@@ -318,7 +317,7 @@ describe("executeLogin", () => {
     });
 
     await loginPromise;
-    expect(serverAddress).toBe("127.0.0.1");
+    expect(serverAddress).toBe("localhost");
   });
 
   // ---- Security: HTML escaping ----

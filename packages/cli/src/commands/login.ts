@@ -163,11 +163,15 @@ export async function executeLogin(options: LoginOptions): Promise<LoginResult> 
       resolve(result);
     }
 
-    // Listen on port 0 on loopback only (127.0.0.1) — never expose to LAN
-    server.listen(0, "127.0.0.1", () => {
+    // Listen on port 0 on loopback only — never expose to LAN.
+    // Use "localhost" (not "127.0.0.1") so the callback URL matches however
+    // the OS resolves localhost (IPv4 127.0.0.1 or IPv6 ::1).  On some Macs
+    // localhost resolves to ::1, and binding to "127.0.0.1" while redirecting
+    // the browser to "127.0.0.1" can fail because the browser tries ::1 first.
+    server.listen(0, "localhost", () => {
       const addr = server.address();
       const port = typeof addr === "object" && addr ? addr.port : 0;
-      const callbackUrl = `http://127.0.0.1:${port}/callback`;
+      const callbackUrl = `http://localhost:${port}/callback`;
       const loginUrl = `${apiUrl}/api/auth/cli?callback=${encodeURIComponent(callbackUrl)}&state=${encodeURIComponent(expectedState)}`;
 
       // 4. Set timeout
