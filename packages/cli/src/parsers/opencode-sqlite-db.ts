@@ -56,12 +56,31 @@ function getSqliteOpener(): ((dbPath: string) => SqliteDb) | null {
     // Node.js >= 22.5: use built-in node:sqlite (experimental but stable API).
     // DatabaseSync is the synchronous interface — matches bun:sqlite's API shape.
     // Option is `readOnly` (camelCase), not `readonly` like bun:sqlite.
+    //
+    // Suppress the ExperimentalWarning that Node.js emits on first
+    // require("node:sqlite"). Intercept process.emit, swallow the
+    // specific SQLite warning, then restore normal behaviour.
+    const origEmit = process.emit;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (process as any).emit = function (event: string, ...args: unknown[]) {
+      if (
+        event === "warning" &&
+        args[0] instanceof Error &&
+        args[0].name === "ExperimentalWarning" &&
+        args[0].message.includes("SQLite")
+      ) {
+        return false;
+      }
+      return origEmit.apply(process, [event, ...args] as never);
+    };
     try {
       const { DatabaseSync } = esmRequire("node:sqlite");
       cachedSqliteImpl = (dbPath: string) => new DatabaseSync(dbPath, { readOnly: true });
       return cachedSqliteImpl;
     } catch {
       // node:sqlite not available (Node.js < 22.5)
+    } finally {
+      process.emit = origEmit;
     }
   }
 

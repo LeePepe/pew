@@ -54,6 +54,30 @@ if (isDevMode()) {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 }
 
+// ---------------------------------------------------------------------------
+// Inline progress — TTY gets a single overwritten line, non-TTY is silent.
+// Warnings always print on their own line (consola.warn).
+// ---------------------------------------------------------------------------
+
+const isTTY = process.stderr.isTTY === true;
+let lastProgressLine = "";
+
+function writeProgress(text: string) {
+  if (!isTTY) return;
+  // Clear previous line, write new one (no trailing newline → stays on same line)
+  const cols = process.stderr.columns ?? 80;
+  const padded = text.length < cols ? text + " ".repeat(cols - text.length) : text.slice(0, cols);
+  process.stderr.write(`\r${padded}`);
+  lastProgressLine = text;
+}
+
+function clearProgress() {
+  if (!isTTY || !lastProgressLine) return;
+  const cols = process.stderr.columns ?? 80;
+  process.stderr.write(`\r${" ".repeat(cols)}\r`);
+  lastProgressLine = "";
+}
+
 function logSyncProgress(event: {
   source: string;
   phase: "discover" | "parse" | "aggregate" | "done" | "warn";
@@ -62,16 +86,7 @@ function logSyncProgress(event: {
   message?: string;
 }) {
   if (event.phase === "parse" && event.current && event.total) {
-    // Only log at 25% intervals or small counts
-    if (
-      event.total <= 10 ||
-      event.current === event.total ||
-      event.current % Math.ceil(event.total / 4) === 0
-    ) {
-      consola.info(
-        `  ${pc.cyan(event.source)} ${event.current}/${event.total} files`,
-      );
-    }
+    writeProgress(`  ${event.source} ${event.current}/${event.total} files`);
     return;
   }
 
@@ -82,11 +97,12 @@ function logSyncProgress(event: {
     event.message &&
     (event.phase === "discover" || event.phase === "parse")
   ) {
-    consola.info(`  ${pc.cyan(event.source)} ${event.message}`);
+    writeProgress(`  ${event.source} ${event.message}`);
     return;
   }
 
   if (event.phase === "warn" && event.message) {
+    clearProgress();
     consola.warn(`  ${pc.yellow(event.message)}`);
   }
 }
@@ -99,15 +115,7 @@ function logSessionSyncProgress(event: {
   message?: string;
 }) {
   if (event.phase === "parse" && event.current && event.total) {
-    if (
-      event.total <= 10 ||
-      event.current === event.total ||
-      event.current % Math.ceil(event.total / 4) === 0
-    ) {
-      consola.info(
-        `  ${pc.cyan(event.source)} ${event.current}/${event.total} files`,
-      );
-    }
+    writeProgress(`  ${event.source} ${event.current}/${event.total} files`);
     return;
   }
 
@@ -116,11 +124,12 @@ function logSessionSyncProgress(event: {
     event.message &&
     (event.phase === "discover" || event.phase === "parse")
   ) {
-    consola.info(`  ${pc.cyan(event.source)} ${event.message}`);
+    writeProgress(`  ${event.source} ${event.message}`);
     return;
   }
 
   if (event.phase === "warn" && event.message) {
+    clearProgress();
     consola.warn(`  ${pc.yellow(event.message)}`);
   }
 }
@@ -180,6 +189,7 @@ const syncCommand = defineCommand({
     });
 
     // Token summary
+    clearProgress();
     consola.log("");
     if (result.totalDeltas === 0) {
       consola.info("No new token usage found.");
@@ -232,6 +242,7 @@ const syncCommand = defineCommand({
     });
 
     // Session summary
+    clearProgress();
     if (sessionResult.totalSnapshots === 0) {
       consola.info("No new sessions found.");
     } else {
