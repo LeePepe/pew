@@ -1,5 +1,34 @@
 # Changelog
 
+## v1.11.1
+
+### Features
+
+- **GitHub Copilot CLI support** — Added `copilot-cli` as the 7th supported AI tool with full token sync pipeline: telemetry log parser, multi-file discovery, file driver, CLI status/sync display, and dashboard source enumerations
+
+### Fixes
+
+- **Copilot CLI parser endOffset rewind** — Fixed state machine bug where `lastCompletedOffset` advanced past the telemetry marker line, causing incomplete trailing JSON blocks to be permanently skipped on resume instead of retried
+- **CRLF line ending offset drift** — Added `detectEolSize()` to probe the first 4 KB of log files for `\r\n` vs `\n`, replacing the hardcoded `+1` byte assumption that caused cumulative offset drift on Windows-generated logs
+- **Phantom session sync keys** — Removed `vscodeCopilot` and `copilotCli` keys from `SessionSyncResult` interface since no session drivers exist for these sources; `sourceKey()` now returns `null` to skip them cleanly
+- **Copilot CLI parser stream cleanup** — Added `try/finally` with `rl.close()` and `stream.destroy()` for consistent resource cleanup on parse errors
+- **isSource() guard** — Added `copilot-cli` to the `isSource()` type guard so copilot-cli records pass validation
+- **Palette fallback** — Removed dead `copilot-vscode` palette key, updated fallback to `chart-8`
+- **Peak hours bar overflow** — Fixed mini bar chart overflowing container on right side by removing `w-full` from a container with `ml-6` offset
+
+### Refactor
+
+- **Rename Recent → Hourly Usage** — Renamed the "Recent" page to "Hourly Usage" with updated route path `/hourly-usage`, navigation label, and tests
+
+### Docs
+
+- **7 supported tools** — Updated all references from 6 to 7 supported AI tools across CLAUDE.md, README, and docs
+- **Retrospective** — Added copilot-cli parser endOffset rewind lesson to CLAUDE.md
+
+### Tests
+
+- **Copilot CLI L1 coverage** — Added 13 new tests: discovery (4), parser edge cases (model fallback, timestamp fallback, malformed JSON, no-telemetry, bad metrics, CRLF single/resume), and status fixtures (copilot-cli/vscode-copilot classification)
+
 ## v1.11.0
 
 ### Features
