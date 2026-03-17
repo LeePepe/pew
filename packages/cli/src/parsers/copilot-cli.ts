@@ -94,12 +94,15 @@ export async function parseCopilotCliFile(opts: {
           collectingJson = false;
         }
 
-        // Advance safe offset — we've fully processed up to this log line
-        lastCompletedOffset = startOffset + bytesConsumed;
-
         if (line.includes(TELEMETRY_MARKER)) {
           collectingJson = true;
-          // The JSON starts on the next line
+          // Do NOT advance lastCompletedOffset past the marker line.
+          // If the JSON block that follows is incomplete (file truncated),
+          // we need to rewind to BEFORE this marker so the next sync
+          // re-reads it and re-enters collectingJson mode.
+        } else {
+          // Non-telemetry log line — safe to advance past it
+          lastCompletedOffset = startOffset + bytesConsumed;
         }
         continue;
       }

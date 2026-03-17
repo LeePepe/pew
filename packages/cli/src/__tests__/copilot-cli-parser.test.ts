@@ -228,12 +228,48 @@ describe("parseCopilotCliFile", () => {
     // Should parse the complete block but rewind past the incomplete one
     expect(result.deltas).toHaveLength(1);
     expect(result.deltas[0]!.tokens.inputTokens).toBe(1000);
-    // endOffset should point to the start of the incomplete block's
-    // telemetry marker line, NOT to the end of the file
-    expect(result.endOffset).toBe(completeBlock.length + Buffer.byteLength(
-      `2026-03-16T10:41:00.000Z [INFO] [Telemetry] cli.telemetry:\n`, "utf8",
-    ));
+    // endOffset should point to BEFORE the incomplete block's telemetry
+    // marker line so the next sync re-reads the marker and re-enters
+    // collectingJson mode
+    expect(result.endOffset).toBe(completeBlock.length);
     expect(result.endOffset).toBeLessThan(completeBlock.length + incompleteBlock.length);
+  });
+
+  it("retries incomplete trailing block on next sync after file grows", async () => {
+    const filePath = join(tempDir, "process-retry.log");
+    const completeBlock = buildLogWithUsage({
+      input_tokens: 1000,
+      output_tokens: 100,
+      created_at: "2026-03-16T10:40:00.000Z",
+    });
+    // First write: complete block + truncated second block
+    const truncatedTail = [
+      `2026-03-16T10:41:00.000Z [INFO] [Telemetry] cli.telemetry:`,
+      `{`,
+      `  "kind": "assistant_usage",`,
+      `  "properties": {`,
+    ].join("\n") + "\n";
+    await writeFile(filePath, completeBlock + truncatedTail);
+
+    // First parse — gets block 1, rewinds before truncated block
+    const r1 = await parseCopilotCliFile({ filePath, startOffset: 0 });
+    expect(r1.deltas).toHaveLength(1);
+    expect(r1.endOffset).toBe(completeBlock.length);
+
+    // File grows: the truncated block is now complete
+    const completedTail = buildLogWithUsage({
+      input_tokens: 2000,
+      output_tokens: 200,
+      created_at: "2026-03-16T10:41:00.000Z",
+    });
+    await writeFile(filePath, completeBlock + completedTail);
+
+    // Second parse — resumes from r1.endOffset, re-reads the marker,
+    // successfully parses the now-complete block
+    const r2 = await parseCopilotCliFile({ filePath, startOffset: r1.endOffset });
+    expect(r2.deltas).toHaveLength(1);
+    expect(r2.deltas[0]!.tokens.inputTokens).toBe(2000);
+    expect(r2.endOffset).toBe(completeBlock.length + completedTail.length);
   });
 
   it("handles braces inside JSON string values correctly", async () => {
