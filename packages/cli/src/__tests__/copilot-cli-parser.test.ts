@@ -456,4 +456,65 @@ describe("parseCopilotCliFile", () => {
     // toNonNegInt clamps negative/invalid to 0 → all zeros → filtered out
     expect(result.deltas).toHaveLength(0);
   });
+
+  it("handles CRLF line endings correctly (Windows logs)", async () => {
+    const filePath = join(tempDir, "process-crlf.log");
+    const content = [
+      `2026-03-16T10:40:00.873Z [INFO] CompactionProcessor: Utilization 27.5%`,
+      `2026-03-16T10:40:00.959Z [INFO] [Telemetry] cli.telemetry:`,
+      `{`,
+      `  "kind": "assistant_usage",`,
+      `  "properties": {`,
+      `    "event_id": "abc-123",`,
+      `    "model": "claude-opus-4.6"`,
+      `  },`,
+      `  "metrics": {`,
+      `    "input_tokens": 5000,`,
+      `    "input_tokens_uncached": 5000,`,
+      `    "output_tokens": 500,`,
+      `    "cache_read_tokens": 0,`,
+      `    "cache_write_tokens": 0`,
+      `  },`,
+      `  "created_at": "2026-03-16T10:40:00.959Z"`,
+      `}`,
+      `2026-03-16T10:40:01.000Z [DEBUG] Done`,
+    ].join("\r\n") + "\r\n";
+    await writeFile(filePath, content);
+
+    const result = await parseCopilotCliFile({ filePath, startOffset: 0 });
+
+    expect(result.deltas).toHaveLength(1);
+    expect(result.deltas[0]!.tokens.inputTokens).toBe(5000);
+    // endOffset must equal the full file size (CRLF bytes included)
+    expect(result.endOffset).toBe(Buffer.byteLength(content, "utf8"));
+  });
+
+  it("resumes correctly from byte offset in CRLF files", async () => {
+    const filePath = join(tempDir, "process-crlf-resume.log");
+    const block1 = buildLogWithUsage({
+      input_tokens: 1000,
+      output_tokens: 100,
+      created_at: "2026-03-16T10:40:00.000Z",
+    }).replace(/\n/g, "\r\n");
+    await writeFile(filePath, block1);
+
+    // First parse
+    const r1 = await parseCopilotCliFile({ filePath, startOffset: 0 });
+    expect(r1.deltas).toHaveLength(1);
+    expect(r1.endOffset).toBe(Buffer.byteLength(block1, "utf8"));
+
+    // Append second block (also CRLF)
+    const block2 = buildLogWithUsage({
+      input_tokens: 2000,
+      output_tokens: 200,
+      created_at: "2026-03-16T10:41:00.000Z",
+    }).replace(/\n/g, "\r\n");
+    await writeFile(filePath, block1 + block2);
+
+    // Resume — should only get block2
+    const r2 = await parseCopilotCliFile({ filePath, startOffset: r1.endOffset });
+    expect(r2.deltas).toHaveLength(1);
+    expect(r2.deltas[0]!.tokens.inputTokens).toBe(2000);
+    expect(r2.endOffset).toBe(Buffer.byteLength(block1 + block2, "utf8"));
+  });
 });

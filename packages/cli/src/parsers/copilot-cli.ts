@@ -1,5 +1,5 @@
 import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
+import { open, stat } from "node:fs/promises";
 import { createInterface } from "node:readline";
 import type { TokenDelta } from "@pew/core";
 import { isAllZero, toNonNegInt } from "../utils/token-delta.js";
@@ -35,6 +35,12 @@ export async function parseCopilotCliFile(opts: {
 
   const fileSize = st.size;
   if (startOffset >= fileSize) return { deltas, endOffset: startOffset };
+
+  // Detect line ending width (LF=1, CRLF=2) from the first 4 KB.
+  // readline with crlfDelay:Infinity strips both \n and \r\n, but we
+  // must account for the actual on-disk bytes to keep offset tracking
+  // accurate. Windows-generated logs use \r\n.
+  const eolBytes = await detectEolSize(filePath);
 
   const stream = createReadStream(filePath, {
     start: startOffset,
@@ -80,8 +86,8 @@ export async function parseCopilotCliFile(opts: {
 
   try {
     for await (const line of rl) {
-      // +1 for the newline character that readline strips
-      bytesConsumed += Buffer.byteLength(line, "utf8") + 1;
+      // Add line content bytes + EOL bytes that readline stripped
+      bytesConsumed += Buffer.byteLength(line, "utf8") + eolBytes;
 
       if (LOG_LINE_RE.test(line)) {
         // New log line — flush any in-progress JSON block first
@@ -169,4 +175,29 @@ function extractUsageDelta(
   if (isAllZero(tokens)) return null;
 
   return { source: "copilot-cli", model, timestamp, tokens };
+}
+
+// ---------------------------------------------------------------------------
+// EOL detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Detect the line ending width of a file by scanning its first 4 KB.
+ * Returns 2 for CRLF (`\r\n`), 1 for LF (`\n`).
+ * Falls back to 1 (LF) if no newline is found in the probe window.
+ */
+async function detectEolSize(filePath: string): Promise<1 | 2> {
+  const fh = await open(filePath, "r");
+  try {
+    const buf = Buffer.alloc(4096);
+    const { bytesRead } = await fh.read(buf, 0, 4096);
+    for (let i = 0; i < bytesRead; i++) {
+      if (buf[i] === 0x0a) {
+        return i > 0 && buf[i - 1] === 0x0d ? 2 : 1;
+      }
+    }
+    return 1;
+  } finally {
+    await fh.close();
+  }
 }
