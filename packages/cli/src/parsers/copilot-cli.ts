@@ -78,44 +78,51 @@ export async function parseCopilotCliFile(opts: {
     }
   }
 
-  for await (const line of rl) {
-    // +1 for the newline character that readline strips
-    bytesConsumed += Buffer.byteLength(line, "utf8") + 1;
+  try {
+    for await (const line of rl) {
+      // +1 for the newline character that readline strips
+      bytesConsumed += Buffer.byteLength(line, "utf8") + 1;
 
-    if (LOG_LINE_RE.test(line)) {
-      // New log line — flush any in-progress JSON block first
-      if (collectingJson) {
-        // Force-flush: a new log line means the JSON block ended (or was malformed)
-        tryFlushJson();
-        jsonLines = [];
-        collectingJson = false;
-      }
-
-      // Advance safe offset — we've fully processed up to this log line
-      lastCompletedOffset = startOffset + bytesConsumed;
-
-      if (line.includes(TELEMETRY_MARKER)) {
-        collectingJson = true;
-        // The JSON starts on the next line
-      }
-      continue;
-    }
-
-    if (collectingJson) {
-      jsonLines.push(line);
-
-      // Attempt JSON.parse after each line containing "}" — this is
-      // more robust than brace-depth counting which breaks on braces
-      // inside JSON string values.
-      if (line.includes("}")) {
-        const parsed = tryFlushJson();
-        if (parsed) {
+      if (LOG_LINE_RE.test(line)) {
+        // New log line — flush any in-progress JSON block first
+        if (collectingJson) {
+          // Force-flush: a new log line means the JSON block ended (or was malformed).
+          // tryFlushJson clears jsonLines on success; on failure the block was
+          // malformed and we discard it below.
+          tryFlushJson();
+          jsonLines = [];
           collectingJson = false;
-          lastCompletedOffset = startOffset + bytesConsumed;
         }
-        // If parse failed, keep accumulating — might be nested object
+
+        // Advance safe offset — we've fully processed up to this log line
+        lastCompletedOffset = startOffset + bytesConsumed;
+
+        if (line.includes(TELEMETRY_MARKER)) {
+          collectingJson = true;
+          // The JSON starts on the next line
+        }
+        continue;
+      }
+
+      if (collectingJson) {
+        jsonLines.push(line);
+
+        // Attempt JSON.parse after each line containing "}" — this is
+        // more robust than brace-depth counting which breaks on braces
+        // inside JSON string values.
+        if (line.includes("}")) {
+          const parsed = tryFlushJson();
+          if (parsed) {
+            collectingJson = false;
+            lastCompletedOffset = startOffset + bytesConsumed;
+          }
+          // If parse failed, keep accumulating — might be nested object
+        }
       }
     }
+  } finally {
+    rl.close();
+    stream.destroy();
   }
 
   // Do NOT flush trailing incomplete blocks — leave them for next sync.
