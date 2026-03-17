@@ -5,7 +5,7 @@
 
 ## Overview
 
-pew collects token usage from 6 local AI coding tools and provides a SaaS dashboard
+pew collects token usage from 7 local AI coding tools and provides a SaaS dashboard
 with auth, data display, public profiles, and leaderboards.
 
 ### Supported AI Tools
@@ -18,6 +18,7 @@ with auth, data display, public profiles, and leaderboards.
 | 4 | OpenCode | `~/.local/share/opencode/storage/message/` |
 | 5 | OpenClaw | `~/.openclaw/agents/*/sessions/*.jsonl` |
 | 6 | VS Code Copilot | `~/.config/github-copilot/chat/` |
+| 7 | GitHub Copilot CLI | `~/.copilot/logs/process-*.log` |
 
 ### Tech Stack
 

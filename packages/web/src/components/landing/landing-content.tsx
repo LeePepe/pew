@@ -87,8 +87,10 @@ export function LandingContent() {
         Reads local logs from{" "}
         <span className="text-foreground">
           Claude Code, Codex, Gemini CLI, OpenCode, OpenClaw
-        </span>{" "}
-        &amp; <span className="text-foreground">VS Code Copilot</span> —
+        </span>
+        ,{" "}
+        <span className="text-foreground">VS Code Copilot</span> &amp;{" "}
+        <span className="text-foreground">GitHub Copilot CLI</span> —
         only counts, never conversations.
       </p>
 

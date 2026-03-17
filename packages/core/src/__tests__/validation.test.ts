@@ -25,13 +25,14 @@ import {
 // ---------------------------------------------------------------------------
 
 describe("isValidSource", () => {
-  it("should accept all 6 sources", () => {
+  it("should accept all 7 sources", () => {
     expect(isValidSource("claude-code")).toBe(true);
     expect(isValidSource("codex")).toBe(true);
     expect(isValidSource("gemini-cli")).toBe(true);
     expect(isValidSource("opencode")).toBe(true);
     expect(isValidSource("openclaw")).toBe(true);
     expect(isValidSource("vscode-copilot")).toBe(true);
+    expect(isValidSource("copilot-cli")).toBe(true);
   });
 
   it("should reject invalid sources", () => {
@@ -232,8 +233,8 @@ describe("validateIngestRecord", () => {
     }
   });
 
-  it("should accept all 6 sources", () => {
-    for (const source of ["claude-code", "codex", "gemini-cli", "opencode", "openclaw", "vscode-copilot"]) {
+  it("should accept all 7 sources", () => {
+    for (const source of ["claude-code", "codex", "gemini-cli", "opencode", "openclaw", "vscode-copilot", "copilot-cli"]) {
       const rec = { ...validTokenRecord(), source };
       expect(validateIngestRecord(rec, 0).valid).toBe(true);
     }
