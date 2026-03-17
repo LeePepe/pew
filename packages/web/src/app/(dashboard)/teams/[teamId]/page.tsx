@@ -144,8 +144,8 @@ function SeasonRow({
 
       <div className="shrink-0">
         {season.is_registered ? (
-          // Can only withdraw from upcoming seasons
-          season.status === "upcoming" ? (
+          // Can withdraw from upcoming seasons, or active seasons with late withdrawal enabled
+          season.status === "upcoming" || (season.status === "active" && season.allow_late_withdrawal) ? (
             <button
               onClick={() => onWithdraw(season.id)}
               disabled={isBusy}
@@ -161,7 +161,7 @@ function SeasonRow({
               )}
             </button>
           ) : null
-        ) : season.status === "upcoming" ? (
+        ) : season.status === "upcoming" || (season.status === "active" && season.allow_late_registration) ? (
           <button
             onClick={() => onRegister(season.id)}
             disabled={isBusy}

@@ -23,6 +23,8 @@ interface SeasonRow {
   created_at: string;
   team_count: number;
   has_snapshot: number; // 0 or 1 from SQLite
+  allow_late_registration: number; // 0 or 1
+  allow_late_withdrawal: number; // 0 or 1
 }
 
 // Sort priority: active=0, upcoming=1, ended=2
@@ -50,6 +52,7 @@ export async function GET(request: Request) {
     const { results } = await client.query<SeasonRow>(
       `SELECT
          s.id, s.name, s.slug, s.start_date, s.end_date, s.created_at,
+         s.allow_late_registration, s.allow_late_withdrawal,
          COUNT(st.id) AS team_count,
          s.snapshot_ready AS has_snapshot
        FROM seasons s
@@ -67,6 +70,8 @@ export async function GET(request: Request) {
       status: deriveSeasonStatus(r.start_date, r.end_date),
       team_count: r.team_count,
       has_snapshot: r.has_snapshot === 1,
+      allow_late_registration: r.allow_late_registration === 1,
+      allow_late_withdrawal: r.allow_late_withdrawal === 1,
       created_at: r.created_at,
     }));
 

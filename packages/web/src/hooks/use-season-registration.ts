@@ -16,6 +16,8 @@ export interface AvailableSeason {
   status: SeasonStatus;
   team_count: number;
   is_registered: boolean;
+  allow_late_registration: boolean;
+  allow_late_withdrawal: boolean;
 }
 
 interface UseSeasonRegistrationOptions {
@@ -78,6 +80,8 @@ export function useSeasonRegistration(
           end_date: string;
           status: SeasonStatus;
           team_count: number;
+          allow_late_registration: boolean;
+          allow_late_withdrawal: boolean;
         }>;
       };
 
@@ -90,8 +94,8 @@ export function useSeasonRegistration(
         registeredIds = new Set(teamData.registered_season_ids ?? []);
       }
 
-      // Filter to upcoming + active (show active for visibility, but only
-      // upcoming seasons accept new registrations — backend enforces this)
+      // Filter to upcoming + active (active seasons may allow late
+      // registration/withdrawal depending on admin toggles)
       const available = seasonsData.seasons
         .filter((s) => s.status === "upcoming" || s.status === "active")
         .map((s) => ({

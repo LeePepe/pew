@@ -53,6 +53,8 @@ const ACTIVE_SEASON_ROW = {
   created_at: "2026-02-20T00:00:00Z",
   team_count: 3,
   has_snapshot: 0,
+  allow_late_registration: 0,
+  allow_late_withdrawal: 0,
 };
 
 const UPCOMING_SEASON_ROW = {
@@ -64,6 +66,8 @@ const UPCOMING_SEASON_ROW = {
   created_at: "2026-03-01T00:00:00Z",
   team_count: 1,
   has_snapshot: 0,
+  allow_late_registration: 0,
+  allow_late_withdrawal: 0,
 };
 
 const ENDED_SEASON_ROW = {
@@ -75,6 +79,8 @@ const ENDED_SEASON_ROW = {
   created_at: "2025-12-15T00:00:00Z",
   team_count: 5,
   has_snapshot: 1,
+  allow_late_registration: 0,
+  allow_late_withdrawal: 0,
 };
 
 // ---------------------------------------------------------------------------
@@ -207,5 +213,32 @@ describe("GET /api/seasons", () => {
 
     expect(res.status).toBe(200);
     expect(data.seasons).toEqual([]);
+  });
+
+  it("should include allow_late_registration and allow_late_withdrawal flags", async () => {
+    const withLateReg = {
+      ...ACTIVE_SEASON_ROW,
+      allow_late_registration: 1,
+      allow_late_withdrawal: 1,
+    };
+    mockClient.query.mockResolvedValueOnce({
+      results: [withLateReg, UPCOMING_SEASON_ROW],
+    });
+
+    const res = await GET(makeRequest());
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    const active = data.seasons.find(
+      (s: { id: string }) => s.id === "s1"
+    );
+    expect(active.allow_late_registration).toBe(true);
+    expect(active.allow_late_withdrawal).toBe(true);
+
+    const upcoming = data.seasons.find(
+      (s: { id: string }) => s.id === "s2"
+    );
+    expect(upcoming.allow_late_registration).toBe(false);
+    expect(upcoming.allow_late_withdrawal).toBe(false);
   });
 });
