@@ -83,6 +83,7 @@ export async function executeNotify(
     stateDir: opts.stateDir,
     executeSyncFn,
     version: opts.version,
+    cooldownMs: 300_000, // 5 minutes — skip sync if last success was recent
   };
 
   return coordinatedSyncFn(
