@@ -176,7 +176,7 @@ export default function PrivacyPage() {
               pew is open source under the MIT license. You can audit exactly
               what data is collected by reading the{" "}
               <a
-                href="https://github.com/nicnocquee/pew"
+                href="https://github.com/nocoo/pew"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary hover:underline"
@@ -192,7 +192,7 @@ export default function PrivacyPage() {
             <p className="text-muted-foreground text-xs">
               If you have questions about this policy, open an issue on{" "}
               <a
-                href="https://github.com/nicnocquee/pew"
+                href="https://github.com/nocoo/pew"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary hover:underline"

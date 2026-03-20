@@ -1,5 +1,6 @@
 import { Github, ShieldCheck } from "lucide-react";
 import { LandingContent } from "@/components/landing/landing-content";
+import { SiteFooter } from "@/components/layout/site-footer";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 export default function LandingPage() {
@@ -15,7 +16,7 @@ export default function LandingPage() {
           <ShieldCheck className="h-4 w-4" strokeWidth={1.5} aria-hidden="true" />
         </a>
         <a
-          href="https://github.com/nicnocquee/pew"
+          href="https://github.com/nocoo/pew"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-[color] duration-200 hover:text-foreground"
@@ -29,16 +30,7 @@ export default function LandingPage() {
       {/* Main — fills remaining space */}
       <LandingContent />
 
-      {/* Footer */}
-      <footer className="px-6 py-3">
-        <p className="text-center text-xs text-muted-foreground">
-          © {new Date().getFullYear()} pew.md
-          <span className="mx-1.5">·</span>
-          <a href="/privacy" className="hover:text-foreground transition-colors">
-            Privacy
-          </a>
-        </p>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

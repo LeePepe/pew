@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Suspense, useState } from "react";
 import { Github } from "lucide-react";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { SiteFooter } from "@/components/layout/site-footer";
 
 function Barcode() {
   const bars = [2, 1, 3, 1, 2, 1, 1, 3, 1, 2, 1, 3, 2, 1, 1, 2, 3, 1, 2, 1];
@@ -84,7 +85,8 @@ function LoginContent() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-background p-4 overflow-hidden">
+    <div className="relative flex min-h-screen flex-col bg-background overflow-hidden">
+    <div className="flex flex-1 items-center justify-center p-4">
       {/* Radial glow */}
       <div
         className="pointer-events-none absolute inset-0"
@@ -252,6 +254,8 @@ function LoginContent() {
           </div>
         </div>
       </div>
+    </div>
+    <SiteFooter />
     </div>
   );
 }
