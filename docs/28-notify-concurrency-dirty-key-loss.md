@@ -422,7 +422,7 @@ try {
 
 ### Phase 2: Idempotent Token Queue (Prerequisite for Cursor-After-Upload)
 
-> **Status: design only — not implemented until Phase 1 is validated.**
+> **Status: deferred — analysis showed this is only needed as a prerequisite for cursor-after-upload, which is a future optimization. The current SUM-based merge is correct with Phase 1's lock + existing replay detection.**
 
 **Goal:** Make the token merge idempotent so that re-parsing the same deltas
 does not inflate values.
@@ -471,31 +471,36 @@ so no double-counting occurs.
 
 ### Phase 3: Cooldown Optimization
 
-> **Status: design only — implement after Phase 1 is validated.**
+> **Status: implementing — Phase 1 (O_EXCL lockfile) is validated.**
 
 **Goal:** Reduce the number of sync cycles from ~130 concurrent to ~48
 sequential runs per 4-hour window.
 
-**Prerequisite:** Phase 1 (lock works correctly).
+**Prerequisite:** Phase 1 (lock works correctly). ✅
 
-**Mechanism:** After a successful sync cycle, the lock holder writes a
-`last-sync-at` timestamp. The next notify process, after acquiring the lock,
-checks if the last sync was less than 5 minutes ago. If so, it skips sync
-and releases the lock.
+**Mechanism:** After acquiring the lock, the coordinator reads `last-run.json`.
+If the last **successful** run completed less than 5 minutes ago, skip sync
+and release the lock. The signal file is NOT consumed (no `truncateSignal`),
+so accumulated signals persist for the next run after cooldown expires.
 
 | Trigger | Cooldown check | Rationale |
 |---|---|---|
 | `pew notify` (hook) | Skip if last sync < 5 min ago | High-frequency hooks; data arrives in 30-min buckets anyway |
-| `pew sync` (manual) | Always execute, ignore cooldown | User explicitly requested; expects immediate result |
+| `pew sync` (manual) | Always execute, ignore cooldown | User explicitly requested; bypasses coordinator entirely |
 
 **Why 5 minutes:** Token data is bucketed into 30-minute windows. A 5-minute
 sync interval means at most 6 syncs per bucket window — more than enough to
 capture all deltas while dramatically reducing the number of sync cycles.
 
-**Why this is Phase 3, not Phase 1:** Cooldown is a performance optimization,
-not a correctness fix. With Phase 1's working lock, concurrent notify processes
-are already serialized — the signal/follow-up protocol ensures data is not
-lost. The cooldown reduces redundant work but is not required for correctness.
+**Design details:**
+
+- Cooldown check happens **inside the lock**, after acquisition, before `runLockedCycles()`
+- Only **successful** runs count — error/skipped runs do NOT reset the cooldown timer
+- Result: `{ skippedSync: true, skippedReason: "cooldown" }`
+- `skippedReason` is added to both `CoordinatorRunResult` and `RunLogEntry.coordination`
+- Default cooldown: 5 minutes (300,000 ms), configurable via `CoordinatorOptions.cooldownMs`
+- `cooldownMs: 0` disables cooldown (always runs)
+- Missing/corrupted `last-run.json` → no cooldown (treat as first run ever)
 
 ## Files to Modify
 
@@ -535,7 +540,12 @@ lost. The cooldown reduces redundant work but is not required for correctness.
 | 5 | 1 | `feat: replace FileHandle.lock with O_EXCL lockfile in coordinator` | Core fix — working mutual exclusion | done |
 | 6 | 1 | `test: integration test for concurrent notify serialization` | Simulate concurrent notify; verify dirty keys intact | done |
 | 7 | 1 | `chore: remove FileHandle.lock and runUnlocked code paths` | Clean up dead code; no unlocked fallback remains | done (no dead code found in src/) |
-| 8 | 2 | — | Design decision: snapshot vs staged delta | future |
-| 9 | 2 | — | Implement idempotent token queue | future |
-| 10 | 2 | — | Cursor-after-upload (safe after idempotent queue) | future |
-| 11 | 3 | — | 5-minute cooldown optimization | future |
+| 8 | 2 | — | Design decision: snapshot vs staged delta | deferred |
+| 9 | 2 | — | Implement idempotent token queue | deferred |
+| 10 | 2 | — | Cursor-after-upload (safe after idempotent queue) | deferred |
+| 11 | 3 | `docs: defer Phase 2, detail Phase 3 cooldown steps` | Update doc 28 status | — |
+| 12 | 3 | `feat: add skippedReason to CoordinatorRunResult and RunLogEntry` | Core type change | — |
+| 13 | 3 | `test: add cooldown coordinator unit tests` | TDD: write tests first | — |
+| 14 | 3 | `feat: implement cooldown check in coordinator` | Read last-run.json, skip if < cooldownMs since last success | — |
+| 15 | 3 | `test: add cooldown integration test` | Real filesystem cooldown behavior | — |
+| 16 | 3 | `docs: mark Phase 3 as done in doc 28` | Update status | — |
