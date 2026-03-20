@@ -215,39 +215,223 @@ data on every sync cycle where notify processes run concurrently — which is
 
 ## Immediate Remediation
 
+See "User-Facing Remediation" section below.
+
+## User-Facing Remediation
+
+Users who encounter missing data on the dashboard can perform a full rescan:
+
 ```bash
-# Full rescan + re-upload to fill the dashboard gap
 pew reset && pew sync
 ```
 
-This clears all cursors, re-parses all source files, marks all keys dirty,
-and uploads the complete snapshot.
+This clears all cursors, re-parses all source files from scratch, marks every
+bucket key as dirty, and uploads the complete snapshot. The server's
+`ON CONFLICT ... DO UPDATE SET` upsert is idempotent — re-uploading existing
+records is safe and simply overwrites with the same values.
 
-## Fix Direction (To Be Designed)
+A minor risk exists if `pew notify` fires concurrently during the reset+sync
+window, but in practice the full-scan branch uses `queue.overwrite()` (not
+merge), so the complete snapshot will be written regardless.
 
-Three layers of defense needed:
+## Fix Design
 
-1. **Fix the file lock** — Investigate why `FileHandle.lock()` always degrades.
-   If the runtime doesn't support it, implement a fallback lock mechanism
-   (e.g., `O_EXCL` lockfile, or `flock()` via native addon).
+Two architectural changes eliminate the root cause:
 
-2. **Make dirty-key writes atomic** — Even with a working lock, the
-   read-modify-write on `queue.state.json` is not atomic. Consider:
-   - Append-only dirty key log (no read-modify-write)
-   - Atomic rename pattern for state file updates
-   - Or accept that a working lock is sufficient
+### Change 1: Reliable Process Lock + 5-Minute Cooldown
 
-3. **Make `pew sync` (manual) also respect the lock** — Currently it calls
-   `executeSync()` directly, bypassing the coordinator. If a notify fires
-   during a manual sync, they race on the same files.
+**Problem:** `FileHandle.lock()` silently fails on the user's runtime, causing
+100% of notify processes to degrade to unlocked concurrent execution.
 
-## Files Involved
+**Solution:** Replace `FileHandle.lock()` with an `O_EXCL` lockfile mechanism
+that works on all Node.js versions. Combined with a **5-minute cooldown**
+between sync cycles:
 
-| File | Role |
+```
+notify/sync trigger arrives
+  │
+  ▼
+Try create lockfile (O_EXCL)
+  ├── FAIL (lockfile exists) → check if stale (PID dead / age > 5 min)
+  │     ├── stale → remove + retry
+  │     └── not stale → EXIT (another process is running)
+  │
+  ├── SUCCESS → hold lock
+  │     │
+  │     ▼
+  │   Check cooldown: was last successful sync < 5 min ago?
+  │     ├── YES and trigger is notify → release lock, EXIT
+  │     └── NO, or trigger is manual `pew sync` → proceed
+  │           │
+  │           ▼
+  │         Execute sync + upload (see Change 2)
+  │           │
+  │           ▼
+  │         Write last-sync timestamp
+  │           │
+  │           ▼
+  │         Release lock
+  └─────────────────────
+```
+
+**Cooldown rules:**
+
+| Trigger | Cooldown check | Rationale |
+|---|---|---|
+| `pew notify` (hook) | Skip if last sync < 5 min ago | High-frequency hooks; data arrives in 30-min buckets anyway |
+| `pew sync` (manual) | Always execute, ignore cooldown | User explicitly requested; expects immediate result |
+
+**Why 5 minutes:** Token data is bucketed into 30-minute windows. A 5-minute
+sync interval means at most 6 syncs per bucket window — more than enough to
+capture all deltas while dramatically reducing contention. The previous
+behavior was ~130 concurrent processes in 4 hours; this reduces it to ~48
+sequential runs with zero contention.
+
+**Lockfile details:**
+
+- Path: `~/.config/pew/sync.lock`
+- Content: `{ "pid": <number>, "startedAt": "<ISO>" }`
+- Created with `O_CREAT | O_EXCL | O_WRONLY` (atomic, fails if exists)
+- Stale detection: PID no longer running OR age > 5 minutes
+- Removed in `finally` block (crash leaves stale file → next run detects it)
+
+### Change 2: Unified Sync+Upload with Cursor-After-Upload
+
+**Problem:** The current architecture separates sync (write queue + cursor)
+from upload (read queue + send to server). This creates a window where cursors
+advance past data that hasn't been uploaded yet. If dirty keys are lost in
+that window, the data is never uploaded.
+
+**Solution:** Merge sync and upload into a single atomic sequence. Cursors are
+only persisted **after** upload succeeds:
+
+```
+  Parse deltas from source files
+    │
+    ▼
+  Merge into queue (queue.jsonl)
+    │
+    ▼
+  Upload dirty records to server
+    │
+    ├── SUCCESS → persist cursors + clear dirty keys
+    │
+    └── FAILURE → DO NOT persist cursors
+                  (next run re-parses same deltas → re-uploads → idempotent)
+```
+
+**Current flow (broken):**
+
+```
+sync:   parse → merge queue → write dirty keys → write cursors → done
+upload: read dirty keys → filter queue → send batches → clear dirty keys
+```
+
+Cursor advances at step 4 regardless of whether upload succeeds. If dirty keys
+are lost between steps 3 and upload, the data is orphaned — cursor has moved
+past it, dirty keys don't reference it, upload never sends it.
+
+**New flow:**
+
+```
+sync+upload: parse → merge queue → upload dirty → SUCCESS → write cursors
+                                                → FAILURE → skip cursor write
+```
+
+**Worst-case failure mode:** Upload succeeds but cursor write fails (crash
+between steps). Next run re-parses the same file segment, re-produces the same
+deltas, re-uploads. Server upsert (`ON CONFLICT DO UPDATE SET`) overwrites with
+identical values. **Slight redundant work, zero data loss.**
+
+**Applies to both triggers:**
+
+| Trigger | Behavior |
 |---|---|
-| `packages/cli/src/notifier/coordinator.ts` | Lock acquisition + degraded fallback |
-| `packages/cli/src/commands/sync.ts:551-563` | Dirty-key read-modify-write race |
-| `packages/cli/src/storage/base-queue.ts` | `saveDirtyKeys()` / `loadDirtyKeys()` |
-| `packages/cli/src/commands/upload-engine.ts:123-148` | Dirty-key filtering during upload |
-| `packages/cli/src/cli.ts:175-191` | Manual sync bypasses coordinator |
-| `~/.config/pew/runs/*.json` | Run log evidence |
+| `pew notify` | sync+upload (within lock + cooldown) |
+| `pew sync` | sync+upload (within lock, ignores cooldown) |
+
+This eliminates the distinction between "notify = sync only" and
+"sync = sync + upload". Every sync cycle completes the full pipeline.
+
+### Combined Flow
+
+```
+┌──────────────────────────────────────────────────────┐
+│  pew notify / pew sync                               │
+│                                                      │
+│  1. Acquire lockfile (O_EXCL)                        │
+│     └── fail → exit (another process is running)     │
+│                                                      │
+│  2. Check cooldown (notify only)                     │
+│     └── < 5 min since last sync → release lock, exit │
+│                                                      │
+│  3. Parse deltas from source files                   │
+│  4. Merge deltas into queue.jsonl                    │
+│  5. Compute dirty bucket keys                        │
+│                                                      │
+│  6. Upload dirty records to server                   │
+│     ├── success                                      │
+│     │   7a. Persist cursors                          │
+│     │   7b. Clear dirty keys                         │
+│     │   7c. Write last-sync timestamp                │
+│     └── failure                                      │
+│         7x. DO NOT persist cursors                   │
+│         (next run will re-parse + re-upload)         │
+│                                                      │
+│  8. Release lockfile                                 │
+└──────────────────────────────────────────────────────┘
+```
+
+### Failure Mode Analysis
+
+| Failure point | State after restart | Behavior |
+|---|---|---|
+| Crash after lock, before parse | Stale lockfile on disk | Next run detects stale PID, removes lockfile, proceeds normally |
+| Crash after queue merge, before upload | Queue has merged data, cursors not advanced | Next run re-parses same deltas, re-merges (idempotent SUM), uploads. Safe. |
+| Crash after upload success, before cursor write | Server has data, cursors stale | Next run re-parses, re-uploads. Server upsert overwrites with same values. Redundant but safe. |
+| Upload returns 5xx | Cursors not advanced, dirty keys preserved | Next run re-parses same segment, retries upload. Self-healing. |
+| Network timeout | Same as 5xx | Same recovery path. |
+
+**In every failure mode, the worst outcome is redundant re-upload. No data loss
+is possible.**
+
+### What Gets Removed
+
+The dirty-key intermediate state (`dirtyKeys` in `queue.state.json`) becomes
+unnecessary if cursors are only persisted after upload. However, keeping it
+provides an optimization: when the cooldown causes a notify to skip, the next
+run knows exactly which keys to upload without re-parsing.
+
+**Decision: keep `dirtyKeys` as an optimization, but it is no longer the
+source of truth for upload correctness.** Correctness is guaranteed by the
+cursor-after-upload invariant. Dirty keys only reduce redundant work.
+
+## Files to Modify
+
+| File | Change |
+|---|---|
+| `packages/cli/src/notifier/coordinator.ts` | Replace `FileHandle.lock()` with O_EXCL lockfile; add 5-min cooldown check; add stale lock detection |
+| `packages/cli/src/commands/sync.ts` | Move cursor persistence to after upload confirmation |
+| `packages/cli/src/commands/notify.ts` | Add upload step (call upload engine after sync) |
+| `packages/cli/src/cli.ts` | Route manual `pew sync` through the same lock path (bypass cooldown) |
+| `packages/cli/src/commands/upload-engine.ts` | No change (dirty-key filtering still works) |
+| `packages/cli/src/storage/base-queue.ts` | No change |
+| New: `packages/cli/src/notifier/lockfile.ts` | O_EXCL lockfile implementation + stale detection |
+| `packages/cli/src/__tests__/coordinator.test.ts` | Update tests for new lock mechanism + cooldown |
+| `~/.config/pew/runs/*.json` | Run log evidence (existing, read-only) |
+
+## Implementation Steps
+
+| # | Commit | Description | Status |
+|---|--------|-------------|--------|
+| 1 | `docs: add notify concurrency dirty-key loss investigation` | This document | done |
+| 2 | `test: add lockfile acquisition and stale detection tests` | L1 tests for new lock module | pending |
+| 3 | `feat: implement O_EXCL lockfile with stale detection` | New `lockfile.ts` module | pending |
+| 4 | `test: add cooldown logic tests` | L1 tests for 5-min cooldown | pending |
+| 5 | `feat: add 5-min cooldown to coordinator` | Cooldown check before sync | pending |
+| 6 | `test: add cursor-after-upload tests` | L1 tests for unified flow | pending |
+| 7 | `feat: unify sync+upload, persist cursors after upload` | Core fix — cursor-after-upload | pending |
+| 8 | `feat: add upload to notify path` | notify triggers sync+upload | pending |
+| 9 | `feat: route manual sync through lock` | pew sync uses lockfile (no cooldown) | pending |
+| 10 | `test: integration test for concurrent notify` | Simulate concurrent notify processes | pending |
+| 11 | `chore: remove FileHandle.lock() code path` | Clean up dead code | pending |
