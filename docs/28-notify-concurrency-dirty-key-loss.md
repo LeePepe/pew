@@ -552,12 +552,59 @@ capture all deltas while dramatically reducing the number of sync cycles.
 **Design details:**
 
 - Cooldown check happens **inside the lock**, after acquisition, before `runLockedCycles()`
-- Only **successful** runs count — error/skipped runs do NOT reset the cooldown timer
-- Result: `{ skippedSync: true, skippedReason: "cooldown" }`
-- `skippedReason` is added to both `CoordinatorRunResult` and `RunLogEntry.coordination`
+- `checkCooldown()` returns **remaining cooldown time in ms** (0 = no cooldown), not a boolean
+- Only **successful** runs count — error/skipped/partial runs do NOT reset the cooldown timer
+- Result: `{ skippedSync: true, skippedReason: "cooldown", cooldownRemainingMs: <number> }`
+- `skippedReason` and `cooldownRemainingMs` are added to both `CoordinatorRunResult` and `RunLogEntry.coordination`
 - Default cooldown: 5 minutes (300,000 ms), configurable via `CoordinatorOptions.cooldownMs`
 - `cooldownMs: 0` disables cooldown (always runs)
 - Missing/corrupted `last-run.json` → no cooldown (treat as first run ever)
+
+**Trailing-edge guarantee:**
+
+When cooldown fires, the pending signal will eventually be consumed by the
+next hook invocation — but if no further hooks arrive (user stopped working),
+the signal would sit indefinitely. To prevent this, `executeNotify()` in
+`packages/cli/src/commands/notify.ts` schedules a **trailing-edge sync**:
+
+```
+cooldown skip (result.cooldownRemainingMs > 0)
+  │
+  ▼
+scheduleTrailingSync() — fire-and-forget async IIFE
+  │
+  ├── tryAcquireTrailingLock(trailing.lock)
+  │     ├── O_EXCL create with { pid, startedAt } JSON
+  │     │     └── SUCCESS → proceed to sleep
+  │     └── EEXIST → check owner PID via process.kill(pid, 0)
+  │           ├── alive (or EPERM) → return false (no-op)
+  │           └── dead (ESRCH) → remove stale lock, retry O_EXCL
+  │
+  ├── setTimeout(cooldownRemainingMs) — sleep until cooldown expires
+  │
+  ├── coordinatedSync(trigger, opts) — run the trailing sync
+  │
+  └── unlink(trailing.lock) — release in finally block
+```
+
+Key properties:
+- **Single-waiter:** O_EXCL `trailing.lock` ensures only one process sleeps.
+  Subsequent cooldown skips see the lock and no-op immediately.
+- **Stale recovery:** `trailing.lock` stores `{ pid, startedAt }` JSON. If the
+  sleeping process crashes, the next cooldown skip detects the dead PID and
+  removes the stale lock — no permanent lockout.
+- **Non-blocking:** `void (async () => { ... })()` pattern. `executeNotify()`
+  returns the cooldown-skip result immediately; the trailing sync runs in the
+  background without blocking the hook process.
+- **Errors are non-fatal:** Trailing sync failures and lock cleanup failures
+  are silently caught. The worst case is a delayed sync until the next hook.
+
+**Lock acquisition error handling:**
+
+`acquireLock()` throwing an unexpected error (e.g., EACCES) is caught by an
+inner try/catch in `runCoordinator()` that returns `{ skippedSync: true, error }`
+(fail-closed). This is separate from the top-level catch which handles errors
+from `runLockedCycles()` where sync already started.
 
 ## Files to Modify
 
@@ -578,14 +625,16 @@ capture all deltas while dramatically reducing the number of sync cycles.
 | `packages/cli/src/commands/upload.ts` | Update `aggregateRecords()` if snapshot model is chosen |
 | `packages/cli/src/storage/base-queue.ts` | Add staging area if staged delta model is chosen |
 
-### Phase 3 (Cooldown) — done
+### Phase 3 (Cooldown + Trailing-Edge) — done
 
 | File | Change |
 |---|---|
-| `packages/cli/src/notifier/coordinator.ts` | Add cooldown check after lock acquisition; `cooldownMs` option; `skippedReason` in run log |
-| `packages/core/src/types.ts` | Add `skippedReason` to `CoordinatorRunResult` and `RunLogEntry.coordination` |
-| `packages/cli/src/__tests__/coordinator.test.ts` | 9 cooldown unit tests |
+| `packages/cli/src/notifier/coordinator.ts` | Add cooldown check (returns remaining ms); `cooldownMs` option; `cooldownRemainingMs` in result and run log; inner try/catch for lock errors |
+| `packages/core/src/types.ts` | Add `skippedReason` and `cooldownRemainingMs` to `CoordinatorRunResult` and `RunLogEntry.coordination` |
+| `packages/cli/src/commands/notify.ts` | Wire `cooldownMs: 300_000`; `scheduleTrailingSync()` with PID-based `trailing.lock` stale detection |
+| `packages/cli/src/__tests__/coordinator.test.ts` | 10 cooldown unit tests + 1 EACCES skippedSync test |
 | `packages/cli/src/__tests__/coordinator-integration.test.ts` | 4 cooldown integration tests |
+| `packages/cli/src/__tests__/notify-command.test.ts` | 6 trailing-edge tests (schedule, no-schedule ×2, single-waiter, stale recovery, live-PID respect) |
 
 ## Implementation Steps
 
@@ -607,3 +656,8 @@ capture all deltas while dramatically reducing the number of sync cycles.
 | 14 | 3 | `feat: implement cooldown check in coordinator` | Read last-run.json, skip if < cooldownMs since last success | done |
 | 15 | 3 | `test: add cooldown integration test` | Real filesystem cooldown behavior | done |
 | 16 | 3 | `docs: mark Phase 3 as done in doc 28` | Update status | done |
+| 17 | 3 | `feat: wire 5-minute cooldown to pew notify` | `cooldownMs: 300_000` in coordinator options | done |
+| 18 | 3 | `fix: set skippedSync: true when lock acquisition throws` | Inner try/catch for acquireLock errors | done |
+| 19 | 3 | `feat: return cooldownRemainingMs from coordinator` | checkCooldown returns remaining ms; type fields | done |
+| 20 | 3 | `feat: add trailing-edge sync guarantee for cooldown` | scheduleTrailingSync with O_EXCL trailing.lock | done |
+| 21 | 3 | `fix: add PID-based stale detection to trailing.lock` | Dead PID → remove stale lock, prevent permanent lockout | done |
