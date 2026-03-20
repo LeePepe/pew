@@ -65,6 +65,12 @@ export interface CoordinatorOptions {
   process?: ProcessOps;
   maxFollowUps?: number;
   lockTimeoutMs?: number;
+  /**
+   * Cooldown duration in ms. If the last successful sync completed less than
+   * this many ms ago, skip sync. Set to 0 to disable cooldown.
+   * Default: undefined (no cooldown — always runs).
+   */
+  cooldownMs?: number;
 }
 
 const DEFAULT_MAX_FOLLOW_UPS = 3;
@@ -191,7 +197,21 @@ async function runCoordinator(
       }
     }
 
-    // --- We hold the lock — run sync cycles ---
+    // --- We hold the lock — check cooldown before running sync ---
+    const cooldownMs = opts.cooldownMs;
+    if (cooldownMs != null && cooldownMs > 0) {
+      const shouldSkip = await checkCooldown(opts.stateDir, fs, now, cooldownMs);
+      if (shouldSkip) {
+        return {
+          ...baseResult,
+          waitedForLock,
+          skippedSync: true,
+          skippedReason: "cooldown",
+        };
+      }
+    }
+
+    // --- Run sync cycles ---
     const lockedResult = await runLockedCycles({
       stateDir: opts.stateDir,
       fs,
@@ -330,6 +350,60 @@ async function writeRunLog(
     await fs.writeFile(join(stateDir, "last-run.json"), json);
   } catch {
     // Run log write failures are non-fatal
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Cooldown check
+// ---------------------------------------------------------------------------
+
+/**
+ * Check if the last successful sync completed within the cooldown window.
+ * Returns true if sync should be skipped.
+ *
+ * Only successful runs count — error/skipped/partial runs do NOT reset the
+ * cooldown timer, ensuring a failed sync doesn't block a retry.
+ */
+async function checkCooldown(
+  stateDir: string,
+  fs: FsOps,
+  now: () => number,
+  cooldownMs: number,
+): Promise<boolean> {
+  const lastRun = await readLastRun(stateDir, fs);
+  if (lastRun == null) return false;
+
+  if (lastRun.status !== "success") return false;
+
+  const completedAtMs = new Date(lastRun.completedAt).getTime();
+  if (Number.isNaN(completedAtMs)) return false;
+
+  const elapsed = now() - completedAtMs;
+  return elapsed < cooldownMs;
+}
+
+/**
+ * Read and parse last-run.json. Returns null on any error (missing file,
+ * corrupted JSON, etc.) — caller treats null as "no previous run".
+ */
+async function readLastRun(
+  stateDir: string,
+  fs: FsOps,
+): Promise<{ status: string; completedAt: string } | null> {
+  try {
+    const content = await fs.readFile(join(stateDir, "last-run.json"));
+    const parsed = JSON.parse(content);
+    if (
+      typeof parsed === "object" &&
+      parsed != null &&
+      typeof parsed.status === "string" &&
+      typeof parsed.completedAt === "string"
+    ) {
+      return { status: parsed.status, completedAt: parsed.completedAt };
+    }
+    return null;
+  } catch {
+    return null;
   }
 }
 

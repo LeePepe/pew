@@ -944,10 +944,13 @@ describe("cooldown", () => {
       cooldownMs: 300_000,
     });
 
-    // Signal file should NOT have been truncated (truncateCalls only incremented
-    // for non-lock, non-run-log writeFile calls on the signal path).
-    // The signal size should remain unchanged.
-    expect(fake.state.signalSize).toBe(5);
+    // Signal truncation writes empty string to notify.signal.
+    // Verify it was never called — only run log writes should have happened.
+    const writeCalls = (fake.fs.writeFile as ReturnType<typeof vi.fn>).mock.calls as [string, string, unknown?][];
+    const signalTruncateCalls = writeCalls.filter(
+      ([path, content]) => path.endsWith("notify.signal") && content === "",
+    );
+    expect(signalTruncateCalls).toHaveLength(0);
   });
 
   it("writes run log with skippedReason 'cooldown' on cooldown skip", async () => {
