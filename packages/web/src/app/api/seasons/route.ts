@@ -9,7 +9,7 @@
 
 import { NextResponse } from "next/server";
 import type { SeasonStatus } from "@pew/core";
-import { getD1Client } from "@/lib/d1";
+import { getDbRead } from "@/lib/db";
 import { deriveSeasonStatus } from "@/lib/seasons";
 
 const VALID_STATUSES = new Set<SeasonStatus>(["upcoming", "active", "ended"]);
@@ -46,10 +46,10 @@ export async function GET(request: Request) {
     );
   }
 
-  const client = getD1Client();
+  const db = await getDbRead();
 
   try {
-    const { results } = await client.query<SeasonRow>(
+    const { results } = await db.query<SeasonRow>(
       `SELECT
          s.id, s.name, s.slug, s.start_date, s.end_date, s.created_at,
          s.allow_late_registration, s.allow_late_withdrawal,

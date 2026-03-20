@@ -9,7 +9,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { getD1Client } from "@/lib/d1";
+import { getDbRead } from "@/lib/db";
 import { validateInviteCode } from "@/lib/invite";
 import { shouldUseSecureCookies } from "@/auth";
 
@@ -34,11 +34,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const client = getD1Client();
+  const db = await getDbRead();
 
   try {
     // Read-only check — does NOT consume the code
-    const row = await client.firstOrNull<{ id: number }>(
+    const row = await db.firstOrNull<{ id: number }>(
       "SELECT id FROM invite_codes WHERE code = ? AND used_by IS NULL",
       [code]
     );

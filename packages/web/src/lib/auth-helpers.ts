@@ -6,7 +6,7 @@
  */
 
 import { auth } from "@/auth";
-import { getD1Client } from "@/lib/d1";
+import { getDbRead } from "@/lib/db";
 
 /** The fixed user ID used when E2E auth is bypassed */
 export const E2E_TEST_USER_ID = "e2e-test-user-id";
@@ -45,8 +45,8 @@ export async function resolveUser(
   const authHeader = request.headers.get("Authorization");
   if (authHeader?.startsWith("Bearer ")) {
     const apiKey = authHeader.slice(7);
-    const client = getD1Client();
-    const row = await client.firstOrNull<{ id: string; email: string }>(
+    const db = await getDbRead();
+    const row = await db.firstOrNull<{ id: string; email: string }>(
       "SELECT id, email FROM users WHERE api_key = ?",
       [apiKey],
     );

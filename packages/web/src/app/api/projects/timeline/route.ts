@@ -4,7 +4,7 @@
 
 import { NextResponse } from "next/server";
 import { resolveUser } from "@/lib/auth-helpers";
-import { getD1Client } from "@/lib/d1";
+import { getDbRead } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -41,10 +41,10 @@ export async function GET(request: Request) {
   // Default `to` to tomorrow (UTC) when absent — matches /api/usage pattern
   const to = toParam ?? new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
 
-  const client = getD1Client();
+  const db = await getDbRead();
 
   try {
-    const result = await client.query<TimelineRow>(
+    const result = await db.query<TimelineRow>(
       `SELECT
          DATE(sr.started_at) AS date,
          COALESCE(p.name, 'Unassigned') AS project_name,

@@ -15,7 +15,7 @@
  * to prevent keyword-based monitors from false-positive matching.
  */
 
-import { getD1Client } from "@/lib/d1";
+import { getDbRead } from "@/lib/db";
 import { APP_VERSION } from "@/lib/version";
 
 export const dynamic = "force-dynamic";
@@ -31,8 +31,8 @@ export async function GET() {
   let dbStatus: DbStatus;
 
   try {
-    const client = getD1Client();
-    await client.query("SELECT 1");
+    const db = await getDbRead();
+    await db.query("SELECT 1");
     dbStatus = {
       connected: true,
       latencyMs: Math.round(performance.now() - start),

@@ -12,7 +12,7 @@
 
 import { NextResponse } from "next/server";
 import { resolveUser } from "@/lib/auth-helpers";
-import { getD1Client } from "@/lib/d1";
+import { getDbRead } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
 // Validation
@@ -154,10 +154,10 @@ export async function GET(request: Request) {
   `;
 
   // 4. Execute
-  const client = getD1Client();
+  const db = await getDbRead();
 
   try {
-    const result = await client.query<UsageRow>(sql, params);
+    const result = await db.query<UsageRow>(sql, params);
     const records = result.results;
 
     // Compute summary

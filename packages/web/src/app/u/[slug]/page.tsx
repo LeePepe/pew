@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getD1Client } from "@/lib/d1";
+import { getDbRead } from "@/lib/db";
 import { PublicProfileView } from "./profile-view";
 
 // ---------------------------------------------------------------------------
@@ -24,13 +24,13 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
 
-  const client = getD1Client();
+  const db = await getDbRead();
 
   let user: UserMeta | null;
   let hasIsPublicColumn = true;
 
   try {
-    user = await client.firstOrNull<UserMeta>(
+    user = await db.firstOrNull<UserMeta>(
       "SELECT name, slug, is_public FROM users WHERE slug = ?",
       [slug],
     );
@@ -39,7 +39,7 @@ export async function generateMetadata({
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes("no such column")) {
       hasIsPublicColumn = false;
-      user = await client
+      user = await db
         .firstOrNull<UserMeta>(
           "SELECT name, slug FROM users WHERE slug = ?",
           [slug],

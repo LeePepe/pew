@@ -1,15 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET } from "@/app/api/usage/route";
-import * as d1Module from "@/lib/d1";
+import * as dbModule from "@/lib/db";
 
-// Mock D1
-vi.mock("@/lib/d1", async (importOriginal) => {
-  const original = await importOriginal<typeof d1Module>();
-  return {
-    ...original,
-    getD1Client: vi.fn(),
-  };
-});
+// Mock DB
+vi.mock("@/lib/db", () => ({
+  getDbRead: vi.fn(),
+  getDbWrite: vi.fn(),
+  resetDb: vi.fn(),
+}));
 
 // Mock resolveUser
 vi.mock("@/lib/auth-helpers", () => ({
@@ -43,9 +41,7 @@ describe("GET /api/usage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockClient = createMockClient();
-    vi.mocked(d1Module.getD1Client).mockReturnValue(
-      mockClient as unknown as d1Module.D1Client
-    );
+    vi.mocked(dbModule.getDbRead).mockResolvedValue(mockClient as any);
   });
 
   describe("authentication", () => {

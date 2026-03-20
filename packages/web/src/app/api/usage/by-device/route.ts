@@ -12,7 +12,7 @@
 
 import { NextResponse } from "next/server";
 import { resolveUser } from "@/lib/auth-helpers";
-import { getD1Client } from "@/lib/d1";
+import { getDbRead } from "@/lib/db";
 import {
   getDefaultPricingMap,
   buildPricingMap,
@@ -119,11 +119,11 @@ export async function GET(request: Request) {
   const params = [userId, fromDate, toDate];
 
   // 3. Execute queries
-  const client = getD1Client();
+  const db = await getDbRead();
 
   try {
     // Summary query — one row per device with aggregated stats + alias
-    const summaryResult = await client.query<DeviceSummaryRow>(
+    const summaryResult = await db.query<DeviceSummaryRow>(
       `SELECT
         ur.device_id,
         da.alias,
@@ -148,7 +148,7 @@ export async function GET(request: Request) {
     );
 
     // Cost detail query — per (device, source, model) for accurate pricing
-    const costResult = await client.query<CostDetailRow>(
+    const costResult = await db.query<CostDetailRow>(
       `SELECT
         ur.device_id,
         ur.source,
@@ -165,7 +165,7 @@ export async function GET(request: Request) {
     );
 
     // Timeline query — daily totals per device
-    const timelineResult = await client.query<TimelineRow>(
+    const timelineResult = await db.query<TimelineRow>(
       `SELECT
         date(ur.hour_start) AS date,
         ur.device_id,
@@ -185,7 +185,7 @@ export async function GET(request: Request) {
     // 4. Build pricing map (merge static defaults + DB overrides)
     let pricingMap;
     try {
-      const { results: pricingRows } = await client.query<DbPricingRow>(
+      const { results: pricingRows } = await db.query<DbPricingRow>(
         "SELECT * FROM model_pricing ORDER BY model ASC"
       );
       pricingMap = buildPricingMap(pricingRows);

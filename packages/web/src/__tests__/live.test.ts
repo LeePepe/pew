@@ -1,21 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import * as d1Module from "@/lib/d1";
+import * as dbModule from "@/lib/db";
 
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/d1", async (importOriginal) => {
-  const original = await importOriginal<typeof d1Module>();
-  return { ...original, getD1Client: vi.fn() };
-});
+vi.mock("@/lib/db", () => ({
+  getDbRead: vi.fn(),
+  getDbWrite: vi.fn(),
+  resetDb: vi.fn(),
+}));
 
 vi.mock("@/lib/version", () => ({
   APP_VERSION: "1.2.3",
 }));
 
-const { getD1Client } = (await import("@/lib/d1")) as unknown as {
-  getD1Client: ReturnType<typeof vi.fn>;
+const { getDbRead } = (await import("@/lib/db")) as unknown as {
+  getDbRead: ReturnType<typeof vi.fn>;
 };
 
 function createMockClient() {
@@ -41,10 +42,11 @@ describe("GET /api/live", () => {
   beforeEach(async () => {
     vi.resetModules();
 
-    vi.doMock("@/lib/d1", async (importOriginal) => {
-      const original = await importOriginal<typeof d1Module>();
-      return { ...original, getD1Client: vi.fn() };
-    });
+    vi.doMock("@/lib/db", () => ({
+      getDbRead: vi.fn(),
+      getDbWrite: vi.fn(),
+      resetDb: vi.fn(),
+    }));
     vi.doMock("@/lib/version", () => ({
       APP_VERSION: "1.2.3",
     }));
@@ -52,10 +54,10 @@ describe("GET /api/live", () => {
     const mod = await import("@/app/api/live/route");
     GET = mod.GET;
 
-    const freshD1 = (await import("@/lib/d1")) as unknown as {
-      getD1Client: ReturnType<typeof vi.fn>;
+    const freshDb = (await import("@/lib/db")) as unknown as {
+      getDbRead: ReturnType<typeof vi.fn>;
     };
-    Object.assign(getD1Client, freshD1.getD1Client);
+    Object.assign(getDbRead, freshDb.getDbRead);
   });
 
   // -------------------------------------------------------------------------
@@ -65,7 +67,7 @@ describe("GET /api/live", () => {
   it("should return 200 with status ok when DB is reachable", async () => {
     const mockClient = createMockClient();
     mockClient.query.mockResolvedValue({ results: [{ 1: 1 }], meta: {} });
-    getD1Client.mockReturnValue(mockClient);
+    getDbRead.mockResolvedValue(mockClient);
 
     const res = await GET(makeGetRequest());
     expect(res.status).toBe(200);
@@ -83,7 +85,7 @@ describe("GET /api/live", () => {
   it("should include correct response headers", async () => {
     const mockClient = createMockClient();
     mockClient.query.mockResolvedValue({ results: [], meta: {} });
-    getD1Client.mockReturnValue(mockClient);
+    getDbRead.mockResolvedValue(mockClient);
 
     const res = await GET(makeGetRequest());
     expect(res.headers.get("Content-Type")).toBe("application/json");
@@ -95,7 +97,7 @@ describe("GET /api/live", () => {
   it("should call D1 with SELECT 1 for lightweight connectivity check", async () => {
     const mockClient = createMockClient();
     mockClient.query.mockResolvedValue({ results: [], meta: {} });
-    getD1Client.mockReturnValue(mockClient);
+    getDbRead.mockResolvedValue(mockClient);
 
     await GET(makeGetRequest());
     expect(mockClient.query).toHaveBeenCalledWith("SELECT 1");
@@ -108,7 +110,7 @@ describe("GET /api/live", () => {
   it("should return 503 with status error when DB is unreachable", async () => {
     const mockClient = createMockClient();
     mockClient.query.mockRejectedValue(new Error("D1 connection refused"));
-    getD1Client.mockReturnValue(mockClient);
+    getDbRead.mockResolvedValue(mockClient);
 
     const res = await GET(makeGetRequest());
     expect(res.status).toBe(503);
@@ -129,7 +131,7 @@ describe("GET /api/live", () => {
     mockClient.query.mockRejectedValue(
       new Error("token is not ok for this account")
     );
-    getD1Client.mockReturnValue(mockClient);
+    getDbRead.mockResolvedValue(mockClient);
 
     const res = await GET(makeGetRequest());
     const text = await res.text();
@@ -145,7 +147,7 @@ describe("GET /api/live", () => {
   it("should sanitize ok from D1 error messages", async () => {
     const mockClient = createMockClient();
     mockClient.query.mockRejectedValue(new Error("ok something failed"));
-    getD1Client.mockReturnValue(mockClient);
+    getDbRead.mockResolvedValue(mockClient);
 
     const res = await GET(makeGetRequest());
     const body = (await res.json()) as Record<string, unknown>;
@@ -156,7 +158,7 @@ describe("GET /api/live", () => {
   it("should handle non-Error throw from D1", async () => {
     const mockClient = createMockClient();
     mockClient.query.mockRejectedValue("string error");
-    getD1Client.mockReturnValue(mockClient);
+    getDbRead.mockResolvedValue(mockClient);
 
     const res = await GET(makeGetRequest());
     expect(res.status).toBe(503);
@@ -175,7 +177,7 @@ describe("GET /api/live", () => {
   it("should not require authentication", async () => {
     const mockClient = createMockClient();
     mockClient.query.mockResolvedValue({ results: [], meta: {} });
-    getD1Client.mockReturnValue(mockClient);
+    getDbRead.mockResolvedValue(mockClient);
 
     // No auth headers at all
     const req = new Request("http://localhost:7030/api/live", {
@@ -192,7 +194,7 @@ describe("GET /api/live", () => {
   it("should return all required fields in healthy response", async () => {
     const mockClient = createMockClient();
     mockClient.query.mockResolvedValue({ results: [], meta: {} });
-    getD1Client.mockReturnValue(mockClient);
+    getDbRead.mockResolvedValue(mockClient);
 
     const res = await GET(makeGetRequest());
     const body = (await res.json()) as Record<string, unknown>;
@@ -204,7 +206,7 @@ describe("GET /api/live", () => {
   it("should return all required fields in error response", async () => {
     const mockClient = createMockClient();
     mockClient.query.mockRejectedValue(new Error("boom"));
-    getD1Client.mockReturnValue(mockClient);
+    getDbRead.mockResolvedValue(mockClient);
 
     const res = await GET(makeGetRequest());
     const body = (await res.json()) as Record<string, unknown>;
@@ -216,7 +218,7 @@ describe("GET /api/live", () => {
   it("should return valid ISO 8601 timestamp", async () => {
     const mockClient = createMockClient();
     mockClient.query.mockResolvedValue({ results: [], meta: {} });
-    getD1Client.mockReturnValue(mockClient);
+    getDbRead.mockResolvedValue(mockClient);
 
     const res = await GET(makeGetRequest());
     const body = (await res.json()) as Record<string, unknown>;

@@ -8,7 +8,7 @@
 import { NextResponse } from "next/server";
 import { resolveUser } from "@/lib/auth-helpers";
 import { isAdmin } from "@/lib/admin";
-import { getD1Client } from "@/lib/d1";
+import { getDbRead } from "@/lib/db";
 
 export async function GET(request: Request) {
   const authResult = await resolveUser(request);
@@ -18,8 +18,8 @@ export async function GET(request: Request) {
 
   let email = authResult.email;
   if (!email) {
-    const client = getD1Client();
-    const row = await client.firstOrNull<{ email: string }>(
+    const db = await getDbRead();
+    const row = await db.firstOrNull<{ email: string }>(
       "SELECT email FROM users WHERE id = ?",
       [authResult.userId]
     );

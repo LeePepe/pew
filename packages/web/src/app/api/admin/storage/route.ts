@@ -7,7 +7,7 @@
 
 import { NextResponse } from "next/server";
 import { resolveAdmin } from "@/lib/admin";
-import { getD1Client } from "@/lib/d1";
+import { getDbRead } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -48,11 +48,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const client = getD1Client();
+  const db = await getDbRead();
 
   try {
     // Per-user aggregated stats via sub-queries joined to users
-    const { results: users } = await client.query<StorageUserRow>(
+    const { results: users } = await db.query<StorageUserRow>(
       `SELECT
          u.id              AS user_id,
          u.email,

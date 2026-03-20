@@ -9,7 +9,7 @@
 | # | Commit | Description | Status |
 |---|--------|-------------|--------|
 | 1 | `docs: add worker read migration plan` | This document | ✅ done |
-| 2 | | Phase 1: define `DbRead` / `DbWrite` interfaces + `RestDbRead` adapter | |
+| 2 | `565db83` | Phase 1: define `DbRead` / `DbWrite` interfaces + `RestDbRead` adapter | ✅ done |
 | 3 | | Phase 1: migrate read-only files to `getDbRead()` | |
 | 4 | | Phase 1: migrate mixed read+write files to `getDbRead()` + `getDbWrite()` | |
 | 5 | | Phase 2: implement pew read Worker | |

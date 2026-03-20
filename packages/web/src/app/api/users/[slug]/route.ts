@@ -11,7 +11,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { getD1Client } from "@/lib/d1";
+import { getDbRead } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
 // Validation
@@ -72,14 +72,14 @@ export async function GET(
     );
   }
 
-  const client = getD1Client();
+  const db = await getDbRead();
 
   // 2. Look up user by slug (with is_public gate)
   let user: UserRow | null;
   let hasIsPublicColumn = true;
 
   try {
-    user = await client.firstOrNull<UserRow>(
+    user = await db.firstOrNull<UserRow>(
       "SELECT id, name, image, slug, created_at, is_public FROM users WHERE slug = ?",
       [slug],
     );
@@ -88,7 +88,7 @@ export async function GET(
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes("no such column")) {
       hasIsPublicColumn = false;
-      user = await client.firstOrNull<UserRow>(
+      user = await db.firstOrNull<UserRow>(
         "SELECT id, name, image, slug, created_at FROM users WHERE slug = ?",
         [slug],
       );
@@ -159,7 +159,7 @@ export async function GET(
   `;
 
   try {
-    const result = await client.query<UsageRow>(sql, queryParams);
+    const result = await db.query<UsageRow>(sql, queryParams);
     const records = result.results;
 
     // Compute summary

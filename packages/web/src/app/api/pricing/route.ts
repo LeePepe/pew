@@ -7,7 +7,7 @@
 
 import { NextResponse } from "next/server";
 import { resolveUser } from "@/lib/auth-helpers";
-import { getD1Client } from "@/lib/d1";
+import { getDbRead } from "@/lib/db";
 import {
   getDefaultPricingMap,
   buildPricingMap,
@@ -20,10 +20,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const client = getD1Client();
+  const db = await getDbRead();
 
   try {
-    const { results } = await client.query<DbPricingRow>(
+    const { results } = await db.query<DbPricingRow>(
       "SELECT * FROM model_pricing ORDER BY model ASC"
     );
     const pricingMap = buildPricingMap(results);

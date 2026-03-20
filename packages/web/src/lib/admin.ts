@@ -6,7 +6,7 @@
  */
 
 import { resolveUser, type AuthResult } from "./auth-helpers";
-import { getD1Client } from "./d1";
+import { getDbRead } from "./db";
 
 // ---------------------------------------------------------------------------
 // Admin check
@@ -55,8 +55,8 @@ export async function resolveAdmin(
   // If email is missing, look it up from D1
   let email = authResult.email;
   if (!email) {
-    const client = getD1Client();
-    const row = await client.firstOrNull<{ email: string }>(
+    const db = await getDbRead();
+    const row = await db.firstOrNull<{ email: string }>(
       "SELECT email FROM users WHERE id = ?",
       [authResult.userId]
     );

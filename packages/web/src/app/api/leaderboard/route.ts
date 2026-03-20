@@ -11,7 +11,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { getD1Client } from "@/lib/d1";
+import { getDbRead } from "@/lib/db";
 import { resolveAdmin } from "@/lib/admin";
 
 // ---------------------------------------------------------------------------
@@ -113,7 +113,7 @@ export async function GET(request: Request) {
     }
   }
 
-  const client = getD1Client();
+  const db = await getDbRead();
   const fromDate = periodStartDate(period);
 
   const conditions = ["1=1"];
@@ -163,7 +163,7 @@ export async function GET(request: Request) {
   try {
     let result: { results: LeaderboardRow[] };
     try {
-      result = await client.query<LeaderboardRow>(buildSql(true), params);
+      result = await db.query<LeaderboardRow>(buildSql(true), params);
     } catch (firstErr) {
       const msg = firstErr instanceof Error ? firstErr.message : "";
       if (!msg.includes("no such column") && !msg.includes("no such table")) {
@@ -172,7 +172,7 @@ export async function GET(request: Request) {
 
       // Level 1: retry without nickname (keeps is_public, admin, team semantics)
       try {
-        result = await client.query<LeaderboardRow>(buildSql(false), params);
+        result = await db.query<LeaderboardRow>(buildSql(false), params);
       } catch (secondErr) {
         const msg2 = secondErr instanceof Error ? secondErr.message : "";
         if (!msg2.includes("no such column") && !msg2.includes("no such table")) {
@@ -207,7 +207,7 @@ export async function GET(request: Request) {
           ORDER BY total_tokens DESC
           LIMIT ?
         `;
-        result = await client.query<LeaderboardRow>(bareSql, bareParams);
+        result = await db.query<LeaderboardRow>(bareSql, bareParams);
       }
     }
 
@@ -218,7 +218,7 @@ export async function GET(request: Request) {
     if (userIds.length > 0) {
       try {
         const placeholders = userIds.map(() => "?").join(",");
-        const teamResult = await client.query<UserTeamRow>(
+        const teamResult = await db.query<UserTeamRow>(
           `SELECT tm.user_id, t.id AS team_id, t.name AS team_name, t.logo_url
            FROM team_members tm
            JOIN teams t ON t.id = tm.team_id
@@ -249,7 +249,7 @@ export async function GET(request: Request) {
           sessionParams.push(fromDate);
         }
 
-        const sessionResult = await client.query<SessionStatsRow>(
+        const sessionResult = await db.query<SessionStatsRow>(
           `SELECT sr.user_id,
                   COUNT(*) AS session_count,
                   COALESCE(SUM(sr.duration_seconds), 0) AS total_duration_seconds

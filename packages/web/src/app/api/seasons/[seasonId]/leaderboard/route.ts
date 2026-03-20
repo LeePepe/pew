@@ -14,7 +14,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { getD1Client } from "@/lib/d1";
+import { getDbRead } from "@/lib/db";
 import { deriveSeasonStatus } from "@/lib/seasons";
 
 // ---------------------------------------------------------------------------
@@ -124,12 +124,12 @@ export async function GET(
   const url = new URL(request.url);
   const expandMembers = url.searchParams.get("expand") === "members";
 
-  const client = getD1Client();
+  const db = await getDbRead();
 
   try {
     // Fetch season by UUID or slug
     const isUUID = UUID_RE.test(seasonId);
-    const season = await client.firstOrNull<SeasonRow>(
+    const season = await db.firstOrNull<SeasonRow>(
       isUUID
         ? "SELECT id, name, slug, start_date, end_date, snapshot_ready FROM seasons WHERE id = ?"
         : "SELECT id, name, slug, start_date, end_date, snapshot_ready FROM seasons WHERE slug = ?",
@@ -156,7 +156,7 @@ export async function GET(
 
     if (hasSnapshot) {
       // Read from frozen snapshot tables
-      const snapshots = await client.query<SnapshotRow>(
+      const snapshots = await db.query<SnapshotRow>(
         `SELECT
           ss.team_id,
           t.name AS team_name,
@@ -176,7 +176,7 @@ export async function GET(
 
       const membersByTeam = new Map<string, MemberSnapshotRow[]>();
       if (expandMembers) {
-        const memberSnapshots = await client.query<MemberSnapshotRow>(
+        const memberSnapshots = await db.query<MemberSnapshotRow>(
           `SELECT
             sms.team_id,
             sms.user_id,
@@ -235,7 +235,7 @@ export async function GET(
       if (snapshotTeamIds.length > 0) {
         try {
           const placeholders = snapshotTeamIds.map(() => "?").join(",");
-          const teamSessionResult = await client.query<TeamSessionStatsRow>(
+          const teamSessionResult = await db.query<TeamSessionStatsRow>(
             `SELECT stm.team_id,
                     COUNT(*) AS session_count,
                     COALESCE(SUM(sr.duration_seconds), 0) AS total_duration_seconds
@@ -258,7 +258,7 @@ export async function GET(
           }
 
           if (expandMembers) {
-            const memberSessionResult = await client.query<MemberSessionStatsRow>(
+            const memberSessionResult = await db.query<MemberSessionStatsRow>(
               `SELECT stm.team_id,
                       stm.user_id,
                       COUNT(*) AS session_count,
@@ -291,7 +291,7 @@ export async function GET(
       }
     } else {
       // Real-time aggregation from usage_records
-      const teamRows = await client.query<TeamTokenRow>(
+      const teamRows = await db.query<TeamTokenRow>(
         `SELECT
           st.team_id,
           t.name AS team_name,
@@ -317,7 +317,7 @@ export async function GET(
       if (expandMembers && teamRows.results.length > 0) {
         const teamIds = teamRows.results.map((r) => r.team_id);
         const placeholders = teamIds.map(() => "?").join(",");
-        const memberRows = await client.query<MemberRow>(
+        const memberRows = await db.query<MemberRow>(
           `SELECT
             tm.team_id,
             tm.user_id,
@@ -381,7 +381,7 @@ export async function GET(
       if (liveTeamIds.length > 0) {
         try {
           const placeholders = liveTeamIds.map(() => "?").join(",");
-          const teamSessionResult = await client.query<TeamSessionStatsRow>(
+          const teamSessionResult = await db.query<TeamSessionStatsRow>(
             `SELECT stm.team_id,
                     COUNT(*) AS session_count,
                     COALESCE(SUM(sr.duration_seconds), 0) AS total_duration_seconds
@@ -404,7 +404,7 @@ export async function GET(
           }
 
           if (expandMembers) {
-            const memberSessionResult = await client.query<MemberSessionStatsRow>(
+            const memberSessionResult = await db.query<MemberSessionStatsRow>(
               `SELECT stm.team_id,
                       stm.user_id,
                       COUNT(*) AS session_count,
