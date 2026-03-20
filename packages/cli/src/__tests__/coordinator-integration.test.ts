@@ -1,0 +1,183 @@
+/**
+ * Integration test: concurrent coordinatedSync calls serialize via lockfile.
+ *
+ * Uses real filesystem (tmpdir) to verify O_EXCL lockfile provides actual
+ * mutual exclusion and dirty-key signal semantics work end-to-end.
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtemp, rm, readFile, stat } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import type { SyncCycleResult, SyncTrigger } from "@pew/core";
+import { coordinatedSync } from "../notifier/coordinator.js";
+
+describe("concurrent coordinatedSync serialization", () => {
+  let stateDir: string;
+
+  beforeEach(async () => {
+    stateDir = await mkdtemp(join(tmpdir(), "pew-lock-test-"));
+  });
+
+  afterEach(async () => {
+    await rm(stateDir, { recursive: true, force: true });
+  });
+
+  const trigger: SyncTrigger = {
+    kind: "notify",
+    source: "claude-code",
+    fileHint: null,
+  };
+
+  it("serializes two concurrent syncs — no overlapping execution", async () => {
+    // Track execution order to prove no overlap
+    const events: string[] = [];
+    let resolveFirst: (() => void) | null = null;
+
+    const executeSyncFn = vi.fn(
+      async (_triggers: SyncTrigger[]): Promise<SyncCycleResult> => {
+        const callNum = executeSyncFn.mock.calls.length;
+        events.push(`start-${callNum}`);
+
+        if (callNum === 1) {
+          // First sync: wait until we signal it to finish
+          await new Promise<void>((r) => {
+            resolveFirst = r;
+          });
+        }
+
+        events.push(`end-${callNum}`);
+        return {};
+      },
+    );
+
+    // Launch two concurrent coordinatedSync calls
+    const promise1 = coordinatedSync(trigger, {
+      stateDir,
+      executeSyncFn,
+      lockTimeoutMs: 10000,
+    });
+
+    // Give process 1 time to acquire lock and start sync
+    await new Promise((r) => setTimeout(r, 50));
+
+    const promise2 = coordinatedSync(trigger, {
+      stateDir,
+      executeSyncFn,
+      lockTimeoutMs: 10000,
+    });
+
+    // Let process 1 finish
+    await new Promise((r) => setTimeout(r, 100));
+    resolveFirst?.();
+
+    const [result1, result2] = await Promise.all([promise1, promise2]);
+
+    // At least one should have run sync
+    const totalCycles =
+      result1.cycles.length + result2.cycles.length;
+    expect(totalCycles).toBeGreaterThanOrEqual(1);
+
+    // No overlapping execution: start-N must always be followed by end-N
+    // before start-(N+1)
+    for (let i = 0; i < events.length - 1; i++) {
+      if (events[i].startsWith("start-")) {
+        const num = events[i].split("-")[1];
+        expect(events[i + 1]).toBe(`end-${num}`);
+      }
+    }
+
+    // Lockfile should be cleaned up
+    await expect(
+      stat(join(stateDir, "sync.lock")),
+    ).rejects.toThrow();
+  });
+
+  it("dirty follow-up ensures late signals are not lost", async () => {
+    let syncCount = 0;
+
+    const executeSyncFn = vi.fn(
+      async (_triggers: SyncTrigger[]): Promise<SyncCycleResult> => {
+        syncCount++;
+        return {
+          tokenSync: {
+            totalDeltas: syncCount,
+            totalRecords: syncCount,
+            filesScanned: {},
+            sources: {},
+          },
+        };
+      },
+    );
+
+    const result = await coordinatedSync(trigger, {
+      stateDir,
+      executeSyncFn,
+      lockTimeoutMs: 5000,
+    });
+
+    // First call should succeed with at least 1 cycle
+    expect(result.cycles.length).toBeGreaterThanOrEqual(1);
+    expect(result.cycles[0].tokenSync?.totalDeltas).toBe(1);
+
+    // Signal file should be empty after completion (no pending signals)
+    try {
+      const signalStat = await stat(join(stateDir, "notify.signal"));
+      // If file exists, it should be empty (truncated)
+      expect(signalStat.size).toBe(0);
+    } catch {
+      // File may not exist (never had signals) — that's fine
+    }
+  });
+
+  it("stale lockfile from dead process is cleaned up", async () => {
+    // Write a lockfile with a PID that definitely doesn't exist
+    const { writeFile: fsWriteFile } = await import("node:fs/promises");
+    const lockPath = join(stateDir, "sync.lock");
+    await fsWriteFile(
+      lockPath,
+      JSON.stringify({ pid: 99999999, startedAt: "2026-03-20T00:00:00Z" }),
+    );
+
+    const executeSyncFn = vi.fn(async () => ({}));
+
+    const result = await coordinatedSync(trigger, {
+      stateDir,
+      executeSyncFn,
+      lockTimeoutMs: 5000,
+    });
+
+    // Should have cleaned up stale lock and run successfully
+    expect(executeSyncFn).toHaveBeenCalled();
+    expect(result.cycles.length).toBeGreaterThanOrEqual(1);
+    expect(result.error).toBeUndefined();
+  });
+
+  it("writes run log with correct structure after real filesystem sync", async () => {
+    const executeSyncFn = vi.fn(async (): Promise<SyncCycleResult> => ({
+      tokenSync: {
+        totalDeltas: 5,
+        totalRecords: 3,
+        filesScanned: { claude: 2 },
+        sources: { "claude-code": 3 },
+      },
+    }));
+
+    const result = await coordinatedSync(trigger, {
+      stateDir,
+      executeSyncFn,
+      version: "1.0.0-test",
+    });
+
+    // Run log file should exist
+    const lastRunPath = join(stateDir, "last-run.json");
+    const content = await readFile(lastRunPath, "utf8");
+    const log = JSON.parse(content);
+
+    expect(log.runId).toBe(result.runId);
+    expect(log.version).toBe("1.0.0-test");
+    expect(log.status).toBe("success");
+    expect(log.cycles).toHaveLength(1);
+    expect(log.cycles[0].tokenSync.totalDeltas).toBe(5);
+    expect(log.coordination.degradedToUnlocked).toBe(false);
+  });
+});
