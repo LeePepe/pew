@@ -366,9 +366,10 @@ describe("coordinatedSync", () => {
       process: createFakeProcess(),
     });
 
-    // Fail-closed: no sync executed, error reported
+    // Fail-closed: no sync executed, error reported, skippedSync is true
     expect(executeSyncFn).not.toHaveBeenCalled();
     expect(result.error).toContain("EACCES");
+    expect(result.skippedSync).toBe(true);
     expect(result.degradedToUnlocked).toBe(false);
     expect(result.cycles).toHaveLength(0);
   });

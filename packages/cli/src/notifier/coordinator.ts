@@ -160,7 +160,16 @@ async function runCoordinator(
 
   try {
     // --- Try immediate (non-blocking) lock acquisition ---
-    acquiredLock = await acquireLock(lockPath, { fs: lockFs, process: proc });
+    try {
+      acquiredLock = await acquireLock(lockPath, { fs: lockFs, process: proc });
+    } catch (err) {
+      // Fail-closed: lock mechanism broken → skip sync, never run unlocked
+      return {
+        ...baseResult,
+        skippedSync: true,
+        error: toErrorMessage(err),
+      };
+    }
 
     if (!acquiredLock) {
       // Lock held by another process → append signal + poll wait
