@@ -56,13 +56,19 @@ let _write: DbWrite | undefined;
 /**
  * Get the read-only database accessor.
  *
- * Phase 1: REST adapter (via D1 HTTP API).
- * Phase 3: auto-switches to Worker adapter when WORKER_READ_URL is set.
+ * Auto-switches based on WORKER_READ_URL env var:
+ * - Set → Worker adapter (pew read Worker with native D1 binding)
+ * - Absent → REST adapter (D1 HTTP API, fallback)
  */
 export async function getDbRead(): Promise<DbRead> {
   if (!_read) {
-    const { createRestDbRead } = await import("./db-rest");
-    _read = createRestDbRead();
+    if (process.env.WORKER_READ_URL) {
+      const { createWorkerDbRead } = await import("./db-worker");
+      _read = createWorkerDbRead();
+    } else {
+      const { createRestDbRead } = await import("./db-rest");
+      _read = createRestDbRead();
+    }
   }
   return _read;
 }
