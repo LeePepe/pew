@@ -360,7 +360,7 @@ Handle each in the same commit as its caller's migration.
 #### 1.6 Deliverable
 
 At the end of Phase 1:
-- `getD1Client()` is only called inside `db-rest.ts` (and transitively by `season-roster.ts` callers) — nowhere else.
+- `getD1Client()` is only called inside `db-rest.ts` — nowhere else.
 - Every route file uses `getDbRead()` for SELECT, `getDbWrite()` for INSERT/UPDATE/DELETE.
 - The type system enforces the split — you can't accidentally call `.execute()` on a `DbRead`.
 
