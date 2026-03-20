@@ -29,5 +29,6 @@
 | 25 | [25-leaderboard-armory-refactor.md](25-leaderboard-armory-refactor.md) | Leaderboard armory-style shared layout refactor | done |
 | 26 | [26-by-project.md](26-by-project.md) | By-project analytics page | done |
 | 27 | [27-token-queue-full-reupload.md](27-token-queue-full-reupload.md) | Token queue dirty-key tracking (eliminate full re-uploads) | done |
+| 28 | [28-notify-concurrency-dirty-key-loss.md](28-notify-concurrency-dirty-key-loss.md) | Notify concurrency: dirty-key loss under unlocked parallel sync | in-progress |
 
 > **Note:** Number 14 is intentionally vacant (original doc 14 was renumbered to 12 to fill a gap).
