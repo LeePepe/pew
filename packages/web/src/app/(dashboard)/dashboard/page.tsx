@@ -31,6 +31,7 @@ import { WeekdayWeekendChart } from "@/components/dashboard/weekday-weekend-char
 import { BudgetProgress } from "@/components/dashboard/budget-progress";
 import { BudgetAlert } from "@/components/dashboard/budget-alert";
 import { BudgetDialog } from "@/components/dashboard/budget-dialog";
+import { SnapshotAlert } from "@/components/dashboard/snapshot-alert";
 import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
 import { DashboardSegment } from "@/components/dashboard/dashboard-segment";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -174,6 +175,9 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-4 md:space-y-6">
+      {/* Admin alert: ended seasons without snapshot */}
+      <SnapshotAlert />
+
       {/* Header + period selector */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
