@@ -57,9 +57,12 @@ async function handleLive(env: Env): Promise<Response> {
       latencyMs: Math.round(performance.now() - start),
     };
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // Strip any accidental "ok" from error messages to prevent
+    // keyword-based monitors from false-positive matching
     dbStatus = {
       connected: false,
-      error: err instanceof Error ? err.message : String(err),
+      error: message.replace(/\bok\b/gi, "***"),
     };
   }
 

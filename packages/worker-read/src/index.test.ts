@@ -111,6 +111,25 @@ describe("pew read Worker", () => {
       expect((body.db as Record<string, unknown>).error).toBe("DB unavailable");
     });
 
+    it("should sanitize 'ok' from error messages to prevent false-positive monitoring", async () => {
+      const badDB = {
+        prepare: vi.fn().mockReturnValue({
+          first: vi.fn().mockRejectedValue(new Error("ok something failed")),
+        }),
+      } as unknown as D1Database;
+      const badEnv = createEnv({ DB: badDB });
+
+      const res = await callWorker(makeRequest("GET", "/live"), badEnv);
+      expect(res.status).toBe(503);
+
+      const body = await res.json() as Record<string, unknown>;
+      expect(body.status).toBe("error");
+      const db = body.db as Record<string, unknown>;
+      expect(db.error).toBe("*** something failed");
+      // Ensure no standalone "ok" appears in any db error value
+      expect(db.error).not.toMatch(/\bok\b/i);
+    });
+
     it("should skip auth for /live", async () => {
       // No Authorization header
       const req = new Request("https://pew.test.workers.dev/live", {
