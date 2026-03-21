@@ -119,10 +119,11 @@ describe("GET /api/seasons/[seasonId]/leaderboard", () => {
     // Verify date params passed to live aggregation query
     const queryCall = mockClient.query.mock.calls[0]!;
     const params = queryCall[1] as string[];
-    // First param: start_date inclusive
-    expect(params[0]).toBe("2026-03-01 00:00:00");
-    // Second param: end_date exclusive (next day)
-    expect(params[1]).toBe("2026-04-01 00:00:00");
+    // First param: start_date inclusive — must be ISO 8601 with T separator
+    // to match hour_start storage format ("2026-03-01T00:00:00.000Z")
+    expect(params[0]).toBe("2026-03-01T00:00:00.000Z");
+    // Second param: end_date exclusive (end_date + 1 minute)
+    expect(params[1]).toBe("2026-04-01T00:00:00.000Z");
   });
 
   it("should include end_date in the range (inclusive)", async () => {
@@ -137,8 +138,34 @@ describe("GET /api/seasons/[seasonId]/leaderboard", () => {
     await GET(makeRequest(), { params: routeParams });
 
     const params = mockClient.query.mock.calls[0]![1] as string[];
-    // end_date 2026-03-15T23:59:00Z + 1 minute → exclusive bound 2026-03-16 00:00:00
-    expect(params[1]).toBe("2026-03-16 00:00:00");
+    // end_date 2026-03-15T23:59:00Z + 1 minute → exclusive bound
+    expect(params[1]).toBe("2026-03-16T00:00:00.000Z");
+  });
+
+  it("should use ISO 8601 format with T separator for date bounds (not space-separated)", async () => {
+    // Regression test: space-separated dates ("2026-03-21 16:00:00") cause
+    // SQLite lexicographic comparison to match ALL records on the boundary
+    // date because 'T' (ASCII 84) > ' ' (ASCII 32).
+    const season = {
+      ...ACTIVE_SEASON,
+      start_date: "2026-03-21T16:00:00Z",
+      end_date: "2026-03-28T04:59:00Z",
+    };
+    mockClient.firstOrNull.mockResolvedValueOnce(season);
+    mockClient.query.mockResolvedValueOnce({ results: [] });
+
+    await GET(makeRequest(), { params: routeParams });
+
+    const params = mockClient.query.mock.calls[0]![1] as string[];
+    // Must contain 'T' separator, not space
+    expect(params[0]).toContain("T");
+    expect(params[1]).toContain("T");
+    // Must NOT contain space-separated format
+    expect(params[0]).not.toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:/);
+    expect(params[1]).not.toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:/);
+    // Exact values
+    expect(params[0]).toBe("2026-03-21T16:00:00.000Z");
+    expect(params[1]).toBe("2026-03-28T05:00:00.000Z");
   });
 
   it("should return empty entries for season with no registered teams", async () => {

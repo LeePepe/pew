@@ -94,16 +94,24 @@ interface MemberSessionStatsRow {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Convert ISO end_date to exclusive upper bound for hour_start queries. */
+/**
+ * Convert ISO end_date to exclusive upper bound for hour_start queries.
+ *
+ * Output MUST be full ISO 8601 (`toISOString()`) so that SQLite lexicographic
+ * comparison works correctly against `hour_start` values stored as
+ * `"2026-03-21T16:00:00.000Z"`.  The previous `.replace("T"," ").slice(0,19)`
+ * format caused `T` (ASCII 84) > ` ` (ASCII 32), making every record whose
+ * date-part matched the boundary pass the `>=` check regardless of time.
+ */
 function endDateExclusive(endDate: string): string {
   // end_date is inclusive at minute precision, add 1 minute for exclusive < comparison
   const d = new Date(endDate);
   d.setUTCMinutes(d.getUTCMinutes() + 1);
-  return d.toISOString().replace("T", " ").slice(0, 19);
+  return d.toISOString();
 }
 
 function startDateInclusive(startDate: string): string {
-  return new Date(startDate).toISOString().replace("T", " ").slice(0, 19);
+  return new Date(startDate).toISOString();
 }
 
 // ---------------------------------------------------------------------------

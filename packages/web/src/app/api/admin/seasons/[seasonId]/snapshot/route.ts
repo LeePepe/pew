@@ -65,11 +65,11 @@ function endDateExclusive(endDate: string): string {
   // end_date is inclusive at minute precision, add 1 minute for exclusive < comparison
   const d = new Date(endDate);
   d.setUTCMinutes(d.getUTCMinutes() + 1);
-  return d.toISOString().replace("T", " ").slice(0, 19);
+  return d.toISOString();
 }
 
 function startDateInclusive(startDate: string): string {
-  return new Date(startDate).toISOString().replace("T", " ").slice(0, 19);
+  return new Date(startDate).toISOString();
 }
 
 function uuid(): string {
@@ -173,7 +173,7 @@ export async function POST(
 
     // 6a. Upsert team snapshots via INSERT OR REPLACE.
     //     NOT atomic — see JSDoc for failure semantics. Re-running converges.
-    const now = new Date().toISOString().replace("T", " ").slice(0, 19);
+    const now = new Date().toISOString();
     const teamStatements = teamRows.results.map((row, i) => ({
       sql: `INSERT OR REPLACE INTO season_snapshots
           (id, season_id, team_id, rank, total_tokens, input_tokens, output_tokens, cached_input_tokens, created_at)
