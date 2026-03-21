@@ -11,4 +11,12 @@ if [ $E2E_EXIT -ne 0 ]; then
   exit 1
 fi
 
-echo "✅ pre-push passed: L3 API E2E"
+# G2: Security — osv-scanner (dependency CVEs) + gitleaks (secret leak in commits)
+bun run test:security 2>&1
+G2_EXIT=$?
+if [ $G2_EXIT -ne 0 ]; then
+  echo "❌ pre-push FAILED: G2 security gate."
+  exit 1
+fi
+
+echo "✅ pre-push passed: L3 API E2E + G2 Security"
