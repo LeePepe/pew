@@ -325,10 +325,10 @@ describe("Worker ingest endpoint", () => {
 });
 
 // ---------------------------------------------------------------------------
-// GET /live — health check
+// GET /api/live — health check
 // ---------------------------------------------------------------------------
 
-describe("Worker /live endpoint", () => {
+describe("Worker /api/live endpoint", () => {
   let env: Env;
 
   beforeEach(() => {
@@ -337,7 +337,7 @@ describe("Worker /live endpoint", () => {
   });
 
   function makeLiveRequest(method = "GET"): Request {
-    return new Request("https://pew-ingest.workers.dev/live", { method });
+    return new Request("https://pew-ingest.workers.dev/api/live", { method });
   }
 
   // -----------------------------------------------------------------------
@@ -465,7 +465,7 @@ describe("Worker /live endpoint", () => {
     });
 
     // No Authorization header
-    const req = new Request("https://pew-ingest.workers.dev/live", {
+    const req = new Request("https://pew-ingest.workers.dev/api/live", {
       method: "GET",
     });
     const res = await worker.fetch(req, env);
@@ -476,7 +476,7 @@ describe("Worker /live endpoint", () => {
   // Method guard
   // -----------------------------------------------------------------------
 
-  it("should reject POST to /live with 405", async () => {
+  it("should reject POST to /api/live with 405", async () => {
     const res = await worker.fetch(makeLiveRequest("POST"), env);
     expect(res.status).toBe(405);
   });

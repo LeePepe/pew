@@ -5,12 +5,12 @@
  * atomic batch upserts via env.DB.batch().
  *
  * Routes:
- * - GET  /live             — health check (no auth, no cache)
+ * - GET  /api/live          — health check (no auth, no cache)
  * - POST /ingest/tokens    — token usage records (also legacy /ingest)
  * - POST /ingest/sessions  — session snapshot records
  *
  * Auth: shared secret (WORKER_SECRET) between Next.js and this Worker.
- *       /live is excluded from auth (public health endpoint).
+ *       /api/live is excluded from auth (public health endpoint).
  * Limit: max 50 records per request (D1 Free plan: 50 queries/invocation).
  *
  * Validation: defense-in-depth using shared validators from @pew/core.
@@ -142,7 +142,7 @@ function validateRequest<T>(
 // ---------------------------------------------------------------------------
 
 /**
- * GET /live — lightweight health check.
+ * GET /api/live — lightweight health check.
  * No auth required. Returns DB connectivity status + version + uptime.
  * Error responses MUST NOT contain the word "ok" to prevent monitor false-positives.
  */
@@ -260,7 +260,7 @@ export default {
     const path = url.pathname;
 
     // 1. Health check — no auth, GET only
-    if (path === "/live") {
+    if (path === "/api/live") {
       if (request.method !== "GET") {
         return Response.json({ error: "Method not allowed" }, { status: 405 });
       }
