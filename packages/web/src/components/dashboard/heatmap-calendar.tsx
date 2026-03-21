@@ -99,7 +99,7 @@ export function HeatmapCalendar({
     }
 
     return { weeks, dataMap, boundaries, monthLabels };
-  }, [data, year]);
+  }, [data, year, colorScale]);
 
   const labelWidth = 30;
 

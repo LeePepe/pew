@@ -124,6 +124,7 @@ function TeamRow({
         {/* Team icon / logo */}
         <div className="flex flex-1 items-center gap-3 min-w-0">
           {entry.team.logo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element -- external team logos
             <img
               src={entry.team.logo_url}
               alt={entry.team.name}
