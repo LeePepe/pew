@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.14.0
+
+### Refactoring
+
+- **Remove D1 REST API read fallback** — Worker is now the sole read path. Removed the `WORKER_READ_URL` feature flag branch from `getDbRead()`, deleted `createRestDbRead()` from `db-rest.ts`, and migrated 4 test files from transitive `@/lib/d1` mock to direct `@/lib/db` mock. Net removal of ~115 lines of dead code.
+- **Unify worker health check routes** — Ingest worker health check changed from `/health` to `/api/live` for consistency with read worker.
+- **Ingest worker custom domain** — Added `pew-ingest.worker.hexly.ai` custom domain to ingest worker.
+
 ## v1.13.0
 
 ### Features
