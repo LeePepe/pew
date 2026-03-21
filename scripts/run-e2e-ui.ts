@@ -9,7 +9,7 @@
  */
 
 import { spawn, type Subprocess } from "bun";
-import { ensurePortFree, cleanupBuildDir } from "./e2e-utils";
+import { ensurePortFree, cleanupBuildDir, loadEnvLocal } from "./e2e-utils";
 
 const E2E_UI_PORT = process.env.E2E_UI_PORT || "27030";
 const E2E_DIST_DIR = "packages/web/.next-e2e-ui";
@@ -44,10 +44,12 @@ async function main() {
   await ensurePortFree(E2E_UI_PORT);
 
   console.log(`🌐 Starting E2E UI server on port ${E2E_UI_PORT}...`);
+  const envLocal = loadEnvLocal();
+  const mergedEnv = { ...process.env, ...envLocal };
   serverProcess = spawn(["bun", "run", "next", "dev", "-p", E2E_UI_PORT], {
     cwd: "packages/web",
     env: {
-      ...process.env,
+      ...mergedEnv,
       NEXT_DIST_DIR: ".next-e2e-ui",
       E2E_SKIP_AUTH: "true",
     },

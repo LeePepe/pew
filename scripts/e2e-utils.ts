@@ -4,10 +4,12 @@
  *
  * - ensurePortFree: kill any process occupying the target port
  * - cleanupBuildDir: remove build artifacts after test run
+ * - loadEnvLocal: parse packages/web/.env.local for D1/auth credentials
  */
 
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { execSync } from "node:child_process";
+import { resolve } from "node:path";
 
 /** Kill any process occupying the given port, then wait for release. */
 export async function ensurePortFree(port: string): Promise<void> {
@@ -28,5 +30,30 @@ export function cleanupBuildDir(dir: string): void {
   if (existsSync(dir)) {
     rmSync(dir, { recursive: true, force: true });
     console.log(`🗑️  Removed ${dir}`);
+  }
+}
+
+/**
+ * Load .env.local from packages/web so D1 credentials are available
+ * to both the Next.js server and the test process.
+ */
+export function loadEnvLocal(): Record<string, string> {
+  const envPath = resolve("packages/web/.env.local");
+  try {
+    const content = readFileSync(envPath, "utf-8");
+    const vars: Record<string, string> = {};
+    for (const line of content.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eqIdx = trimmed.indexOf("=");
+      if (eqIdx === -1) continue;
+      const key = trimmed.slice(0, eqIdx).trim();
+      const value = trimmed.slice(eqIdx + 1).trim();
+      vars[key] = value;
+    }
+    return vars;
+  } catch {
+    console.warn("⚠️  Could not load packages/web/.env.local");
+    return {};
   }
 }

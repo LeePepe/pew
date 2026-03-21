@@ -9,36 +9,10 @@
  */
 
 import { spawn, type Subprocess } from "bun";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { ensurePortFree, cleanupBuildDir } from "./e2e-utils";
+import { ensurePortFree, cleanupBuildDir, loadEnvLocal } from "./e2e-utils";
 
 const E2E_PORT = process.env.E2E_PORT || "17030";
 
-/**
- * Load .env.local from packages/web so D1 credentials are available
- * to both the Next.js server and the test process.
- */
-function loadEnvLocal(): Record<string, string> {
-  const envPath = resolve("packages/web/.env.local");
-  try {
-    const content = readFileSync(envPath, "utf-8");
-    const vars: Record<string, string> = {};
-    for (const line of content.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const eqIdx = trimmed.indexOf("=");
-      if (eqIdx === -1) continue;
-      const key = trimmed.slice(0, eqIdx).trim();
-      const value = trimmed.slice(eqIdx + 1).trim();
-      vars[key] = value;
-    }
-    return vars;
-  } catch {
-    console.warn("⚠️  Could not load packages/web/.env.local");
-    return {};
-  }
-}
 const E2E_DIST_DIR = "packages/web/.next-e2e";
 
 let serverProcess: Subprocess | null = null;
