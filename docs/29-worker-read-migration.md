@@ -15,9 +15,13 @@
 | 5 | `d64c962` | Phase 2: implement pew read Worker | ✅ done |
 | 6 | `d64c962` | Phase 2: Worker tests (≥ 95% coverage) | ✅ done |
 | 7 | `8007abc` | Phase 3: add `WorkerDbRead` adapter + dev switching | ✅ done |
-| 8 | | Phase 3: E2E validation against dev Worker | ⏳ pending deploy |
-| 9 | | Phase 4: delete `RestDbRead` + REST-only env vars | ⏳ pending E2E |
-| 10 | | docs: retrospective | |
+| 8 | `5ee10d1` | Fix: remove unused dbModule import in live.test.ts | ✅ done |
+| 9 | `d114bb9` | Fix: resolve worker-read typecheck errors + add to root lint | ✅ done |
+| 10 | `fd1176b` | Fix: sanitize 'ok' from read worker /live error messages | ✅ done |
+| 11 | `764796e` | Refactor: change worker routes to /api/live and /api/query | ✅ done |
+| 12 | | Phase 3: E2E validation against dev Worker | ⏳ pending deploy |
+| 13 | | Phase 4: delete `RestDbRead` + REST-only env vars | ⏳ pending E2E |
+| 14 | | docs: retrospective | |
 
 ## Problem
 
@@ -80,7 +84,7 @@ Deploy a second Worker (**`pew`**) for reads. Writes stay on `pew-ingest`
 migration moves all writes to Workers.
 
 ```
-Next.js (Railway) ──POST /query──→ pew Worker (Cloudflare)
+Next.js (Railway) ──POST /api/query──→ pew Worker (Cloudflare)
                     ^                 │
                     1x HTTPS          env.DB native binding
                     ~15-30ms          <1ms
@@ -107,8 +111,8 @@ The read Worker uses the same **shared secret** pattern as `pew-ingest`:
 Authorization: Bearer <WORKER_READ_SECRET>
 ```
 
-- `/live` — no auth (public health check)
-- `POST /query` — requires `Bearer WORKER_READ_SECRET`
+- `/api/live` — no auth (public health check)
+- `POST /api/query` — requires `Bearer WORKER_READ_SECRET`
 
 The Next.js app holds `WORKER_READ_SECRET` as an env var and sends
 it on every request. User-level auth (`pk_*` API keys, session tokens)
@@ -116,7 +120,7 @@ remains in the Next.js layer — the Worker trusts the caller.
 
 ### Request/Response Contract
 
-**Request** (`POST /query`):
+**Request** (`POST /api/query`):
 
 ```json
 {
@@ -403,10 +407,10 @@ Routes:
 
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
-| `GET` | `/live` | None | Health check + DB connectivity |
-| `POST` | `/query` | `Bearer WORKER_READ_SECRET` | Execute read query |
+| `GET` | `/api/live` | None | Health check + DB connectivity |
+| `POST` | `/api/query` | `Bearer WORKER_READ_SECRET` | Execute read query |
 
-`POST /query` handler:
+`POST /api/query` handler:
 
 ```typescript
 async function handleQuery(body: unknown, env: Env): Promise<Response> {
@@ -455,25 +459,26 @@ Test matrix:
 
 | Test | Description |
 |------|-------------|
-| `GET /live` | Returns 200 + version + DB status |
-| `GET /live` | Returns 503 when DB is down |
-| `POST /query` | Valid SELECT returns results + meta |
-| `POST /query` | Parameterized query binds correctly |
-| `POST /query` | Empty params array works |
-| `POST /query` | Missing sql → 400 |
-| `POST /query` | Empty sql → 400 |
-| `POST /query` | Non-string sql → 400 |
-| `POST /query` | INSERT rejected → 403 |
-| `POST /query` | UPDATE rejected → 403 |
-| `POST /query` | DELETE rejected → 403 |
-| `POST /query` | DROP rejected → 403 |
-| `POST /query` | D1 error → 500 |
+| `GET /api/live` | Returns 200 + version + DB status |
+| `GET /api/live` | Returns 503 when DB is down |
+| `GET /api/live` | Sanitizes "ok" from error messages |
+| `POST /api/query` | Valid SELECT returns results + meta |
+| `POST /api/query` | Parameterized query binds correctly |
+| `POST /api/query` | Empty params array works |
+| `POST /api/query` | Missing sql → 400 |
+| `POST /api/query` | Empty sql → 400 |
+| `POST /api/query` | Non-string sql → 400 |
+| `POST /api/query` | INSERT rejected → 403 |
+| `POST /api/query` | UPDATE rejected → 403 |
+| `POST /api/query` | DELETE rejected → 403 |
+| `POST /api/query` | DROP rejected → 403 |
+| `POST /api/query` | D1 error → 500 |
 | Auth | Missing Authorization → 401 |
 | Auth | Wrong token → 401 |
 | Auth | Valid token → passes |
-| Auth | `/live` skips auth |
+| Auth | `/api/live` skips auth |
 | Router | Unknown path → 404 |
-| Router | GET on `/query` → 405 |
+| Router | GET on `/api/query` → 405 |
 
 #### 2.4 Deploy
 
@@ -485,7 +490,7 @@ wrangler deploy
 
 Verify:
 ```bash
-curl https://pew.<account>.workers.dev/live
+curl https://pew.<account>.workers.dev/api/live
 # → {"status":"ok","version":"1.0.0","db":{"connected":true,...}}
 ```
 
@@ -512,7 +517,7 @@ export function createWorkerDbRead(): DbRead {
 
   return {
     async query<T>(sql: string, params?: unknown[]): Promise<DbQueryResult<T>> {
-      const res = await fetch(`${url}/query`, {
+      const res = await fetch(`${url}/api/query`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -670,7 +675,7 @@ These env vars can only be removed when writes are also migrated to a Worker
                     └──────┬───────────┬────────────┘
                            │           │
                     Native D1     D1 REST API  ◄── writes only (future: migrate)
-                    Binding       POST /query
+                    Binding       POST /api/query
                            │           │
                     ┌──────┴──┐        │
                     │ Workers │        │
@@ -678,7 +683,8 @@ These env vars can only be removed when writes are also migrated to a Worker
                     │ pew     │        │
                     │ (read)  │        │
                     │ POST    │        │
-                    │ /query  │        │
+                    │/api/    │        │
+                    │ query   │        │
                     │         │        │
                     │ pew-    │        │
                     │ ingest  │        │
@@ -725,8 +731,8 @@ absent = REST fallback.
 | Risk | Mitigation |
 |------|------------|
 | Worker free tier limits | Read volume is low (~hundreds/day); monitor via CF dashboard |
-| SQL injection via `/query` | Worker is behind shared secret; only Next.js can call it; SQL is constructed server-side |
-| Worker downtime | `/live` health check; fallback to REST by removing env var |
+| SQL injection via `/api/query` | Worker is behind shared secret; only Next.js can call it; SQL is constructed server-side |
+| Worker downtime | `/api/live` health check; fallback to REST by removing env var |
 | Complex queries timing out | D1 Worker CPU limit is 10ms; current queries are simple aggregations well within limit |
 | Write leak through read Worker | Regex guard rejects `INSERT`/`UPDATE`/`DELETE`/`DROP`/`ALTER`/`CREATE`/`PRAGMA` |
 
