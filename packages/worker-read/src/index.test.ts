@@ -76,12 +76,12 @@ describe("pew read Worker", () => {
   });
 
   // -----------------------------------------------------------------------
-  // GET /live
+  // GET /api/live
   // -----------------------------------------------------------------------
 
-  describe("GET /live", () => {
+  describe("GET /api/live", () => {
     it("should return 200 with version and DB status when healthy", async () => {
-      const res = await callWorker(makeRequest("GET", "/live"), env);
+      const res = await callWorker(makeRequest("GET", "/api/live"), env);
       expect(res.status).toBe(200);
 
       const body = await res.json() as Record<string, unknown>;
@@ -102,7 +102,7 @@ describe("pew read Worker", () => {
       } as unknown as D1Database;
       const badEnv = createEnv({ DB: badDB });
 
-      const res = await callWorker(makeRequest("GET", "/live"), badEnv);
+      const res = await callWorker(makeRequest("GET", "/api/live"), badEnv);
       expect(res.status).toBe(503);
 
       const body = await res.json() as Record<string, unknown>;
@@ -119,7 +119,7 @@ describe("pew read Worker", () => {
       } as unknown as D1Database;
       const badEnv = createEnv({ DB: badDB });
 
-      const res = await callWorker(makeRequest("GET", "/live"), badEnv);
+      const res = await callWorker(makeRequest("GET", "/api/live"), badEnv);
       expect(res.status).toBe(503);
 
       const body = await res.json() as Record<string, unknown>;
@@ -130,17 +130,17 @@ describe("pew read Worker", () => {
       expect(db.error).not.toMatch(/\bok\b/i);
     });
 
-    it("should skip auth for /live", async () => {
+    it("should skip auth for /api/live", async () => {
       // No Authorization header
-      const req = new Request("https://pew.test.workers.dev/live", {
+      const req = new Request("https://pew.test.workers.dev/api/live", {
         method: "GET",
       });
       const res = await callWorker(req, env);
       expect(res.status).toBe(200);
     });
 
-    it("should return 405 for non-GET on /live", async () => {
-      const res = await callWorker(makeRequest("POST", "/live"), env);
+    it("should return 405 for non-GET on /api/live", async () => {
+      const res = await callWorker(makeRequest("POST", "/api/live"), env);
       expect(res.status).toBe(405);
     });
   });
@@ -151,7 +151,7 @@ describe("pew read Worker", () => {
 
   describe("auth", () => {
     it("should return 401 when Authorization header is missing", async () => {
-      const req = new Request("https://pew.test.workers.dev/query", {
+      const req = new Request("https://pew.test.workers.dev/api/query", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sql: "SELECT 1" }),
@@ -165,7 +165,7 @@ describe("pew read Worker", () => {
 
     it("should return 401 when token is wrong", async () => {
       const res = await callWorker(
-        makeRequest("POST", "/query", { sql: "SELECT 1" }, "wrong-token"),
+        makeRequest("POST", "/api/query", { sql: "SELECT 1" }, "wrong-token"),
         env,
       );
       expect(res.status).toBe(401);
@@ -173,7 +173,7 @@ describe("pew read Worker", () => {
 
     it("should pass auth with correct token", async () => {
       const res = await callWorker(
-        makeRequest("POST", "/query", { sql: "SELECT 1" }, SECRET),
+        makeRequest("POST", "/api/query", { sql: "SELECT 1" }, SECRET),
         env,
       );
       expect(res.status).toBe(200);
@@ -181,10 +181,10 @@ describe("pew read Worker", () => {
   });
 
   // -----------------------------------------------------------------------
-  // POST /query
+  // POST /api/query
   // -----------------------------------------------------------------------
 
-  describe("POST /query", () => {
+  describe("POST /api/query", () => {
     it("should return results and meta for valid SELECT", async () => {
       const mockResults = [
         { source: "claude-code", total_tokens: 42000 },
@@ -207,7 +207,7 @@ describe("pew read Worker", () => {
       const testEnv = createEnv({ DB: db });
 
       const res = await callWorker(
-        makeRequest("POST", "/query", { sql: "SELECT * FROM usage_records" }, SECRET),
+        makeRequest("POST", "/api/query", { sql: "SELECT * FROM usage_records" }, SECRET),
         testEnv,
       );
 
@@ -234,7 +234,7 @@ describe("pew read Worker", () => {
       await callWorker(
         makeRequest(
           "POST",
-          "/query",
+          "/api/query",
           { sql: "SELECT * FROM users WHERE id = ?", params: ["usr_abc"] },
           SECRET,
         ),
@@ -246,7 +246,7 @@ describe("pew read Worker", () => {
 
     it("should work with empty params array", async () => {
       const res = await callWorker(
-        makeRequest("POST", "/query", { sql: "SELECT 1", params: [] }, SECRET),
+        makeRequest("POST", "/api/query", { sql: "SELECT 1", params: [] }, SECRET),
         env,
       );
       expect(res.status).toBe(200);
@@ -254,7 +254,7 @@ describe("pew read Worker", () => {
 
     it("should return 400 for missing sql", async () => {
       const res = await callWorker(
-        makeRequest("POST", "/query", { params: [] }, SECRET),
+        makeRequest("POST", "/api/query", { params: [] }, SECRET),
         env,
       );
       expect(res.status).toBe(400);
@@ -264,7 +264,7 @@ describe("pew read Worker", () => {
 
     it("should return 400 for empty sql", async () => {
       const res = await callWorker(
-        makeRequest("POST", "/query", { sql: "  " }, SECRET),
+        makeRequest("POST", "/api/query", { sql: "  " }, SECRET),
         env,
       );
       expect(res.status).toBe(400);
@@ -272,14 +272,14 @@ describe("pew read Worker", () => {
 
     it("should return 400 for non-string sql", async () => {
       const res = await callWorker(
-        makeRequest("POST", "/query", { sql: 123 }, SECRET),
+        makeRequest("POST", "/api/query", { sql: 123 }, SECRET),
         env,
       );
       expect(res.status).toBe(400);
     });
 
     it("should return 400 for invalid request body", async () => {
-      const req = new Request("https://pew.test.workers.dev/query", {
+      const req = new Request("https://pew.test.workers.dev/api/query", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -296,7 +296,7 @@ describe("pew read Worker", () => {
     // Write statement rejection
     it("should reject INSERT → 403", async () => {
       const res = await callWorker(
-        makeRequest("POST", "/query", { sql: "INSERT INTO users (id) VALUES (?)" }, SECRET),
+        makeRequest("POST", "/api/query", { sql: "INSERT INTO users (id) VALUES (?)" }, SECRET),
         env,
       );
       expect(res.status).toBe(403);
@@ -306,7 +306,7 @@ describe("pew read Worker", () => {
 
     it("should reject UPDATE → 403", async () => {
       const res = await callWorker(
-        makeRequest("POST", "/query", { sql: "UPDATE users SET name = ?" }, SECRET),
+        makeRequest("POST", "/api/query", { sql: "UPDATE users SET name = ?" }, SECRET),
         env,
       );
       expect(res.status).toBe(403);
@@ -314,7 +314,7 @@ describe("pew read Worker", () => {
 
     it("should reject DELETE → 403", async () => {
       const res = await callWorker(
-        makeRequest("POST", "/query", { sql: "DELETE FROM users WHERE id = ?" }, SECRET),
+        makeRequest("POST", "/api/query", { sql: "DELETE FROM users WHERE id = ?" }, SECRET),
         env,
       );
       expect(res.status).toBe(403);
@@ -322,7 +322,7 @@ describe("pew read Worker", () => {
 
     it("should reject DROP → 403", async () => {
       const res = await callWorker(
-        makeRequest("POST", "/query", { sql: "DROP TABLE users" }, SECRET),
+        makeRequest("POST", "/api/query", { sql: "DROP TABLE users" }, SECRET),
         env,
       );
       expect(res.status).toBe(403);
@@ -330,7 +330,7 @@ describe("pew read Worker", () => {
 
     it("should reject ALTER → 403", async () => {
       const res = await callWorker(
-        makeRequest("POST", "/query", { sql: "ALTER TABLE users ADD COLUMN foo TEXT" }, SECRET),
+        makeRequest("POST", "/api/query", { sql: "ALTER TABLE users ADD COLUMN foo TEXT" }, SECRET),
         env,
       );
       expect(res.status).toBe(403);
@@ -338,7 +338,7 @@ describe("pew read Worker", () => {
 
     it("should reject CREATE → 403", async () => {
       const res = await callWorker(
-        makeRequest("POST", "/query", { sql: "CREATE TABLE evil (id TEXT)" }, SECRET),
+        makeRequest("POST", "/api/query", { sql: "CREATE TABLE evil (id TEXT)" }, SECRET),
         env,
       );
       expect(res.status).toBe(403);
@@ -346,7 +346,7 @@ describe("pew read Worker", () => {
 
     it("should reject PRAGMA → 403", async () => {
       const res = await callWorker(
-        makeRequest("POST", "/query", { sql: "PRAGMA table_info(users)" }, SECRET),
+        makeRequest("POST", "/api/query", { sql: "PRAGMA table_info(users)" }, SECRET),
         env,
       );
       expect(res.status).toBe(403);
@@ -364,7 +364,7 @@ describe("pew read Worker", () => {
       const errEnv = createEnv({ DB: db });
 
       const res = await callWorker(
-        makeRequest("POST", "/query", { sql: "SELECT * FROM nonexistent" }, SECRET),
+        makeRequest("POST", "/api/query", { sql: "SELECT * FROM nonexistent" }, SECRET),
         errEnv,
       );
       expect(res.status).toBe(500);
@@ -386,9 +386,9 @@ describe("pew read Worker", () => {
       expect(res.status).toBe(404);
     });
 
-    it("should return 405 for GET on /query", async () => {
+    it("should return 405 for GET on /api/query", async () => {
       const res = await callWorker(
-        makeRequest("GET", "/query", undefined, SECRET),
+        makeRequest("GET", "/api/query", undefined, SECRET),
         env,
       );
       expect(res.status).toBe(405);

@@ -6,11 +6,11 @@
  * for lower latency and higher reliability.
  *
  * Routes:
- * - GET  /live   — health check (no auth, no cache)
- * - POST /query  — execute read-only SQL query
+ * - GET  /api/live   — health check (no auth, no cache)
+ * - POST /api/query  — execute read-only SQL query
  *
  * Auth: shared secret (WORKER_READ_SECRET) between Next.js and this Worker.
- *       /live is excluded from auth (public health endpoint).
+ *       /api/live is excluded from auth (public health endpoint).
  *
  * Safety: regex guard rejects write statements (INSERT, UPDATE, DELETE, etc.)
  */
@@ -43,7 +43,7 @@ export interface Env {
 const WRITE_RE = /^(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|PRAGMA)\b/i;
 
 // ---------------------------------------------------------------------------
-// Route: GET /live
+// Route: GET /api/live
 // ---------------------------------------------------------------------------
 
 async function handleLive(env: Env): Promise<Response> {
@@ -83,7 +83,7 @@ async function handleLive(env: Env): Promise<Response> {
 }
 
 // ---------------------------------------------------------------------------
-// Route: POST /query
+// Route: POST /api/query
 // ---------------------------------------------------------------------------
 
 async function handleQuery(body: unknown, env: Env): Promise<Response> {
@@ -136,8 +136,8 @@ const worker: ExportedHandler<Env> = {
     const url = new URL(request.url);
     const path = url.pathname;
 
-    // GET /live — no auth
-    if (path === "/live") {
+    // GET /api/live — no auth
+    if (path === "/api/live") {
       if (request.method !== "GET") {
         return Response.json(
           { error: "Method not allowed" },
@@ -154,8 +154,8 @@ const worker: ExportedHandler<Env> = {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // POST /query
-    if (path === "/query") {
+    // POST /api/query
+    if (path === "/api/query") {
       if (request.method !== "POST") {
         return Response.json(
           { error: "Method not allowed" },

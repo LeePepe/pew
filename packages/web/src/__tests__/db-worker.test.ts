@@ -26,7 +26,7 @@ describe("createWorkerDbRead", () => {
   });
 
   describe("query()", () => {
-    it("sends POST to /query with auth header", async () => {
+    it("sends POST to /api/query with auth header", async () => {
       const mockResponse = {
         results: [{ id: 1 }],
         meta: { changes: 0, duration: 1.2 },
@@ -43,7 +43,7 @@ describe("createWorkerDbRead", () => {
 
       expect(fetchSpy).toHaveBeenCalledOnce();
       const [url, init] = fetchSpy.mock.calls[0]!;
-      expect(url).toBe("https://pew.test.workers.dev/query");
+      expect(url).toBe("https://pew.test.workers.dev/api/query");
       expect(init!.method).toBe("POST");
       expect(init!.headers).toEqual(
         expect.objectContaining({

@@ -17,7 +17,7 @@ export function createWorkerDbRead(): DbRead {
 
   const reader: DbRead = {
     async query<T>(sql: string, params?: unknown[]): Promise<DbQueryResult<T>> {
-      const res = await fetch(`${url}/query`, {
+      const res = await fetch(`${url}/api/query`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
