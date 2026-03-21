@@ -1,8 +1,9 @@
 #!/usr/bin/env sh
 
-# pre-push: L3 API E2E Tests (four-layer test architecture)
-# L1+L2 already enforced by pre-commit.
+# pre-push: L2 Integration/API + G2 Security (quality system)
+# L1+G1 already enforced by pre-commit.
 
+# L2 Integration/API: real HTTP E2E against dev server on :17030
 bun run test:e2e 2>&1
 E2E_EXIT=$?
 
@@ -11,7 +12,7 @@ if [ $E2E_EXIT -ne 0 ]; then
   exit 1
 fi
 
-# G2: Security — osv-scanner (dependency CVEs) + gitleaks (secret leak in commits)
+# G2 Security: osv-scanner (dependency CVEs) + gitleaks (secret leak in commits)
 bun run test:security 2>&1
 G2_EXIT=$?
 if [ $G2_EXIT -ne 0 ]; then
@@ -19,4 +20,4 @@ if [ $G2_EXIT -ne 0 ]; then
   exit 1
 fi
 
-echo "✅ pre-push passed: L3 API E2E + G2 Security"
+echo "✅ pre-push passed: L2 Integration/API + G2 Security"

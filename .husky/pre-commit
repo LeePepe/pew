@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
 
-# pre-commit: L1 Unit Tests + Coverage + L2 Lint (four-layer test architecture)
+# pre-commit: L1 Unit/Component + G1 Static Analysis (quality system)
 
-# L1: Unit Tests + Coverage (90% threshold enforced by vitest.config.ts)
+# L1 Unit/Component: coverage ≥90% enforced by vitest.config.ts
 bun run test:coverage 2>&1
 TEST_EXIT=$?
 
@@ -11,7 +11,7 @@ if [ $TEST_EXIT -ne 0 ]; then
   exit 1
 fi
 
-# L2: Lint (TypeScript strict type checking + ESLint)
+# G1 Static Analysis: tsc strict + ESLint strict (0 errors + 0 warnings)
 bun run lint 2>&1
 LINT_EXIT=$?
 
@@ -20,4 +20,4 @@ if [ $LINT_EXIT -ne 0 ]; then
   exit 1
 fi
 
-echo "✅ pre-commit passed: L1 UT + Coverage ≥90% + L2 Lint"
+echo "✅ pre-commit passed: L1 Unit ≥90% + G1 Static Analysis"
