@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.14.2
+
+### Quality System Upgrade
+
+- **Upgrade to new quality system** — Migrated from legacy "four-layer test architecture" (L1 UT / L2 Lint / L3 API E2E / L4 BDD) to "quality system" (L1 Unit / L2 Integration / L3 System / G1 Static Analysis / G2 Security). See [docs/30-quality-system-upgrade.md](docs/30-quality-system-upgrade.md).
+- **G1 ESLint strict enforcement** — Added `--max-warnings=0` to lint script. Added `no-restricted-syntax` rule banning `.skip` and `.only` in test files.
+- **G2 security gate** — New `scripts/run-security.ts` runs osv-scanner (dependency CVE scan) + gitleaks (secret leak scan) on pre-push. Dynamic upstream branch detection via `@{u}`.
+- **L3 Playwright E2E** — Installed `@playwright/test`, created `packages/web/e2e/playwright.config.ts`, and added 10 specs across 4 files (smoke, auth bypass, dashboard, navigation).
+- **Shared `loadEnvLocal`** — Extracted from `run-e2e.ts` to `e2e-utils.ts`; both API and UI runners now load `.env.local` for D1 credentials.
+
+### Fixes
+
+- **15 dependency CVEs resolved** — Direct upgrades: next 16.1.6→16.2.1, undici 7.18.2→7.24.5. Transitive overrides: cookie 0.6.0→1.1.1, flatted 3.4.1→3.4.2, fast-xml-parser 5.4.1→5.5.8.
+
 ## v1.14.1
 
 ### Fixes
