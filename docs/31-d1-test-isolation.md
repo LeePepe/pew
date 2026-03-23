@@ -44,9 +44,10 @@ E2E Runner (modified)
 │  run-e2e.ts / run-e2e-ui.ts                  │
 │  1. Load .env.test (test D1 + Worker creds)  │
 │  2. Verify test DB ID ≠ prod DB ID           │
-│  3. Verify _test_marker in test DB           │
-│  4. Override env vars → test resources        │
-│  5. Run tests                                │
+│  3. Verify test Worker URLs ≠ prod URLs      │
+│  4. Verify _test_marker in test DB           │
+│  5. Override env vars → test resources        │
+│  6. Run tests                                │
 └──────────────────────────────────────────────┘
 ```
 
@@ -86,9 +87,9 @@ npx wrangler d1 create pew-db-test
 
 **Step 2b — Apply schema to test DB:**
 
-Export schema from prod and apply to test:
+Export schema from prod (data-free) and apply to test:
 ```bash
-npx wrangler d1 execute pew-db --remote --command ".schema" > /tmp/prod-schema.sql
+npx wrangler d1 export pew-db --remote --output=/tmp/prod-schema.sql --no-data
 npx wrangler d1 execute pew-db-test --remote --file /tmp/prod-schema.sql
 ```
 
@@ -112,7 +113,7 @@ binding = "DB"
 database_name = "pew-db-test"
 database_id = "<test-d1-id>"
 
-[env.test.routes]
+[[env.test.routes]]
 pattern = "pew-ingest-test.worker.hexly.ai"
 custom_domain = true
 ```
@@ -127,18 +128,27 @@ binding = "DB"
 database_name = "pew-db-test"
 database_id = "<test-d1-id>"
 
-[env.test.routes]
+[[env.test.routes]]
 pattern = "pew-test.worker.hexly.ai"
 custom_domain = true
 ```
 
-**Step 2e — Deploy test Workers:**
+**Step 2e — Deploy test Workers and set secrets:**
 ```bash
-cd packages/worker && npx wrangler deploy --env test
-cd packages/worker-read && npx wrangler deploy --env test
+# Deploy ingest Worker (test env)
+cd packages/worker
+npx wrangler deploy --env test
 npx wrangler secret put WORKER_SECRET --env test
+
+# Deploy read Worker (test env)
+cd ../worker-read
+npx wrangler deploy --env test
 npx wrangler secret put WORKER_READ_SECRET --env test
 ```
+
+> **Note**: Each `secret put` must run from the matching package directory
+> (`packages/worker` for `WORKER_SECRET`, `packages/worker-read` for
+> `WORKER_READ_SECRET`) so wrangler reads the correct `wrangler.toml`.
 
 **Step 2f — Create `.env.test`:**
 
@@ -164,14 +174,22 @@ WORKER_READ_URL_TEST=https://pew-test.worker.hexly.ai
 
 Create `scripts/d1-test-guard.ts` — reusable functions for test isolation verification.
 
-Three-layer defense:
-1. **Existence check**: test env vars must be set
-2. **Non-equality check**: test DB ID ≠ prod DB ID
-3. **Marker check**: test DB must contain `_test_marker` table with `env='test'`
+Four-layer defense (covers all three data paths: D1 direct, Worker ingest, Worker read):
+1. **Existence check**: all test env vars must be set (`CF_D1_DATABASE_ID_TEST`, `WORKER_INGEST_URL_TEST`, `WORKER_READ_URL_TEST`)
+2. **Non-equality check — DB**: test DB ID ≠ prod DB ID
+3. **Non-equality check — Workers**: test Worker URLs ≠ prod Worker URLs (prevents `.env.test` accidentally pointing test Workers at production endpoints; this is the primary data path for reads via `db-worker.ts` and writes via `ingest-handler.ts`)
+4. **Marker check**: test DB must contain `_test_marker` table with `env='test'`
+
+> **Why Worker URL validation matters**: The app's normal read/write paths do NOT use
+> `CF_D1_DATABASE_ID` directly. Writes go through `WORKER_INGEST_URL` →
+> `ingest-handler.ts`, reads go through `WORKER_READ_URL` → `db-worker.ts`.
+> The direct D1 REST API (`CF_D1_DATABASE_ID`) is only used by the E2E seed/cleanup
+> path in `api-e2e.test.ts`. If the guard only checked DB ID but `.env.test` had a
+> prod Worker URL, all real test traffic would still hit production.
 
 Core function `validateAndOverride(envLocal, envTest)`:
 - Takes prod env (from `.env.local`) and test env (from `.env.test`)
-- Validates all three layers
+- Validates all four layers
 - Returns overridden env dict with `CF_D1_DATABASE_ID` / `WORKER_INGEST_URL` / `WORKER_READ_URL` pointing to test resources
 - Throws on any failure (hard gate)
 
@@ -212,8 +230,10 @@ Modify both E2E runners to load `.env.test`, validate isolation, and override en
 L1 tests for the guard utilities — mock-based, no real Cloudflare calls.
 
 - Existence check: throws when `CF_D1_DATABASE_ID_TEST` missing
-- Non-equality check: throws when test ID === prod ID
-- Happy path: returns overridden env vars with correct mapping
+- Existence check: throws when `WORKER_INGEST_URL_TEST` or `WORKER_READ_URL_TEST` missing
+- Non-equality check: throws when test DB ID === prod DB ID
+- Non-equality check: throws when test Worker URL === prod Worker URL
+- Happy path: returns overridden env vars with correct mapping for all three keys
 - Marker verification: mock HTTP response
 
 **Files:**
