@@ -39,6 +39,20 @@ export function cleanupBuildDir(dir: string): void {
  */
 export function loadEnvLocal(): Record<string, string> {
   const envPath = resolve("packages/web/.env.local");
+  return loadEnvFile(envPath, ".env.local");
+}
+
+/**
+ * Load .env.test from packages/web for D1 test isolation overrides.
+ * Contains CF_D1_DATABASE_ID_TEST, WORKER_INGEST_URL_TEST, WORKER_READ_URL_TEST.
+ */
+export function loadEnvTest(): Record<string, string> {
+  const envPath = resolve("packages/web/.env.test");
+  return loadEnvFile(envPath, ".env.test");
+}
+
+/** Shared env file parser. */
+function loadEnvFile(envPath: string, label: string): Record<string, string> {
   try {
     const content = readFileSync(envPath, "utf-8");
     const vars: Record<string, string> = {};
@@ -53,7 +67,7 @@ export function loadEnvLocal(): Record<string, string> {
     }
     return vars;
   } catch {
-    console.warn("⚠️  Could not load packages/web/.env.local");
+    console.warn(`⚠️  Could not load packages/web/${label}`);
     return {};
   }
 }

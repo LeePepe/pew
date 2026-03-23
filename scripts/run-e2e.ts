@@ -9,7 +9,8 @@
  */
 
 import { spawn, type Subprocess } from "bun";
-import { ensurePortFree, cleanupBuildDir, loadEnvLocal } from "./e2e-utils";
+import { ensurePortFree, cleanupBuildDir, loadEnvLocal, loadEnvTest } from "./e2e-utils";
+import { validateAndOverride } from "./d1-test-guard";
 
 const E2E_PORT = process.env.E2E_PORT || "17030";
 
@@ -45,7 +46,10 @@ async function main() {
   await ensurePortFree(E2E_PORT);
 
   const envLocal = loadEnvLocal();
-  const mergedEnv = { ...process.env, ...envLocal };
+  const envTest = loadEnvTest();
+  const isolatedEnv = await validateAndOverride(envLocal, envTest);
+  console.log("🔒 D1 test isolation verified — using pew-db-test\n");
+  const mergedEnv = { ...process.env, ...isolatedEnv };
 
   console.log(`🌐 Starting E2E server on port ${E2E_PORT}...`);
   serverProcess = spawn(["bun", "run", "next", "dev", "-p", E2E_PORT], {
