@@ -586,7 +586,6 @@ export default function AdminStoragePage() {
           slug={dialogUser.slug ?? dialogUser.user_id}
           name={dialogUser.name}
           image={dialogUser.image}
-          rangeMode="tabs"
           defaultTab={dialogTab}
         />
       )}

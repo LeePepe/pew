@@ -462,7 +462,6 @@ export default function TeamDetailPage() {
           slug={dialogMember.slug ?? dialogMember.userId}
           name={dialogMember.name}
           image={dialogMember.image}
-          rangeMode="tabs"
         />
       )}
     </div>

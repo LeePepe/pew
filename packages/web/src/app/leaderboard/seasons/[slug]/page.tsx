@@ -378,7 +378,8 @@ export default function SeasonLeaderboardPage() {
           slug={dialogMember.slug ?? dialogMember.user_id}
           name={dialogMember.name}
           image={dialogMember.image}
-          rangeMode="season"
+          defaultTab="season"
+          seasonName={data.season.name}
           seasonStart={data.season.start_date}
           seasonEnd={seasonEndExclusive}
         />
