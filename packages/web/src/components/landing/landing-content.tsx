@@ -48,6 +48,18 @@ function InstallCommand() {
 }
 
 // ---------------------------------------------------------------------------
+// Inline code snippet
+// ---------------------------------------------------------------------------
+
+function Code({ children }: { children: React.ReactNode }) {
+  return (
+    <code className="rounded bg-foreground/[0.05] px-1.5 py-0.5 font-mono text-xs text-foreground">
+      {children}
+    </code>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main landing — single viewport, centered, no scroll
 // ---------------------------------------------------------------------------
 
@@ -78,23 +90,22 @@ export function LandingContent() {
         </div>
       </div>
 
-      {/* Row 2: One-liner description */}
+      {/* Row 2: One-liner */}
       <p
         className="mt-5 text-sm leading-relaxed text-muted-foreground animate-fade-up"
         style={{ animationDelay: "80ms" }}
       >
-        The contribution graph for AI-native developers.
+        The contribution graph for AI-native devs.
         Reads local logs from{" "}
         <span className="text-foreground">
-          Claude Code, Codex, Gemini CLI, OpenCode, OpenClaw
-        </span>
-        ,{" "}
-        <span className="text-foreground">VS Code Copilot</span> &amp;{" "}
+          Claude Code, Codex, Gemini CLI, OpenCode, OpenClaw, VS Code Copilot
+        </span>{" "}
+        &amp;{" "}
         <span className="text-foreground">GitHub Copilot CLI</span> —
-        only counts, never conversations.
+        counts tokens, never conversations.
       </p>
 
-      {/* Row 3: Install command — PRIMARY action */}
+      {/* Row 3: Install command */}
       <div
         className="mt-7 animate-fade-up"
         style={{ animationDelay: "160ms" }}
@@ -102,22 +113,18 @@ export function LandingContent() {
         <InstallCommand />
       </div>
 
-      {/* Row 4: Steps */}
+      {/* Row 4: Quick start */}
       <ol
         className="mt-4 space-y-1 text-sm text-muted-foreground animate-fade-up"
         style={{ animationDelay: "240ms" }}
-        aria-label="Getting started steps"
+        aria-label="Quick start"
       >
         <li className="flex items-baseline gap-2">
           <span className="font-mono text-xs text-primary" aria-hidden="true">
             1
           </span>
           <span>
-            Run{" "}
-            <code className="rounded bg-foreground/[0.05] px-1.5 py-0.5 font-mono text-xs text-foreground">
-              pew
-            </code>{" "}
-            to scan local logs
+            <Code>pew login</Code> — sign in via browser
           </span>
         </li>
         <li className="flex items-baseline gap-2">
@@ -125,11 +132,8 @@ export function LandingContent() {
             2
           </span>
           <span>
-            Run{" "}
-            <code className="rounded bg-foreground/[0.05] px-1.5 py-0.5 font-mono text-xs text-foreground">
-              pew login
-            </code>{" "}
-            to authenticate
+            <Code>pew init</Code> — install auto-sync hooks{" "}
+            <span className="text-muted-foreground/60">(runs sync on every session end)</span>
           </span>
         </li>
         <li className="flex items-baseline gap-2">
@@ -137,26 +141,46 @@ export function LandingContent() {
             3
           </span>
           <span>
-            Run{" "}
-            <code className="rounded bg-foreground/[0.05] px-1.5 py-0.5 font-mono text-xs text-foreground">
-              pew init
-            </code>{" "}
-            to install auto-sync plugins
+            Done! Your tokens sync automatically.
           </span>
         </li>
       </ol>
 
-      {/* Row 5: Sign In — secondary action */}
+      {/* Row 5: Handy commands */}
+      <div
+        className="mt-5 animate-fade-up"
+        style={{ animationDelay: "300ms" }}
+      >
+        <p className="mb-2 text-xs font-medium text-muted-foreground/70 uppercase tracking-wider">
+          Handy commands
+        </p>
+        <div className="space-y-0.5 text-sm text-muted-foreground">
+          <div className="flex items-baseline gap-2">
+            <Code>pew sync</Code>
+            <span className="text-muted-foreground/80">— sync right now</span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <Code>pew reset</Code>
+            <span className="text-muted-foreground/80">— wipe local state, re-scan from scratch</span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <Code>pew update</Code>
+            <span className="text-muted-foreground/80">— grab the latest version</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Row 6: Sign In */}
       <div
         className="mt-6 animate-fade-up"
-        style={{ animationDelay: "320ms" }}
+        style={{ animationDelay: "360ms" }}
       >
         <Link
           href="/login"
           className="inline-flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-[background-color,border-color] duration-200 hover:border-primary/40 hover:bg-primary/5"
         >
           Sign in to dashboard
-          <span aria-hidden="true">→</span>
+          <span aria-hidden="true">&rarr;</span>
         </Link>
       </div>
     </main>
