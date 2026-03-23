@@ -290,12 +290,25 @@ export async function GET(
       },
     );
 
+    // Query earliest usage record (unfiltered by date range)
+    let firstSeen: string | null = null;
+    try {
+      const earliest = await db.firstOrNull<{ first_seen: string }>(
+        "SELECT MIN(hour_start) AS first_seen FROM usage_records WHERE user_id = ?",
+        [user.id],
+      );
+      firstSeen = earliest?.first_seen ?? null;
+    } catch {
+      // Non-critical — graceful fallthrough
+    }
+
     return NextResponse.json({
       user: {
         name: user.name,
         image: user.image,
         slug: user.slug,
         created_at: user.created_at,
+        first_seen: firstSeen,
       },
       records,
       summary,

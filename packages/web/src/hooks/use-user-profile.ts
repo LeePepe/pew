@@ -24,6 +24,7 @@ export interface UserProfileUser {
   image: string | null;
   slug: string;
   created_at: string;
+  first_seen: string | null;
 }
 
 export interface UserProfileData {

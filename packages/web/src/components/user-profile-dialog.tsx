@@ -168,6 +168,11 @@ function DialogBody({
               <p className="flex items-center gap-1.5 text-sm text-muted-foreground mt-0.5">
                 <Calendar className="h-3.5 w-3.5" />
                 Member since {formatMemberSince(user.created_at)}
+                {rangeMode === "tabs" && user.first_seen && (
+                  <span className="text-muted-foreground/60">
+                    · Data since {formatMemberSince(user.first_seen)}
+                  </span>
+                )}
               </p>
             )}
           </div>

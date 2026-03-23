@@ -187,6 +187,7 @@ describe("GET /api/users/[slug]", () => {
         image: "https://example.com/avatar.jpg",
         slug: "testuser",
         created_at: "2026-01-15T10:00:00Z",
+        first_seen: null,
       });
 
       expect(body.records).toHaveLength(1);
