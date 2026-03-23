@@ -19,6 +19,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  UserProfileDialog,
+  type ProfileDialogTab,
+} from "@/components/user-profile-dialog";
 import type {
   StorageUserRow,
   StorageSummary,
@@ -155,6 +159,17 @@ export default function AdminStoragePage() {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("total_tokens");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  // Profile dialog
+  const [dialogUser, setDialogUser] = useState<StorageUserRow | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogTab, setDialogTab] = useState<ProfileDialogTab>("total");
+
+  const openProfileDialog = useCallback((user: StorageUserRow, tab: ProfileDialogTab = "total") => {
+    setDialogUser(user);
+    setDialogTab(tab);
+    setDialogOpen(true);
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Redirect non-admins
@@ -444,7 +459,15 @@ export default function AdminStoragePage() {
                       >
                         {/* User */}
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-3 min-w-0">
+                          <button
+                            onClick={() => openProfileDialog(user)}
+                            disabled={!user.slug}
+                            className={cn(
+                              "flex items-center gap-3 min-w-0 text-left",
+                              user.slug && "hover:opacity-80 transition-opacity cursor-pointer",
+                              !user.slug && "cursor-default opacity-60",
+                            )}
+                          >
                             <Avatar className="h-7 w-7 shrink-0">
                               {user.image && (
                                 <AvatarImage
@@ -466,7 +489,7 @@ export default function AdminStoragePage() {
                                 {user.email ?? user.user_id}
                               </p>
                             </div>
-                          </div>
+                          </button>
                         </td>
                         {/* Teams */}
                         <td className="px-4 py-3 text-right hidden sm:table-cell">
@@ -559,6 +582,19 @@ export default function AdminStoragePage() {
           </>
         )}
       </div>
+
+      {/* Profile dialog */}
+      {dialogUser && (
+        <UserProfileDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          slug={dialogUser.slug}
+          name={dialogUser.name}
+          image={dialogUser.image}
+          rangeMode="tabs"
+          defaultTab={dialogTab}
+        />
+      )}
     </TooltipProvider>
   );
 }

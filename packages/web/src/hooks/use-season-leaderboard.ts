@@ -26,6 +26,7 @@ export interface SeasonTeamEntry {
 
 export interface SeasonMember {
   user_id: string;
+  slug: string | null;
   name: string;
   image: string | null;
   total_tokens: number;

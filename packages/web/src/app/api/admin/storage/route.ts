@@ -15,6 +15,7 @@ import { getDbRead } from "@/lib/db";
 
 export interface StorageUserRow {
   user_id: string;
+  slug: string | null;
   email: string | null;
   name: string | null;
   image: string | null;
@@ -55,6 +56,7 @@ export async function GET(request: Request) {
     const { results: users } = await db.query<StorageUserRow>(
       `SELECT
          u.id              AS user_id,
+         u.slug            AS slug,
          u.email,
          u.name,
          u.image,

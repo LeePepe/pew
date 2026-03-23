@@ -56,6 +56,7 @@ interface SnapshotRow {
 interface MemberRow {
   team_id: string;
   user_id: string;
+  slug: string | null;
   name: string | null;
   nickname: string | null;
   image: string | null;
@@ -68,6 +69,7 @@ interface MemberRow {
 interface MemberSnapshotRow {
   team_id: string;
   user_id: string;
+  slug: string | null;
   name: string | null;
   nickname: string | null;
   image: string | null;
@@ -188,6 +190,7 @@ export async function GET(
           `SELECT
             sms.team_id,
             sms.user_id,
+            u.slug,
             u.name,
             u.nickname,
             u.image,
@@ -226,6 +229,7 @@ export async function GET(
         ...(expandMembers && {
           members: (membersByTeam.get(row.team_id) ?? []).map((m) => ({
             user_id: m.user_id,
+            slug: m.slug,
             name: m.nickname ?? m.name,
             image: m.image,
             total_tokens: m.total_tokens,
@@ -329,6 +333,7 @@ export async function GET(
           `SELECT
             tm.team_id,
             tm.user_id,
+            u.slug,
             u.name,
             u.nickname,
             u.image,
@@ -372,6 +377,7 @@ export async function GET(
         ...(expandMembers && {
           members: (membersByTeam.get(row.team_id) ?? []).map((m) => ({
             user_id: m.user_id,
+            slug: m.slug,
             name: m.nickname ?? m.name,
             image: m.image,
             total_tokens: m.total_tokens,

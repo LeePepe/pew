@@ -5,6 +5,8 @@
  *
  * Query params:
  *   days   — number of days to look back (default: 30, max: 365)
+ *   from   — start datetime (ISO 8601, exclusive of days param if provided)
+ *   to     — end datetime (ISO 8601, exclusive of days param if provided)
  *   source — filter by source (optional)
  *
  * Returns { user, records, summary }.
@@ -109,18 +111,39 @@ export async function GET(
   // 3. Parse query params
   const url = new URL(request.url);
   const daysParam = url.searchParams.get("days");
+  const fromParam = url.searchParams.get("from");
+  const toParam = url.searchParams.get("to");
   const sourceFilter = url.searchParams.get("source");
 
-  let days = DEFAULT_DAYS;
-  if (daysParam) {
-    const parsed = parseInt(daysParam, 10);
-    if (isNaN(parsed) || parsed < 1 || parsed > MAX_DAYS) {
+  // Determine time range: from/to takes precedence over days
+  let fromDate: Date;
+  let toDate: Date | null = null;
+
+  if (fromParam && toParam) {
+    // Use exact time range
+    fromDate = new Date(fromParam);
+    toDate = new Date(toParam);
+    if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
       return NextResponse.json(
-        { error: `days must be 1-${MAX_DAYS}` },
+        { error: "Invalid from/to datetime format" },
         { status: 400 },
       );
     }
-    days = parsed;
+  } else {
+    // Use days-based range
+    let days = DEFAULT_DAYS;
+    if (daysParam) {
+      const parsed = parseInt(daysParam, 10);
+      if (isNaN(parsed) || parsed < 1 || parsed > MAX_DAYS) {
+        return NextResponse.json(
+          { error: `days must be 1-${MAX_DAYS}` },
+          { status: 400 },
+        );
+      }
+      days = parsed;
+    }
+    fromDate = new Date();
+    fromDate.setDate(fromDate.getDate() - days);
   }
 
   if (sourceFilter && !VALID_SOURCES.has(sourceFilter)) {
@@ -131,11 +154,13 @@ export async function GET(
   }
 
   // 4. Build query
-  const fromDate = new Date();
-  fromDate.setDate(fromDate.getDate() - days);
-
   const conditions = ["user_id = ?", "hour_start >= ?"];
   const queryParams: unknown[] = [user.id, fromDate.toISOString()];
+
+  if (toDate) {
+    conditions.push("hour_start < ?");
+    queryParams.push(toDate.toISOString());
+  }
 
   if (sourceFilter) {
     conditions.push("source = ?");

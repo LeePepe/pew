@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   useSeasonLeaderboard,
   type SeasonTeamEntry,
+  type SeasonMember,
 } from "@/hooks/use-season-leaderboard";
 import { CheckRuling } from "@/components/leaderboard/check-ruling";
 import { SeasonCountdown } from "@/components/leaderboard/season-countdown";
@@ -26,6 +27,7 @@ import { StatusBadge } from "@/components/leaderboard/status-badge";
 import { LeaderboardSkeleton } from "@/components/leaderboard/leaderboard-skeleton";
 import { PageHeader } from "@/components/leaderboard/page-header";
 import { TokenTierBadge } from "@/components/leaderboard/token-tier-badge";
+import { UserProfileDialog } from "@/components/user-profile-dialog";
 import { Trophy } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -92,9 +94,11 @@ function Breadcrumb({ seasonName }: { seasonName?: string | undefined }) {
 function TeamRow({
   entry,
   index,
+  onMemberClick,
 }: {
   entry: SeasonTeamEntry;
   index: number;
+  onMemberClick: (member: SeasonMember) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const hasMembers = entry.members && entry.members.length > 0;
@@ -202,20 +206,33 @@ function TeamRow({
 
                 {/* Avatar + name — aligned with team icon + name */}
                 <div className="flex flex-1 items-center gap-3 min-w-0">
-                  <Avatar className="h-8 w-8 shrink-0">
-                    {member.image && (
-                      <AvatarImage src={member.image} alt={displayName} />
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (member.slug) onMemberClick(member);
+                    }}
+                    disabled={!member.slug}
+                    className={cn(
+                      "flex items-center gap-3 min-w-0",
+                      member.slug && "hover:opacity-80 transition-opacity cursor-pointer",
+                      !member.slug && "cursor-default",
                     )}
-                    <AvatarFallback className="text-[10px] bg-primary text-primary-foreground">
-                      {initial}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-sm text-muted-foreground truncate">
-                      {displayName}
-                    </span>
-                    <TokenTierBadge totalTokens={member.total_tokens} />
-                  </div>
+                  >
+                    <Avatar className="h-8 w-8 shrink-0">
+                      {member.image && (
+                        <AvatarImage src={member.image} alt={displayName} />
+                      )}
+                      <AvatarFallback className="text-[10px] bg-primary text-primary-foreground">
+                        {initial}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm text-muted-foreground truncate">
+                        {displayName}
+                      </span>
+                      <TokenTierBadge totalTokens={member.total_tokens} />
+                    </div>
+                  </button>
                 </div>
 
                 {/* Session count — same width as team row */}
@@ -261,6 +278,20 @@ export default function SeasonLeaderboardPage() {
   const { data, loading, refreshing, error } = useSeasonLeaderboard(slug);
 
   const isLoading = loading && !data;
+
+  // Profile dialog state
+  const [dialogMember, setDialogMember] = useState<SeasonMember | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  const handleMemberClick = useCallback((member: SeasonMember) => {
+    setDialogMember(member);
+    setDialogOpen(true);
+  }, []);
+
+  // Compute exclusive end date for the dialog (end_date is inclusive at minute precision)
+  const seasonEndExclusive = data?.season.end_date
+    ? new Date(new Date(data.season.end_date).getTime() + 60_000).toISOString()
+    : undefined;
 
   return (
     <>
@@ -337,12 +368,26 @@ export default function SeasonLeaderboardPage() {
               </div>
             ) : (
               data.entries.map((entry, i) => (
-                <TeamRow key={entry.team.id} entry={entry} index={i} />
+                <TeamRow key={entry.team.id} entry={entry} index={i} onMemberClick={handleMemberClick} />
               ))
             )}
           </div>
         )}
       </main>
+
+      {/* Profile dialog */}
+      {dialogMember && data && seasonEndExclusive && (
+        <UserProfileDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          slug={dialogMember.slug}
+          name={dialogMember.name}
+          image={dialogMember.image}
+          rangeMode="season"
+          seasonStart={data.season.start_date}
+          seasonEnd={seasonEndExclusive}
+        />
+      )}
     </>
   );
 }
