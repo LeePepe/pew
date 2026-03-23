@@ -144,7 +144,7 @@ export async function GET(
 
   const db = await getDbRead();
 
-  // 2. Look up user by slug (with is_public gate)
+  // 2. Look up user by slug, falling back to id lookup (for admin access to users without slugs)
   let user: UserRow | null;
   let hasIsPublicColumn = true;
 
@@ -153,6 +153,13 @@ export async function GET(
       "SELECT id, name, image, slug, created_at, is_public FROM users WHERE slug = ?",
       [slug],
     );
+    // Fallback: try by user id if slug lookup returned nothing
+    if (!user) {
+      user = await db.firstOrNull<UserRow>(
+        "SELECT id, name, image, slug, created_at, is_public FROM users WHERE id = ?",
+        [slug],
+      );
+    }
   } catch (err: unknown) {
     // Fallback: is_public column doesn't exist yet (pre-migration)
     const msg = err instanceof Error ? err.message : String(err);
@@ -162,6 +169,12 @@ export async function GET(
         "SELECT id, name, image, slug, created_at FROM users WHERE slug = ?",
         [slug],
       );
+      if (!user) {
+        user = await db.firstOrNull<UserRow>(
+          "SELECT id, name, image, slug, created_at FROM users WHERE id = ?",
+          [slug],
+        );
+      }
     } else {
       throw err;
     }

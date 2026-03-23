@@ -461,12 +461,7 @@ export default function AdminStoragePage() {
                         <td className="px-4 py-3">
                           <button
                             onClick={() => openProfileDialog(user)}
-                            disabled={!user.slug}
-                            className={cn(
-                              "flex items-center gap-3 min-w-0 text-left",
-                              user.slug && "hover:opacity-80 transition-opacity cursor-pointer",
-                              !user.slug && "cursor-default opacity-60",
-                            )}
+                            className="flex items-center gap-3 min-w-0 text-left hover:opacity-80 transition-opacity cursor-pointer"
                           >
                             <Avatar className="h-7 w-7 shrink-0">
                               {user.image && (
@@ -588,7 +583,7 @@ export default function AdminStoragePage() {
         <UserProfileDialog
           open={dialogOpen}
           onOpenChange={setDialogOpen}
-          slug={dialogUser.slug}
+          slug={dialogUser.slug ?? dialogUser.user_id}
           name={dialogUser.name}
           image={dialogUser.image}
           rangeMode="tabs"

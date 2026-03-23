@@ -209,14 +209,9 @@ function TeamRow({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (member.slug) onMemberClick(member);
+                      onMemberClick(member);
                     }}
-                    disabled={!member.slug}
-                    className={cn(
-                      "flex items-center gap-3 min-w-0",
-                      member.slug && "hover:opacity-80 transition-opacity cursor-pointer",
-                      !member.slug && "cursor-default",
-                    )}
+                    className="flex items-center gap-3 min-w-0 hover:opacity-80 transition-opacity cursor-pointer"
                   >
                     <Avatar className="h-8 w-8 shrink-0">
                       {member.image && (
@@ -380,7 +375,7 @@ export default function SeasonLeaderboardPage() {
         <UserProfileDialog
           open={dialogOpen}
           onOpenChange={setDialogOpen}
-          slug={dialogMember.slug}
+          slug={dialogMember.slug ?? dialogMember.user_id}
           name={dialogMember.name}
           image={dialogMember.image}
           rangeMode="season"

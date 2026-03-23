@@ -410,13 +410,8 @@ export default function TeamDetailPage() {
           {team.members.map((member) => (
             <button
               key={member.userId}
-              onClick={() => member.slug && handleMemberClick(member)}
-              disabled={!member.slug}
-              className={cn(
-                "flex w-full items-center gap-3 rounded-lg bg-secondary px-4 py-2.5 text-left transition-colors",
-                member.slug && "hover:bg-accent cursor-pointer",
-                !member.slug && "cursor-default",
-              )}
+              onClick={() => handleMemberClick(member)}
+              className="flex w-full items-center gap-3 rounded-lg bg-secondary px-4 py-2.5 text-left transition-colors hover:bg-accent cursor-pointer"
             >
               <Avatar className="h-7 w-7">
                 {member.image && <AvatarImage src={member.image} />}
@@ -464,7 +459,7 @@ export default function TeamDetailPage() {
         <UserProfileDialog
           open={dialogOpen}
           onOpenChange={setDialogOpen}
-          slug={dialogMember.slug}
+          slug={dialogMember.slug ?? dialogMember.userId}
           name={dialogMember.name}
           image={dialogMember.image}
           rangeMode="tabs"
