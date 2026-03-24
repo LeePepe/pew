@@ -11,12 +11,21 @@ if [ $TEST_EXIT -ne 0 ]; then
   exit 1
 fi
 
-# G1 Static Analysis: tsc strict + ESLint strict (0 errors + 0 warnings)
-bun run lint 2>&1
+# G1a Static Analysis: TypeScript strict (full project — tsc needs complete context)
+bun run lint:typecheck 2>&1
+TSC_EXIT=$?
+
+if [ $TSC_EXIT -ne 0 ]; then
+  echo "❌ pre-commit FAILED: TypeScript type check errors."
+  exit 1
+fi
+
+# G1b Static Analysis: ESLint strict (staged files only, via lint-staged)
+bunx lint-staged 2>&1
 LINT_EXIT=$?
 
 if [ $LINT_EXIT -ne 0 ]; then
-  echo "❌ pre-commit FAILED: TypeScript type check or ESLint errors."
+  echo "❌ pre-commit FAILED: ESLint errors in staged files."
   exit 1
 fi
 
