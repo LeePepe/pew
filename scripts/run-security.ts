@@ -5,10 +5,38 @@
  * 2. gitleaks: secret leak scan (unpushed commits)
  *
  * Single source of truth — called by both `bun run test:security`
- * and `.husky/pre-push`. Uses `command -v` guards so missing tools
- * produce a warning, not a hard failure.
+ * and `.husky/pre-push`.
+ *
+ * Default: tool missing → hard failure with install instructions.
+ * Set PEW_G2_SOFT=1 for soft-degrade mode (warn and skip).
  */
 import { spawnSync } from "node:child_process";
+
+const softMode = process.env.PEW_G2_SOFT === "1";
+
+interface ToolSpec {
+  name: string;
+  install: string;
+}
+
+const TOOLS: Record<string, ToolSpec> = {
+  "osv-scanner": {
+    name: "osv-scanner",
+    install: [
+      "  brew install osv-scanner                                              # macOS",
+      "  go install github.com/google/osv-scanner/v2/cmd/osv-scanner@latest   # Go",
+      "  https://google.github.io/osv-scanner/installation/",
+    ].join("\n"),
+  },
+  gitleaks: {
+    name: "gitleaks",
+    install: [
+      "  brew install gitleaks                                                 # macOS",
+      "  go install github.com/gitleaks/gitleaks/v8@latest                     # Go",
+      "  https://github.com/gitleaks/gitleaks#installing",
+    ].join("\n"),
+  },
+};
 
 function hasCommand(name: string): boolean {
   const r = spawnSync("command", ["-v", name], { shell: true });
@@ -25,10 +53,31 @@ function resolveUpstreamRange(): string {
   return `${upstream}..HEAD`;
 }
 
+/** Returns true if tool is available, false if missing. Exits in hard mode. */
+function requireTool(key: string): boolean {
+  const tool = TOOLS[key];
+  if (hasCommand(tool.name)) return true;
+
+  if (softMode) {
+    console.warn(`⚠️  ${tool.name} not installed, skipping (PEW_G2_SOFT=1)`);
+    return false;
+  }
+
+  console.error(`❌ ${tool.name} is required but not installed.\n`);
+  console.error(`Install ${tool.name} (v2+ required for bun.lock support):\n`);
+  console.error(tool.install);
+  console.error(
+    `\nTo skip this check (not recommended), set PEW_G2_SOFT=1:\n  PEW_G2_SOFT=1 git push\n`,
+  );
+  return false;
+}
+
 let failed = false;
+let hardMissing = false;
 
 // osv-scanner
-if (hasCommand("osv-scanner")) {
+const hasOsv = requireTool("osv-scanner");
+if (hasOsv) {
   console.log("🔍 osv-scanner: scanning bun.lock...");
   const r = spawnSync("osv-scanner", ["--lockfile=bun.lock"], {
     stdio: "inherit",
@@ -39,12 +88,13 @@ if (hasCommand("osv-scanner")) {
   } else {
     console.log("✅ osv-scanner: clean");
   }
-} else {
-  console.warn("⚠️  osv-scanner not installed, skipping CVE scan");
+} else if (!softMode) {
+  hardMissing = true;
 }
 
 // gitleaks
-if (hasCommand("gitleaks")) {
+const hasGitleaks = requireTool("gitleaks");
+if (hasGitleaks) {
   const range = resolveUpstreamRange();
   console.log(`🔍 gitleaks: scanning commits ${range}...`);
   const r = spawnSync("gitleaks", ["git", `--log-opts=${range}`], {
@@ -56,12 +106,19 @@ if (hasCommand("gitleaks")) {
   } else {
     console.log("✅ gitleaks: clean");
   }
-} else {
-  console.warn("⚠️  gitleaks not installed, skipping secret scan");
+} else if (!softMode) {
+  hardMissing = true;
 }
 
-if (!failed) {
-  console.log("\n✅ G2 security gate passed");
+if (hardMissing) {
+  console.error("\n❌ G2 security gate FAILED: required tools missing.");
+  process.exit(1);
 }
 
-process.exit(failed ? 1 : 0);
+if (failed) {
+  console.error("\n❌ G2 security gate FAILED: vulnerabilities or secrets found.");
+  process.exit(1);
+}
+
+console.log("\n✅ G2 security gate passed");
+process.exit(0);
