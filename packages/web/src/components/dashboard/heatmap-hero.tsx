@@ -156,9 +156,9 @@ export function HeatmapHero({
   if (loading) {
     return (
       <div className={cn("rounded-[var(--radius-card)] bg-secondary p-4 md:p-6", className)}>
-        <div className="flex flex-col lg:flex-row gap-6">
-          {/* Left: Heatmap skeleton */}
-          <div className="flex-1 min-w-0">
+        <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6">
+          {/* Left: Heatmap skeleton (60%) */}
+          <div className="min-w-0">
             <Skeleton className="h-5 w-24 mb-4" />
             <div className="flex items-start justify-between mb-4">
               <div className="space-y-2">
@@ -173,8 +173,8 @@ export function HeatmapHero({
               <Skeleton className="h-5 w-32" />
             </div>
           </div>
-          {/* Right: Achievements skeleton */}
-          <div className="lg:w-[320px] shrink-0 lg:border-l lg:border-border/50 lg:pl-6 space-y-2">
+          {/* Right: Achievements skeleton (40%) */}
+          <div className="lg:border-l lg:border-border/50 lg:pl-6 space-y-2">
             <Skeleton className="h-5 w-24 mb-3" />
             {Array.from({ length: 4 }).map((_, i) => (
               <Skeleton key={i} className="h-[72px] w-full rounded-xl" />
@@ -187,9 +187,12 @@ export function HeatmapHero({
 
   return (
     <div className={cn("rounded-[var(--radius-card)] bg-secondary p-4 md:p-6", className)}>
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* Left: Heatmap section */}
-        <div className="flex-1 min-w-0">
+      <div className={cn(
+        "grid grid-cols-1 gap-6",
+        hasAchievements ? "lg:grid-cols-[3fr_2fr]" : ""
+      )}>
+        {/* Left: Heatmap section (60%) */}
+        <div className="min-w-0">
           {/* Section title */}
           <div className="flex items-center gap-2 mb-4">
             <Activity className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
@@ -234,9 +237,9 @@ export function HeatmapHero({
           </div>
         </div>
 
-        {/* Right: Achievements panel (large screens only, or below on mobile) */}
+        {/* Right: Achievements panel (40%) */}
         {hasAchievements && (
-          <div className="lg:w-[320px] shrink-0 lg:border-l lg:border-border/50 lg:pl-6">
+          <div className="lg:border-l lg:border-border/50 lg:pl-6">
             <AchievementPanel achievements={achievements} />
           </div>
         )}
