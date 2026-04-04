@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeTotalCost, toDailyCostPoints, computeCacheSavings, forecastMonthlyCost, computeCurrentMonthTokens, computeCostPerToken, toDailyCacheRates, computeReasoningRatio } from "@/lib/cost-helpers";
+import { computeTotalCost, toDailyCostPoints, computeCacheSavings, forecastMonthlyCost, computeCostPerToken, toDailyCacheRates, computeReasoningRatio } from "@/lib/cost-helpers";
 import type { DailyCostPoint } from "@/lib/cost-helpers";
 import type { ModelAggregate, UsageRow, UsageSummary } from "@/hooks/use-usage-data";
 import { getDefaultPricingMap } from "@/lib/pricing";
@@ -530,94 +530,5 @@ describe("computeReasoningRatio", () => {
       makeSummary({ output_tokens: 0, reasoning_output_tokens: 0 }),
     );
     expect(result.reasoningPercent).toBe(0);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// computeCurrentMonthTokens
-// ---------------------------------------------------------------------------
-
-describe("computeCurrentMonthTokens", () => {
-  it("should return 0 for empty rows", () => {
-    expect(computeCurrentMonthTokens([], new Date("2026-03-15"))).toBe(0);
-  });
-
-  it("should sum only current month tokens", () => {
-    const rows = [
-      makeRow({ hour_start: "2026-02-20T10:00:00Z", total_tokens: 100_000 }),
-      makeRow({ hour_start: "2026-03-05T10:00:00Z", total_tokens: 200_000 }),
-      makeRow({ hour_start: "2026-03-10T14:00:00Z", total_tokens: 300_000 }),
-      makeRow({ hour_start: "2026-04-01T08:00:00Z", total_tokens: 400_000 }),
-    ];
-
-    const result = computeCurrentMonthTokens(rows, new Date("2026-03-15"));
-    expect(result).toBe(500_000); // 200k + 300k
-  });
-
-  it("should handle day-granularity rows (bare date strings)", () => {
-    const rows = [
-      makeRow({ hour_start: "2026-03-07", total_tokens: 150_000 }),
-      makeRow({ hour_start: "2026-03-08", total_tokens: 250_000 }),
-      makeRow({ hour_start: "2026-02-28", total_tokens: 100_000 }),
-    ];
-
-    const result = computeCurrentMonthTokens(rows, new Date("2026-03-15"));
-    expect(result).toBe(400_000);
-  });
-
-  it("should handle January (month prefix '01')", () => {
-    const rows = [
-      makeRow({ hour_start: "2026-01-15T10:00:00Z", total_tokens: 500_000 }),
-      makeRow({ hour_start: "2025-12-31T23:00:00Z", total_tokens: 100_000 }),
-    ];
-
-    const result = computeCurrentMonthTokens(rows, new Date("2026-01-20"));
-    expect(result).toBe(500_000);
-  });
-
-  it("should default to current date when now is not provided", () => {
-    // Just verify it doesn't throw
-    expect(computeCurrentMonthTokens([])).toBe(0);
-  });
-
-  it("should include UTC-previous-month records that are local-current-month (UTC-8)", () => {
-    // 2026-02-28T22:00Z → local PST = 2026-02-28T14:00 → still Feb, excluded
-    // 2026-03-01T03:00Z → local PST = 2026-02-28T19:00 → local date = Feb 28, excluded
-    // 2026-03-01T10:00Z → local PST = 2026-03-01T02:00 → local date = Mar 1, included
-    const rows = [
-      makeRow({ hour_start: "2026-02-28T22:00:00Z", total_tokens: 100_000 }),
-      makeRow({ hour_start: "2026-03-01T03:00:00Z", total_tokens: 200_000 }),
-      makeRow({ hour_start: "2026-03-01T10:00:00Z", total_tokens: 300_000 }),
-      makeRow({ hour_start: "2026-03-15T18:00:00Z", total_tokens: 400_000 }),
-    ];
-
-    // now = March 15 local, tzOffset = 480 (UTC-8)
-    const result = computeCurrentMonthTokens(rows, new Date("2026-03-15"), 480);
-    // Only the Mar 1 10:00Z (local Mar 1) and Mar 15 rows are in March local
-    expect(result).toBe(700_000); // 300k + 400k
-  });
-
-  it("should include UTC-next-month records that are local-current-month (UTC+9)", () => {
-    // 2026-03-31T20:00Z → local JST = 2026-04-01T05:00 → local date = Apr 1, excluded
-    // 2026-03-31T10:00Z → local JST = 2026-03-31T19:00 → local date = Mar 31, included
-    const rows = [
-      makeRow({ hour_start: "2026-03-31T10:00:00Z", total_tokens: 500_000 }),
-      makeRow({ hour_start: "2026-03-31T20:00:00Z", total_tokens: 100_000 }),
-    ];
-
-    const result = computeCurrentMonthTokens(rows, new Date("2026-03-31"), -540);
-    expect(result).toBe(500_000);
-  });
-
-  it("should behave identically to no-offset when tzOffset is 0", () => {
-    const rows = [
-      makeRow({ hour_start: "2026-03-05T10:00:00Z", total_tokens: 200_000 }),
-      makeRow({ hour_start: "2026-03-10T14:00:00Z", total_tokens: 300_000 }),
-    ];
-
-    const withOffset = computeCurrentMonthTokens(rows, new Date("2026-03-15"), 0);
-    const without = computeCurrentMonthTokens(rows, new Date("2026-03-15"));
-    expect(withOffset).toBe(without);
-    expect(withOffset).toBe(500_000);
   });
 });
