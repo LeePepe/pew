@@ -8,7 +8,8 @@
  * so utilities like bg-background, text-foreground, etc. work.
  *
  * Color space: HSL (basalt design system).
- * Primary: Teal/Cyan.
+ * Primary: Electric Violet — cyberpunk energy, "pew pew" laser vibes.
+ * Accent: Acid Lime — for charts, heatmaps, achievement highlights.
  * Luminance: 3-tier (L0 body > L1 card > L2 secondary).
  */
 @theme inline {
@@ -114,154 +115,155 @@
 /*
  * Design tokens — light (default) & dark mode
  * 3-tier luminance: L0 (background) > L1 (card) > L2 (secondary)
- * Primary: Teal/Cyan
+ * Primary: Electric Violet (cyberpunk/laser energy)
+ * Accent: Acid Lime (charts, heatmaps, achievements)
  */
 :root {
-  /* L0 body */
-  --background: 220 14% 94%;
-  --foreground: 0 0% 12%;
+  /* L0 body — cool-tinted off-white */
+  --background: 260 20% 95%;
+  --foreground: 260 10% 10%;
 
   /* L1 content panel */
-  --card: 220 14% 97%;
-  --card-foreground: 0 0% 12%;
+  --card: 260 20% 98%;
+  --card-foreground: 260 10% 10%;
 
   /* L2 inner cards */
   --secondary: 0 0% 100%;
-  --secondary-foreground: 0 0% 12%;
+  --secondary-foreground: 260 10% 10%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 0 0% 12%;
+  --popover-foreground: 260 10% 10%;
 
-  /* Teal/Cyan primary */
-  --primary: 186 72% 38%;
+  /* Electric Violet primary */
+  --primary: 270 85% 58%;
   --primary-foreground: 0 0% 100%;
 
-  --muted: 220 14% 92%;
-  --muted-foreground: 0 0% 45%;
+  --muted: 260 15% 92%;
+  --muted-foreground: 260 5% 40%;
 
-  --accent: 220 14% 92%;
-  --accent-foreground: 0 0% 12%;
+  --accent: 260 15% 92%;
+  --accent-foreground: 260 10% 10%;
 
   --destructive: 0 72% 51%;
   --destructive-foreground: 0 0% 100%;
 
-  --border: 220 13% 88%;
-  --input: 220 13% 88%;
-  --ring: 186 72% 38%;
+  --border: 260 12% 88%;
+  --input: 260 12% 88%;
+  --ring: 270 85% 58%;
 
   --radius: 0.75rem;
 
-  --sidebar-background: 220 14% 94%;
-  --sidebar-foreground: 0 0% 12%;
-  --sidebar-primary: 186 72% 38%;
+  --sidebar-background: 260 20% 95%;
+  --sidebar-foreground: 260 10% 10%;
+  --sidebar-primary: 270 85% 58%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 220 14% 90%;
-  --sidebar-accent-foreground: 0 0% 12%;
-  --sidebar-border: 220 13% 88%;
-  --sidebar-ring: 186 72% 38%;
+  --sidebar-accent: 260 15% 90%;
+  --sidebar-accent-foreground: 260 10% 10%;
+  --sidebar-border: 260 12% 88%;
+  --sidebar-ring: 270 85% 58%;
 
   --success: 142 71% 35%;
   --success-foreground: 0 0% 100%;
   --badge-red: 340 82% 55%;
   --badge-red-foreground: 0 0% 100%;
 
-  /* 8 sequential chart colors — Teal/Cyan leads */
-  --chart-1: 186 72% 38%;
-  --chart-2: 200 90% 55%;
-  --chart-3: 166 72% 44%;
-  --chart-4: 142 71% 45%;
-  --chart-5: 84 65% 46%;
-  --chart-6: 45 93% 47%;
-  --chart-7: 30 90% 55%;
-  --chart-8: 15 85% 52%;
+  /* 8 sequential chart colors — Violet to Lime energy spectrum */
+  --chart-1: 270 85% 58%;
+  --chart-2: 290 75% 55%;
+  --chart-3: 320 70% 52%;
+  --chart-4: 350 75% 55%;
+  --chart-5: 30 85% 55%;
+  --chart-6: 55 90% 48%;
+  --chart-7: 75 85% 45%;
+  --chart-8: 82 90% 50%;
 
   /* Chart utility tokens */
-  --chart-axis: 0 0% 40%;
-  --chart-muted: 0 0% 70%;
+  --chart-axis: 260 5% 40%;
+  --chart-muted: 260 5% 70%;
 
-  /* Heatmap color scales — green (GitHub-style) */
-  --heatmap-green-1: 142 50% 85%;
-  --heatmap-green-2: 142 55% 65%;
-  --heatmap-green-3: 142 60% 45%;
-  --heatmap-green-4: 142 65% 30%;
+  /* Heatmap color scales — Acid Lime (laser intensity) */
+  --heatmap-green-1: 82 40% 88%;
+  --heatmap-green-2: 82 60% 70%;
+  --heatmap-green-3: 82 80% 50%;
+  --heatmap-green-4: 82 90% 38%;
 
   /* Rank badge colors (leaderboard podium) */
   --rank-gold: 45 90% 48%;
-  --rank-silver: 220 10% 55%;
+  --rank-silver: 260 8% 55%;
   --rank-bronze: 25 70% 45%;
 }
 
 .dark {
-  /* L0 body: #171717 */
-  --background: 0 0% 9%;
-  --foreground: 0 0% 93%;
+  /* L0 body: deep space black with subtle violet tint */
+  --background: 260 15% 7%;
+  --foreground: 260 5% 93%;
 
-  /* L1 content panel: #1b1b1b */
-  --card: 0 0% 10.6%;
-  --card-foreground: 0 0% 93%;
+  /* L1 content panel */
+  --card: 260 12% 10%;
+  --card-foreground: 260 5% 93%;
 
-  /* L2 inner cards: #1f1f1f */
-  --secondary: 0 0% 12.2%;
-  --secondary-foreground: 0 0% 93%;
+  /* L2 inner cards */
+  --secondary: 260 10% 13%;
+  --secondary-foreground: 260 5% 93%;
 
-  --popover: 0 0% 10.6%;
-  --popover-foreground: 0 0% 93%;
+  --popover: 260 12% 10%;
+  --popover-foreground: 260 5% 93%;
 
-  /* Teal/Cyan primary (muted for dark) */
-  --primary: 186 60% 35%;
-  --primary-foreground: 186 60% 92%;
+  /* Electric Violet primary (boosted for dark) */
+  --primary: 270 90% 65%;
+  --primary-foreground: 270 100% 98%;
 
-  --muted: 0 0% 12.2%;
-  --muted-foreground: 0 0% 48%;
+  --muted: 260 10% 15%;
+  --muted-foreground: 260 5% 50%;
 
-  --accent: 0 0% 14%;
-  --accent-foreground: 0 0% 93%;
+  --accent: 260 10% 16%;
+  --accent-foreground: 260 5% 93%;
 
-  --destructive: 0 65% 45%;
-  --destructive-foreground: 0 65% 92%;
+  --destructive: 0 70% 50%;
+  --destructive-foreground: 0 70% 95%;
 
-  --border: 0 0% 16%;
-  --input: 0 0% 18%;
-  --ring: 186 60% 35%;
+  --border: 260 10% 18%;
+  --input: 260 10% 20%;
+  --ring: 270 90% 65%;
 
-  --sidebar-background: 0 0% 9%;
-  --sidebar-foreground: 0 0% 93%;
-  --sidebar-primary: 186 60% 35%;
-  --sidebar-primary-foreground: 186 60% 92%;
-  --sidebar-accent: 0 0% 14%;
-  --sidebar-accent-foreground: 0 0% 93%;
-  --sidebar-border: 0 0% 16%;
-  --sidebar-ring: 186 60% 35%;
+  --sidebar-background: 260 15% 7%;
+  --sidebar-foreground: 260 5% 93%;
+  --sidebar-primary: 270 90% 65%;
+  --sidebar-primary-foreground: 270 100% 98%;
+  --sidebar-accent: 260 10% 16%;
+  --sidebar-accent-foreground: 260 5% 93%;
+  --sidebar-border: 260 10% 18%;
+  --sidebar-ring: 270 90% 65%;
 
-  --success: 142 65% 38%;
-  --success-foreground: 142 60% 90%;
-  --badge-red: 340 65% 45%;
-  --badge-red-foreground: 340 65% 92%;
+  --success: 142 70% 42%;
+  --success-foreground: 142 70% 95%;
+  --badge-red: 340 70% 52%;
+  --badge-red-foreground: 340 70% 95%;
 
-  /* 8 sequential chart colors — controlled brightness, vivid hue */
-  --chart-1: 186 60% 35%;
-  --chart-2: 200 75% 48%;
-  --chart-3: 166 62% 42%;
-  --chart-4: 142 65% 40%;
-  --chart-5: 84 58% 42%;
-  --chart-6: 45 80% 44%;
-  --chart-7: 30 75% 48%;
-  --chart-8: 15 75% 48%;
+  /* 8 sequential chart colors — Violet to Lime, boosted for dark bg */
+  --chart-1: 270 90% 65%;
+  --chart-2: 290 80% 60%;
+  --chart-3: 320 75% 58%;
+  --chart-4: 350 80% 60%;
+  --chart-5: 30 90% 58%;
+  --chart-6: 55 95% 52%;
+  --chart-7: 75 90% 48%;
+  --chart-8: 82 95% 55%;
 
   /* Chart utility tokens */
-  --chart-axis: 0 0% 50%;
-  --chart-muted: 0 0% 35%;
+  --chart-axis: 260 5% 55%;
+  --chart-muted: 260 5% 35%;
 
-  /* Heatmap color scales — green, boosted for dark bg */
-  --heatmap-green-1: 142 45% 25%;
-  --heatmap-green-2: 142 50% 35%;
-  --heatmap-green-3: 142 55% 45%;
-  --heatmap-green-4: 142 60% 58%;
+  /* Heatmap color scales — Acid Lime, boosted for dark bg */
+  --heatmap-green-1: 82 50% 20%;
+  --heatmap-green-2: 82 70% 32%;
+  --heatmap-green-3: 82 85% 45%;
+  --heatmap-green-4: 82 95% 58%;
 
   /* Rank badge colors — boosted for dark bg */
-  --rank-gold: 45 85% 55%;
-  --rank-silver: 220 10% 65%;
-  --rank-bronze: 25 65% 55%;
+  --rank-gold: 45 90% 58%;
+  --rank-silver: 260 8% 65%;
+  --rank-bronze: 25 70% 55%;
 }
 
 /*

@@ -84,7 +84,7 @@ export function PeakHoursCard({ slots, className }: PeakHoursCardProps) {
                   className="h-full rounded-full transition-all"
                   style={{
                     width: `${pct}%`,
-                    background: i === 0 ? chart.teal : chart.sky,
+                    background: i === 0 ? chart.violet : chart.magenta,
                   }}
                 />
               </div>

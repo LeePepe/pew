@@ -142,7 +142,7 @@ export function CostTrendChart({ data, className }: CostTrendChartProps) {
         </div>
         <div className="flex items-center gap-4">
           {[
-            { key: "inputCost", label: "Input", color: chart.teal },
+            { key: "inputCost", label: "Input", color: chart.violet },
             { key: "outputCost", label: "Output", color: colorOutput },
             { key: "cachedCost", label: "Cached", color: chartMuted },
           ].map(({ key, label, color }) => (
@@ -165,8 +165,8 @@ export function CostTrendChart({ data, className }: CostTrendChartProps) {
           >
             <defs>
               <linearGradient id="gradCostInput" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={chart.teal} stopOpacity={0.3} />
-                <stop offset="100%" stopColor={chart.teal} stopOpacity={0} />
+                <stop offset="0%" stopColor={chart.violet} stopOpacity={0.3} />
+                <stop offset="100%" stopColor={chart.violet} stopOpacity={0} />
               </linearGradient>
               <linearGradient id="gradCostOutput" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={colorOutput} stopOpacity={0.3} />
@@ -202,7 +202,7 @@ export function CostTrendChart({ data, className }: CostTrendChartProps) {
               type="monotone"
               dataKey="inputCost"
               stackId="1"
-              stroke={chart.teal}
+              stroke={chart.violet}
               strokeWidth={2}
               fill="url(#gradCostInput)"
             />

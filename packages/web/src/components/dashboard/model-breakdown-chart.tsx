@@ -183,7 +183,7 @@ export function ModelBreakdownChart({
         </p>
         <div className="flex items-center gap-4">
           {[
-            { key: "input", label: "Input", color: chart.teal },
+            { key: "input", label: "Input", color: chart.violet },
             { key: "output", label: "Output", color: colorOutput },
             { key: "cached", label: "Cached", color: colorCached },
           ].map(({ key, label, color }) => (
@@ -230,7 +230,7 @@ export function ModelBreakdownChart({
             <Bar
               dataKey="input"
               stackId="1"
-              fill={chart.teal}
+              fill={chart.violet}
               radius={[0, 0, 0, 0]}
             />
             <Bar

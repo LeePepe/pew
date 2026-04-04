@@ -118,9 +118,9 @@ export function CacheRateChart({ data, className }: CacheRateChartProps) {
           <div
             className="h-0.5 w-4"
             style={{
-              backgroundColor: chart.jade,
+              backgroundColor: chart.pink,
               opacity: 0.5,
-              borderTop: `1px dashed ${chart.jade}`,
+              borderTop: `1px dashed ${chart.pink}`,
             }}
           />
           <span>Avg {average.toFixed(1)}%</span>
@@ -156,7 +156,7 @@ export function CacheRateChart({ data, className }: CacheRateChartProps) {
             />
             <ReferenceLine
               y={average}
-              stroke={chart.jade}
+              stroke={chart.pink}
               strokeDasharray="4 4"
               strokeOpacity={0.6}
             />
@@ -164,10 +164,10 @@ export function CacheRateChart({ data, className }: CacheRateChartProps) {
             <Line
               type="monotone"
               dataKey="cacheRate"
-              stroke={chart.jade}
+              stroke={chart.pink}
               strokeWidth={2}
               dot={false}
-              activeDot={{ r: 4, fill: chart.jade }}
+              activeDot={{ r: 4, fill: chart.pink }}
             />
           </LineChart>
         </DashboardResponsiveContainer>

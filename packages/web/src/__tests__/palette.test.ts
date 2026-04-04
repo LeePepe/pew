@@ -23,17 +23,17 @@ describe("palette", () => {
   });
 
   it("should produce hsl(var(--...)) format for chart colors", () => {
-    expect(chart.teal).toBe("hsl(var(--chart-1))");
-    expect(chart.sky).toBe("hsl(var(--chart-2))");
-    expect(chart.vermilion).toBe("hsl(var(--chart-8))");
+    expect(chart.violet).toBe("hsl(var(--chart-1))");
+    expect(chart.magenta).toBe("hsl(var(--chart-2))");
+    expect(chart.acid).toBe("hsl(var(--chart-8))");
   });
 
   it("should export semantic aliases", () => {
     expect(chartAxis).toBe("hsl(var(--chart-axis))");
     expect(chartMuted).toBe("hsl(var(--chart-muted))");
-    expect(chartPositive).toBe(chart.green);
+    expect(chartPositive).toBe("hsl(var(--success))");
     expect(chartNegative).toBe("hsl(var(--destructive))");
-    expect(chartPrimary).toBe(chart.teal);
+    expect(chartPrimary).toBe(chart.violet);
   });
 
   describe("withAlpha()", () => {

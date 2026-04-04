@@ -22,7 +22,7 @@ interface IoRatioChartProps {
 }
 
 // Stable color mapping
-const SLICE_COLORS = [chart.teal, chart.sky] as const;
+const SLICE_COLORS = [chart.violet, chart.magenta] as const;
 
 // ---------------------------------------------------------------------------
 // Custom tooltip

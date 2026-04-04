@@ -13,16 +13,17 @@ export const withAlpha = (token: string, alpha: number) =>
   `hsl(var(--${token}) / ${alpha})`;
 
 // -- 8 sequential chart colors --
+// Spectrum: Violet → Magenta → Pink → Coral → Orange → Gold → Lime → Acid Lime
 
 export const chart = {
-  teal:      v("chart-1"),  // Brand teal (= --primary)
-  sky:       v("chart-2"),
-  jade:      v("chart-3"),
-  green:     v("chart-4"),
-  lime:      v("chart-5"),
-  amber:     v("chart-6"),
-  orange:    v("chart-7"),
-  vermilion: v("chart-8"),
+  violet:  v("chart-1"),  // Brand violet (= --primary)
+  magenta: v("chart-2"),
+  pink:    v("chart-3"),
+  coral:   v("chart-4"),
+  orange:  v("chart-5"),
+  gold:    v("chart-6"),
+  lime:    v("chart-7"),
+  acid:    v("chart-8"),  // Acid Lime — heatmap/achievement accent
 } as const;
 
 /** Ordered array — use for pie / donut / bar where you need N colors by index. */
@@ -37,13 +38,13 @@ export const chartAxis = v("chart-axis");
 export const chartMuted = v("chart-muted");
 
 /** Positive / success */
-export const chartPositive = chart.green;
+export const chartPositive = v("success");
 
 /** Negative / destructive — reuses the destructive token */
 export const chartNegative = v("destructive");
 
 /** Primary chart accent (most-used single color) */
-export const chartPrimary = chart.teal;
+export const chartPrimary = chart.violet;
 
 // ---------------------------------------------------------------------------
 // Stable color mapping — deterministic colors for agents & models
@@ -61,17 +62,17 @@ export interface ChartColor {
  * Every agent always renders the same color across all charts.
  */
 const AGENT_COLOR_MAP: Record<string, ChartColor> = {
-  "claude-code":   { color: chart.teal,      token: "chart-1" },
-  "opencode":      { color: chart.sky,        token: "chart-2" },
-  "gemini-cli":    { color: chart.jade,       token: "chart-3" },
-  "codex":         { color: chart.green,      token: "chart-4" },
-  "openclaw":      { color: chart.lime,       token: "chart-5" },
-  "vscode-copilot":{ color: chart.amber,      token: "chart-6" },
-  "copilot-cli":   { color: chart.orange,     token: "chart-7" },
+  "claude-code":   { color: chart.violet,  token: "chart-1" },
+  "opencode":      { color: chart.magenta, token: "chart-2" },
+  "gemini-cli":    { color: chart.pink,    token: "chart-3" },
+  "codex":         { color: chart.coral,   token: "chart-4" },
+  "openclaw":      { color: chart.orange,  token: "chart-5" },
+  "vscode-copilot":{ color: chart.gold,    token: "chart-6" },
+  "copilot-cli":   { color: chart.lime,    token: "chart-7" },
 };
 
 /** Default color for unknown agents. */
-const AGENT_FALLBACK: ChartColor = { color: chart.vermilion, token: "chart-8" };
+const AGENT_FALLBACK: ChartColor = { color: chart.acid, token: "chart-8" };
 
 /**
  * Get a stable color for an agent (source slug).

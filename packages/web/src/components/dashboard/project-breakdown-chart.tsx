@@ -53,7 +53,7 @@ function ProjectTooltip({
         <div className="flex items-center gap-2 text-xs">
           <div
             className="h-2 w-2 rounded-full"
-            style={{ backgroundColor: chart.teal }}
+            style={{ backgroundColor: chart.violet }}
           />
           <span className="text-muted-foreground">Sessions</span>
           <span className="ml-auto font-medium text-foreground">
@@ -164,7 +164,7 @@ export function ProjectBreakdownChart({
             <Tooltip content={<ProjectTooltip />} isAnimationActive={false} />
             <Bar
               dataKey="sessions"
-              fill={chart.teal}
+              fill={chart.violet}
               radius={[0, 4, 4, 0]}
             />
           </BarChart>

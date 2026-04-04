@@ -148,14 +148,14 @@ export function WeekdayWeekendChart({
           weekdayValue={stats.weekday.avgTokens}
           weekendValue={stats.weekend.avgTokens}
           formatter={formatTokens}
-          color={chart.teal}
+          color={chart.violet}
         />
         <ComparisonRow
           label="Avg Daily Cost"
           weekdayValue={stats.weekday.avgCost}
           weekendValue={stats.weekend.avgCost}
           formatter={formatCost}
-          color={chart.sky}
+          color={chart.magenta}
         />
       </div>
     </div>
