@@ -197,11 +197,23 @@ Returns all achievement definitions + current user's progress.
 **Query Parameters**:
 | Param | Type | Required | Description |
 |-------|------|----------|-------------|
-| `tzOffset` | number | No | Client's timezone offset in minutes (e.g., `-480` for UTC+8). Used for `weekend-warrior`, `night-owl`, `early-bird`. Defaults to `0` (UTC) if omitted. |
+| `tzOffset` | number | No | Client's timezone offset in minutes (e.g., `-480` for UTC+8). Defaults to `0` (UTC) if omitted. |
+
+**`tzOffset` affects these achievements**:
+
+| Achievement | How tzOffset is used |
+|-------------|---------------------|
+| `streak` | Defines "day" boundary for consecutive active days |
+| `big-day` | Defines "day" boundary for max daily tokens |
+| `veteran` | Defines "day" boundary for unique active day count |
+| `daily-burn` | Defines "day" boundary for max daily cost |
+| `weekend-warrior` | Determines local Saturday/Sunday |
+| `night-owl` | Determines local midnight-6am hours |
+| `early-bird` | Determines local 6am-9am hours |
 
 **Notes**:
-- Timezone-dependent achievements (`weekend-warrior`, `night-owl`, `early-bird`) always return `earnedBy: []` and `totalEarned: 0` regardless of the user's actual progress — see Decision 5
-- Frontend should always pass `new Date().getTimezoneOffset()` to get accurate personal progress for these achievements
+- Frontend should **always** pass `new Date().getTimezoneOffset()` — omitting it means all day-based achievements use UTC boundaries, which may shift days by ±1 for users far from UTC
+- Social features (`earnedBy`, `/members` endpoint) are **only excluded** for timezone-dependent achievements (`weekend-warrior`, `night-owl`, `early-bird`) — see Decision 5. Other day-based achievements (`streak`, `big-day`, `veteran`, `daily-burn`) still have social features, computed using UTC boundaries for consistency across users
 
 ```typescript
 interface AchievementResponse {
@@ -320,9 +332,18 @@ The existing client-side dashboard achievement panel will be replaced with a sim
 - User progress changes on each sync — no caching
 - "Earned by" lists change slowly — cache for 5-10 minutes
 
-### Timezone-Dependent Achievements
+### Timezone and Day-Based Achievements
 
-The `hour_start` field is stored in UTC. For `weekend-warrior`, `night-owl`, and `early-bird`, we convert to the **current user's** local time:
+The `hour_start` field is stored in UTC. Many achievements need "local day" or "local hour" boundaries.
+
+**Day-based achievements** (`streak`, `big-day`, `veteran`, `daily-burn`):
+- Use `toLocalDailyBuckets(rows, tzOffset)` to group records into local calendar days
+- These achievements **have social features** — for `earnedBy`/members queries, use UTC (tzOffset=0) for cross-user consistency
+- Personal progress uses the client's tzOffset for accurate day boundaries
+
+**Timezone-dependent achievements** (`weekend-warrior`, `night-owl`, `early-bird`):
+- Require local hour-of-day or day-of-week, which varies by user timezone
+- These achievements are **excluded from social features** — see Decision 5
 
 ```typescript
 // Convert UTC to user's local time (APPROXIMATE - ignores DST history)
@@ -342,10 +363,7 @@ const isNightOwl = localHour >= 0 && localHour < 6;
 const isEarlyBird = localHour >= 6 && localHour < 9;
 ```
 
-**Limitations** (see Decision 5):
-- Requires `tzOffset` from the client — cannot compute for other users
-- Uses a fixed offset for all historical data — DST transitions cause ±1 hour error on ~2% of records
-- These achievements are excluded from social features ("earned by" list)
+**DST Approximation Warning**: The fixed `tzOffset` applied to all historical data causes ±1 hour error during DST transition weeks (~2% of records). Accepted trade-off for a gamification feature.
 
 ### Device/Model/Source Diversity
 
