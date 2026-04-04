@@ -13,11 +13,9 @@ import {
 import { useUsageData, toHeatmapData } from "@/hooks/use-usage-data";
 import { formatTokens, cn } from "@/lib/utils";
 import { usePricingMap, formatCost } from "@/hooks/use-pricing";
-import { computeTotalCost, toDailyCostPoints, computeCacheSavings, forecastMonthlyCost, toDailyCacheRates, computeCurrentMonthTokens } from "@/lib/cost-helpers";
+import { computeTotalCost, toDailyCostPoints, computeCacheSavings, forecastMonthlyCost, toDailyCacheRates } from "@/lib/cost-helpers";
 import { compareWeekdayWeekend, computeMoMGrowth, computeStreak, toLocalDailyBuckets } from "@/lib/usage-helpers";
-import { computeBudgetStatus } from "@/lib/budget-helpers";
 import { computeAchievements } from "@/lib/achievement-helpers";
-import { useBudget } from "@/hooks/use-budget";
 import { StatCard, StatGrid } from "@/components/dashboard/stat-card";
 import { UsageTrendChart } from "@/components/dashboard/usage-trend-chart";
 import { CostTrendChart } from "@/components/dashboard/cost-trend-chart";
@@ -26,9 +24,6 @@ import { IoRatioChart } from "@/components/dashboard/io-ratio-chart";
 import { SourceDonutChart } from "@/components/dashboard/source-donut-chart";
 import { HeatmapHero } from "@/components/dashboard/heatmap-hero";
 import { WeekdayWeekendChart } from "@/components/dashboard/weekday-weekend-chart";
-import { BudgetProgress } from "@/components/dashboard/budget-progress";
-import { BudgetAlert } from "@/components/dashboard/budget-alert";
-import { BudgetDialog } from "@/components/dashboard/budget-dialog";
 import { SnapshotAlert } from "@/components/dashboard/snapshot-alert";
 import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
 import { DashboardEmptyState } from "@/components/dashboard/empty-state";
@@ -82,13 +77,6 @@ export default function DashboardPage() {
     [daily, today],
   );
 
-  // Budget tracking — always fetch current month
-  const currentMonth = useMemo(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  }, []);
-  const { budget, saveBudget, deleteBudget } = useBudget(currentMonth);
-
   const estimatedCost = useMemo(() => computeTotalCost(models, pricingMap), [models, pricingMap]);
 
   const dailyCostPoints = useMemo(
@@ -111,23 +99,6 @@ export default function DashboardPage() {
     () => forecastMonthlyCost(dailyCostPoints),
     [dailyCostPoints],
   );
-
-  // Budget status (only meaningful when budget exists + forecast available)
-  const currentMonthTokens = useMemo(
-    () => (yearHalfHourData.data ? computeCurrentMonthTokens(yearHalfHourData.data.records, undefined, tzOffset) : 0),
-    [yearHalfHourData.data, tzOffset],
-  );
-
-  const budgetStatus = useMemo(() => {
-    if (!budget || !costForecast) return null;
-    if (budget.budget_usd === null && budget.budget_tokens === null) return null;
-    return computeBudgetStatus(
-      budget,
-      costForecast.currentMonthCost,
-      currentMonthTokens,
-      costForecast,
-    );
-  }, [budget, costForecast, currentMonthTokens]);
 
   const dailyCacheRates = useMemo(
     () => {
@@ -199,7 +170,6 @@ export default function DashboardPage() {
               Token usage overview for your AI coding tools.
             </p>
           </div>
-           <BudgetDialog budget={budget} saveBudget={saveBudget} deleteBudget={deleteBudget} className="self-start mt-1" />
         </div>
       </div>
 
@@ -235,10 +205,6 @@ export default function DashboardPage() {
 
           {/* ── Overview ────────────────────────────────────── */}
           <DashboardSegment title="Overview" action={<PeriodSelector value={period} onChange={setPeriod} />}>
-            {/* Budget progress + alert (above stat grid when budget is active) */}
-            {budgetStatus && <BudgetProgress status={budgetStatus} />}
-            {budgetStatus && <BudgetAlert status={budgetStatus} />}
-
             {/* Row 1 — Core metrics (always 4 columns) */}
             <StatGrid columns={4}>
               <StatCard
