@@ -13,12 +13,22 @@ export interface StatCardProps {
   iconColor?: string;
   trend?: { value: number; label?: string };
   trends?: { value: number; label?: string }[] | undefined;
+  /**
+   * Visual variant:
+   * - "primary": larger, more prominent (for key metrics like Total Tokens, Est. Cost)
+   * - "secondary": compact (default, for supporting metrics)
+   */
+  variant?: "primary" | "secondary";
   className?: string;
 }
 
 /**
  * Compact stat card — basalt L2 style (bg-secondary, no border/shadow).
  * Shows title, large value, optional icon, optional trend.
+ *
+ * Variants:
+ * - primary: larger font, gradient accent line, more spacing
+ * - secondary: compact, minimal styling
  */
 export function StatCard({
   title,
@@ -28,17 +38,43 @@ export function StatCard({
   iconColor = "text-muted-foreground",
   trend,
   trends,
+  variant = "secondary",
   className,
 }: StatCardProps) {
   // Merge single trend + trends array into one list
   const allTrends = trends ?? (trend ? [trend] : []);
 
+  const isPrimary = variant === "primary";
+
   return (
-    <div className={cn("rounded-[var(--radius-card)] bg-secondary p-4 md:p-5", className)}>
+    <div
+      className={cn(
+        "rounded-[var(--radius-card)] bg-secondary",
+        isPrimary ? "p-5 md:p-6" : "p-4 md:p-5",
+        className
+      )}
+    >
+      {/* Primary variant: top accent line */}
+      {isPrimary && (
+        <div className="h-0.5 w-8 rounded-full bg-gradient-to-r from-primary to-chart-8 mb-4" />
+      )}
+
       <div className="flex items-start justify-between">
         <div className="space-y-1">
-          <p className="text-xs md:text-sm text-muted-foreground">{title}</p>
-          <p className="text-2xl md:text-3xl font-semibold text-foreground font-display tracking-tight">
+          <p
+            className={cn(
+              "text-muted-foreground",
+              isPrimary ? "text-xs md:text-sm font-medium" : "text-xs md:text-sm"
+            )}
+          >
+            {title}
+          </p>
+          <p
+            className={cn(
+              "font-semibold text-foreground font-display tracking-tight",
+              isPrimary ? "text-3xl md:text-4xl" : "text-2xl md:text-3xl"
+            )}
+          >
             {typeof value === "number" ? value.toLocaleString() : value}
           </p>
           {subtitle && (
@@ -47,7 +83,7 @@ export function StatCard({
         </div>
         {Icon && (
           <div className={cn("rounded-md bg-card p-2", iconColor)}>
-            <Icon className="h-5 w-5" strokeWidth={1.5} />
+            <Icon className={cn(isPrimary ? "h-6 w-6" : "h-5 w-5")} strokeWidth={1.5} />
           </div>
         )}
       </div>

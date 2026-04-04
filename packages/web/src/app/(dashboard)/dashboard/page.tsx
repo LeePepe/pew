@@ -273,6 +273,7 @@ export default function DashboardPage() {
                 subtitle={subtitle}
                 icon={Zap}
                 iconColor="text-primary"
+                variant="primary"
                 trends={mom ? [
                   ...(mom.previousMonthSameDate.tokens > 0 && mom.previousMonthSameDate.tokens !== mom.previousMonth.tokens
                     ? [{ value: Math.round(mom.sameDateTokenGrowth), label: "vs same period" }]
@@ -300,6 +301,7 @@ export default function DashboardPage() {
                 subtitle="Based on public pricing"
                 icon={DollarSign}
                 iconColor="text-chart-6"
+                variant="primary"
                 trends={mom ? [
                   ...(mom.previousMonthSameDate.cost > 0 && mom.previousMonthSameDate.cost !== mom.previousMonth.cost
                     ? [{ value: -Math.round(mom.sameDateCostGrowth), label: "vs same period" }]
