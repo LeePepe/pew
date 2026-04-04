@@ -190,7 +190,7 @@ export default function DashboardPage() {
       {/* Admin alert: ended seasons without snapshot */}
       <SnapshotAlert />
 
-      {/* Header + period selector */}
+      {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <div>
@@ -201,7 +201,6 @@ export default function DashboardPage() {
           </div>
            <BudgetDialog budget={budget} saveBudget={saveBudget} deleteBudget={deleteBudget} className="self-start mt-1" />
         </div>
-        <PeriodSelector value={period} onChange={setPeriod} />
       </div>
 
       {/* Error state */}
@@ -235,7 +234,7 @@ export default function DashboardPage() {
           />
 
           {/* ── Overview ────────────────────────────────────── */}
-          <DashboardSegment title="Overview">
+          <DashboardSegment title="Overview" action={<PeriodSelector value={period} onChange={setPeriod} />}>
             {/* Budget progress + alert (above stat grid when budget is active) */}
             {budgetStatus && <BudgetProgress status={budgetStatus} />}
             {budgetStatus && <BudgetAlert status={budgetStatus} />}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Flame, Zap, Calendar } from "lucide-react";
+import { Flame, Zap, Calendar, Activity } from "lucide-react";
 import { cn, formatTokens } from "@/lib/utils";
 import { HeatmapCalendar, type HeatmapDataPoint } from "./heatmap-calendar";
 import { AchievementPanel } from "./achievement-panel";
@@ -159,6 +159,7 @@ export function HeatmapHero({
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Left: Heatmap skeleton */}
           <div className="flex-1 min-w-0">
+            <Skeleton className="h-5 w-24 mb-4" />
             <div className="flex items-start justify-between mb-4">
               <div className="space-y-2">
                 <Skeleton className="h-8 w-32" />
@@ -173,7 +174,7 @@ export function HeatmapHero({
             </div>
           </div>
           {/* Right: Achievements skeleton */}
-          <div className="lg:w-[280px] shrink-0 space-y-2">
+          <div className="lg:w-[320px] shrink-0 lg:border-l lg:border-border/50 lg:pl-6 space-y-2">
             <Skeleton className="h-5 w-24 mb-3" />
             {Array.from({ length: 4 }).map((_, i) => (
               <Skeleton key={i} className="h-[72px] w-full rounded-xl" />
@@ -189,6 +190,14 @@ export function HeatmapHero({
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Left: Heatmap section */}
         <div className="flex-1 min-w-0">
+          {/* Section title */}
+          <div className="flex items-center gap-2 mb-4">
+            <Activity className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
+            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Activity
+            </span>
+          </div>
+
           {/* Header row: Year total + Streak badge */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
             <div>
@@ -227,7 +236,7 @@ export function HeatmapHero({
 
         {/* Right: Achievements panel (large screens only, or below on mobile) */}
         {hasAchievements && (
-          <div className="lg:w-[280px] shrink-0 lg:border-l lg:border-border/50 lg:pl-6">
+          <div className="lg:w-[320px] shrink-0 lg:border-l lg:border-border/50 lg:pl-6">
             <AchievementPanel achievements={achievements} />
           </div>
         )}

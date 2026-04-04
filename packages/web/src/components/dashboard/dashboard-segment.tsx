@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 export interface DashboardSegmentProps {
   title: string;
   children: React.ReactNode;
+  /** Optional action slot (e.g., period selector) displayed on the right of the header */
+  action?: React.ReactNode;
   className?: string;
 }
 
@@ -14,7 +16,7 @@ export interface DashboardSegmentProps {
  * Visual section divider: small label + thin separator line + content.
  * No container / background — children keep their own styling.
  */
-export function DashboardSegment({ title, children, className }: DashboardSegmentProps) {
+export function DashboardSegment({ title, action, children, className }: DashboardSegmentProps) {
   return (
     <section className={cn("space-y-3 md:space-y-4", className)}>
       <div className="flex items-center gap-3">
@@ -22,6 +24,7 @@ export function DashboardSegment({ title, children, className }: DashboardSegmen
           {title}
         </h2>
         <div className="h-px flex-1 bg-border/60" />
+        {action && <div className="shrink-0">{action}</div>}
       </div>
       {children}
     </section>
