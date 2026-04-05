@@ -87,12 +87,13 @@ interface AchievementResponse {
 
 function computeCost(
   model: string,
+  source: string | null,
   inputTokens: number,
   outputTokens: number,
   cachedTokens: number,
   pricingMap: PricingMap
 ): number {
-  const pricing = lookupPricing(pricingMap, model);
+  const pricing = lookupPricing(pricingMap, model, source ?? undefined);
 
   const inputCost = (inputTokens / 1_000_000) * pricing.input;
   const outputCost = (outputTokens / 1_000_000) * pricing.output;
@@ -200,28 +201,30 @@ export async function GET(request: Request) {
     );
 
     // ---- Daily cost (for daily-burn) ----
-    const costByModelDay = await db.query<{
+    const costByModelSourceDay = await db.query<{
       day: string;
       model: string;
+      source: string | null;
       input_tokens: number;
       output_tokens: number;
       cached_input_tokens: number;
     }>(
-      `SELECT DATE(hour_start) AS day, model,
+      `SELECT DATE(hour_start) AS day, model, source,
               SUM(input_tokens) AS input_tokens,
               SUM(output_tokens) AS output_tokens,
               SUM(cached_input_tokens) AS cached_input_tokens
       FROM usage_records
       WHERE user_id = ?
-      GROUP BY DATE(hour_start), model`,
+      GROUP BY DATE(hour_start), model, source`,
       [userId]
     );
 
     // Aggregate cost by day
     const dailyCostMap = new Map<string, number>();
-    for (const row of costByModelDay.results) {
+    for (const row of costByModelSourceDay.results) {
       const cost = computeCost(
         row.model,
+        row.source,
         row.input_tokens,
         row.output_tokens,
         row.cached_input_tokens,
@@ -263,27 +266,29 @@ export async function GET(request: Request) {
       [userId]
     );
 
-    // ---- Total cost by model (for big-spender) ----
-    const costByModel = await db.query<{
+    // ---- Total cost by model+source (for big-spender) ----
+    const costByModelSource = await db.query<{
       model: string;
+      source: string | null;
       input_tokens: number;
       output_tokens: number;
       cached_input_tokens: number;
     }>(
-      `SELECT model,
+      `SELECT model, source,
               SUM(input_tokens) AS input_tokens,
               SUM(output_tokens) AS output_tokens,
               SUM(cached_input_tokens) AS cached_input_tokens
       FROM usage_records
       WHERE user_id = ?
-      GROUP BY model`,
+      GROUP BY model, source`,
       [userId]
     );
 
     let totalCost = 0;
-    for (const row of costByModel.results) {
+    for (const row of costByModelSource.results) {
       totalCost += computeCost(
         row.model,
+        row.source,
         row.input_tokens,
         row.output_tokens,
         row.cached_input_tokens,

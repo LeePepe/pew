@@ -79,8 +79,8 @@ describe("GET /api/achievements/[id]/members", () => {
     it("should return members array and cursor", async () => {
       mockClient.query.mockResolvedValueOnce({
         results: [
-          { id: "u1", name: "Alice", image: null, slug: "alice", value: 5_000_000, first_activity: "2026-01-15T10:00:00Z" },
-          { id: "u2", name: "Bob", image: "https://example.com/bob.jpg", slug: "bob", value: 2_000_000, first_activity: "2026-02-01T08:00:00Z" },
+          { id: "u1", name: "Alice", image: null, slug: "alice", value: 5_000_000, earned_at: "2026-01-15T10:00:00Z" },
+          { id: "u2", name: "Bob", image: "https://example.com/bob.jpg", slug: "bob", value: 2_000_000, earned_at: "2026-02-01T08:00:00Z" },
         ],
       });
 
@@ -101,7 +101,7 @@ describe("GET /api/achievements/[id]/members", () => {
     it("should return correct member fields", async () => {
       mockClient.query.mockResolvedValueOnce({
         results: [
-          { id: "u1", name: "Alice", image: "https://example.com/alice.jpg", slug: "alice", value: 50_000_000, first_activity: "2026-01-15T10:00:00Z" },
+          { id: "u1", name: "Alice", image: "https://example.com/alice.jpg", slug: "alice", value: 50_000_000, earned_at: "2026-01-15T10:00:00Z" },
         ],
       });
 
@@ -125,10 +125,10 @@ describe("GET /api/achievements/[id]/members", () => {
     it("should compute correct tier from value", async () => {
       mockClient.query.mockResolvedValueOnce({
         results: [
-          { id: "u1", name: "Diamond", image: null, slug: null, value: 50_000_000, first_activity: "2026-01-01T00:00:00Z" },
-          { id: "u2", name: "Gold", image: null, slug: null, value: 10_000_000, first_activity: "2026-01-01T00:00:00Z" },
-          { id: "u3", name: "Silver", image: null, slug: null, value: 1_000_000, first_activity: "2026-01-01T00:00:00Z" },
-          { id: "u4", name: "Bronze", image: null, slug: null, value: 100_000, first_activity: "2026-01-01T00:00:00Z" },
+          { id: "u1", name: "Diamond", image: null, slug: null, value: 50_000_000, earned_at: "2026-01-01T00:00:00Z" },
+          { id: "u2", name: "Gold", image: null, slug: null, value: 10_000_000, earned_at: "2026-01-01T00:00:00Z" },
+          { id: "u3", name: "Silver", image: null, slug: null, value: 1_000_000, earned_at: "2026-01-01T00:00:00Z" },
+          { id: "u4", name: "Bronze", image: null, slug: null, value: 100_000, earned_at: "2026-01-01T00:00:00Z" },
         ],
       });
 
@@ -147,7 +147,7 @@ describe("GET /api/achievements/[id]/members", () => {
     it("should handle null name as Anonymous", async () => {
       mockClient.query.mockResolvedValueOnce({
         results: [
-          { id: "u1", name: null, image: null, slug: null, value: 1_000_000, first_activity: "2026-01-01T00:00:00Z" },
+          { id: "u1", name: null, image: null, slug: null, value: 1_000_000, earned_at: "2026-01-01T00:00:00Z" },
         ],
       });
 
@@ -158,6 +158,24 @@ describe("GET /api/achievements/[id]/members", () => {
 
       const body = await res.json();
       expect(body.members[0].name).toBe("Anonymous");
+    });
+
+    it("should use current timestamp when earned_at is null", async () => {
+      const beforeCall = new Date();
+      mockClient.query.mockResolvedValueOnce({
+        results: [
+          { id: "u1", name: "User", image: null, slug: null, value: 50, earned_at: null },
+        ],
+      });
+
+      const res = await GET(
+        makeGetRequest("/api/achievements/cache-master/members"),
+        { params: Promise.resolve({ id: "cache-master" }) },
+      );
+
+      const body = await res.json();
+      const earnedAt = new Date(body.members[0].earnedAt);
+      expect(earnedAt.getTime()).toBeGreaterThanOrEqual(beforeCall.getTime());
     });
   });
 
@@ -170,7 +188,7 @@ describe("GET /api/achievements/[id]/members", () => {
         image: null,
         slug: null,
         value: 5_000_000 - i * 10_000,
-        first_activity: "2026-01-01T00:00:00Z",
+        earned_at: "2026-01-01T00:00:00Z",
       }));
       mockClient.query.mockResolvedValueOnce({ results });
 
@@ -191,7 +209,7 @@ describe("GET /api/achievements/[id]/members", () => {
         image: null,
         slug: null,
         value: 5_000_000 - i * 10_000,
-        first_activity: "2026-01-01T00:00:00Z",
+        earned_at: "2026-01-01T00:00:00Z",
       }));
       mockClient.query.mockResolvedValueOnce({ results });
 
@@ -216,8 +234,9 @@ describe("GET /api/achievements/[id]/members", () => {
       // Verify the query was called with correct offset
       expect(mockClient.query).toHaveBeenCalledOnce();
       const [, params] = mockClient.query.mock.calls[0]!;
-      // Params are [threshold, limit+1, offset]
-      expect(params![2]).toBe(100); // offset from cursor
+      // Params order: [threshold (for cumulative), threshold (for HAVING), limit+1, offset]
+      // Last param is offset
+      expect(params![params!.length - 1]).toBe(100); // offset from cursor
     });
   });
 
@@ -251,7 +270,7 @@ describe("GET /api/achievements/[id]/members", () => {
     it("should query session_records for session-based achievements (quick-draw)", async () => {
       mockClient.query.mockResolvedValueOnce({
         results: [
-          { id: "u1", name: "User", image: null, slug: null, value: 100, first_activity: "2026-01-01T00:00:00Z" },
+          { id: "u1", name: "User", image: null, slug: null, value: 100, earned_at: "2026-01-01T00:00:00Z" },
         ],
       });
 
@@ -269,7 +288,7 @@ describe("GET /api/achievements/[id]/members", () => {
     it("should query COUNT DISTINCT for diversity achievements (model-tourist)", async () => {
       mockClient.query.mockResolvedValueOnce({
         results: [
-          { id: "u1", name: "User", image: null, slug: null, value: 5, first_activity: "2026-01-01T00:00:00Z" },
+          { id: "u1", name: "User", image: null, slug: null, value: 5, earned_at: "2026-01-01T00:00:00Z" },
         ],
       });
 
@@ -287,7 +306,7 @@ describe("GET /api/achievements/[id]/members", () => {
     it("should query input_tokens for input-hog achievement", async () => {
       mockClient.query.mockResolvedValueOnce({
         results: [
-          { id: "u1", name: "User", image: null, slug: null, value: 1_000_000, first_activity: "2026-01-01T00:00:00Z" },
+          { id: "u1", name: "User", image: null, slug: null, value: 1_000_000, earned_at: "2026-01-01T00:00:00Z" },
         ],
       });
 
@@ -304,7 +323,7 @@ describe("GET /api/achievements/[id]/members", () => {
     it("should query output_tokens for output-addict achievement", async () => {
       mockClient.query.mockResolvedValueOnce({
         results: [
-          { id: "u1", name: "User", image: null, slug: null, value: 1_000_000, first_activity: "2026-01-01T00:00:00Z" },
+          { id: "u1", name: "User", image: null, slug: null, value: 1_000_000, earned_at: "2026-01-01T00:00:00Z" },
         ],
       });
 
@@ -321,7 +340,7 @@ describe("GET /api/achievements/[id]/members", () => {
     it("should query reasoning_output_tokens for reasoning-junkie achievement", async () => {
       mockClient.query.mockResolvedValueOnce({
         results: [
-          { id: "u1", name: "User", image: null, slug: null, value: 500_000, first_activity: "2026-01-01T00:00:00Z" },
+          { id: "u1", name: "User", image: null, slug: null, value: 500_000, earned_at: "2026-01-01T00:00:00Z" },
         ],
       });
 
@@ -338,7 +357,7 @@ describe("GET /api/achievements/[id]/members", () => {
     it("should query COUNT DISTINCT DATE for veteran achievement", async () => {
       mockClient.query.mockResolvedValueOnce({
         results: [
-          { id: "u1", name: "User", image: null, slug: null, value: 30, first_activity: "2026-01-01T00:00:00Z" },
+          { id: "u1", name: "User", image: null, slug: null, value: 30, earned_at: "2026-01-01T00:00:00Z" },
         ],
       });
 
@@ -355,7 +374,7 @@ describe("GET /api/achievements/[id]/members", () => {
     it("should query with CTE for big-day achievement", async () => {
       mockClient.query.mockResolvedValueOnce({
         results: [
-          { id: "u1", name: "User", image: null, slug: null, value: 100_000, first_activity: "2026-01-01T00:00:00Z" },
+          { id: "u1", name: "User", image: null, slug: null, value: 100_000, earned_at: "2026-01-01T00:00:00Z" },
         ],
       });
 
@@ -373,7 +392,7 @@ describe("GET /api/achievements/[id]/members", () => {
     it("should query cache rate for cache-master achievement", async () => {
       mockClient.query.mockResolvedValueOnce({
         results: [
-          { id: "u1", name: "User", image: null, slug: null, value: 50, first_activity: "2026-01-01T00:00:00Z" },
+          { id: "u1", name: "User", image: null, slug: null, value: 50, earned_at: null },
         ],
       });
 
@@ -391,7 +410,7 @@ describe("GET /api/achievements/[id]/members", () => {
     it("should query COUNT DISTINCT source for tool-hoarder achievement", async () => {
       mockClient.query.mockResolvedValueOnce({
         results: [
-          { id: "u1", name: "User", image: null, slug: null, value: 5, first_activity: "2026-01-01T00:00:00Z" },
+          { id: "u1", name: "User", image: null, slug: null, value: 5, earned_at: "2026-01-01T00:00:00Z" },
         ],
       });
 
@@ -409,7 +428,7 @@ describe("GET /api/achievements/[id]/members", () => {
     it("should query COUNT DISTINCT device_id for device-nomad achievement", async () => {
       mockClient.query.mockResolvedValueOnce({
         results: [
-          { id: "u1", name: "User", image: null, slug: null, value: 3, first_activity: "2026-01-01T00:00:00Z" },
+          { id: "u1", name: "User", image: null, slug: null, value: 3, earned_at: "2026-01-01T00:00:00Z" },
         ],
       });
 
@@ -427,7 +446,7 @@ describe("GET /api/achievements/[id]/members", () => {
     it("should query marathon sessions for marathon achievement", async () => {
       mockClient.query.mockResolvedValueOnce({
         results: [
-          { id: "u1", name: "User", image: null, slug: null, value: 10, first_activity: "2026-01-01T00:00:00Z" },
+          { id: "u1", name: "User", image: null, slug: null, value: 10, earned_at: "2026-01-01T00:00:00Z" },
         ],
       });
 
@@ -445,7 +464,7 @@ describe("GET /api/achievements/[id]/members", () => {
     it("should query max messages for chatterbox achievement", async () => {
       mockClient.query.mockResolvedValueOnce({
         results: [
-          { id: "u1", name: "User", image: null, slug: null, value: 200, first_activity: "2026-01-01T00:00:00Z" },
+          { id: "u1", name: "User", image: null, slug: null, value: 200, earned_at: "2026-01-01T00:00:00Z" },
         ],
       });
 
@@ -462,7 +481,7 @@ describe("GET /api/achievements/[id]/members", () => {
     it("should query session count for session-hoarder achievement", async () => {
       mockClient.query.mockResolvedValueOnce({
         results: [
-          { id: "u1", name: "User", image: null, slug: null, value: 500, first_activity: "2026-01-01T00:00:00Z" },
+          { id: "u1", name: "User", image: null, slug: null, value: 500, earned_at: "2026-01-01T00:00:00Z" },
         ],
       });
 
@@ -474,13 +493,12 @@ describe("GET /api/achievements/[id]/members", () => {
       expect(mockClient.query).toHaveBeenCalledOnce();
       const [sql] = mockClient.query.mock.calls[0]!;
       expect(sql).toContain("session_records");
-      expect(sql).toContain("COUNT(*)");
     });
 
     it("should query automated sessions for automation-addict achievement", async () => {
       mockClient.query.mockResolvedValueOnce({
         results: [
-          { id: "u1", name: "User", image: null, slug: null, value: 50, first_activity: "2026-01-01T00:00:00Z" },
+          { id: "u1", name: "User", image: null, slug: null, value: 50, earned_at: "2026-01-01T00:00:00Z" },
         ],
       });
 
@@ -497,7 +515,7 @@ describe("GET /api/achievements/[id]/members", () => {
     it("should query centurion same as veteran", async () => {
       mockClient.query.mockResolvedValueOnce({
         results: [
-          { id: "u1", name: "User", image: null, slug: null, value: 100, first_activity: "2026-01-01T00:00:00Z" },
+          { id: "u1", name: "User", image: null, slug: null, value: 100, earned_at: "2026-01-01T00:00:00Z" },
         ],
       });
 
@@ -514,7 +532,7 @@ describe("GET /api/achievements/[id]/members", () => {
     it("should query first-blood same as power-user", async () => {
       mockClient.query.mockResolvedValueOnce({
         results: [
-          { id: "u1", name: "User", image: null, slug: null, value: 1, first_activity: "2026-01-01T00:00:00Z" },
+          { id: "u1", name: "User", image: null, slug: null, value: 1, earned_at: "2026-01-01T00:00:00Z" },
         ],
       });
 
@@ -531,7 +549,7 @@ describe("GET /api/achievements/[id]/members", () => {
     it("should query millionaire same as power-user", async () => {
       mockClient.query.mockResolvedValueOnce({
         results: [
-          { id: "u1", name: "User", image: null, slug: null, value: 1_000_000, first_activity: "2026-01-01T00:00:00Z" },
+          { id: "u1", name: "User", image: null, slug: null, value: 1_000_000, earned_at: "2026-01-01T00:00:00Z" },
         ],
       });
 
@@ -548,7 +566,7 @@ describe("GET /api/achievements/[id]/members", () => {
     it("should query billionaire same as power-user", async () => {
       mockClient.query.mockResolvedValueOnce({
         results: [
-          { id: "u1", name: "User", image: null, slug: null, value: 1_000_000_000, first_activity: "2026-01-01T00:00:00Z" },
+          { id: "u1", name: "User", image: null, slug: null, value: 1_000_000_000, earned_at: "2026-01-01T00:00:00Z" },
         ],
       });
 

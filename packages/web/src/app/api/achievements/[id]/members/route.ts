@@ -7,6 +7,11 @@
  *
  * Returns { members[], cursor } with user info and achievement tier.
  *
+ * The `earnedAt` field is an approximation of when the user first reached the bronze threshold.
+ * For aggregation-based achievements, we use cumulative sums with window functions to find
+ * the earliest date where the running total crossed the threshold. For some achievements
+ * (spending, cache-rate), earnedAt is unavailable and returns the current timestamp.
+ *
  * Error responses:
  *   404 — Achievement ID not found
  *   404 — Achievement is timezone-dependent (no social features)
@@ -39,7 +44,7 @@ interface MemberRow {
   image: string | null;
   slug: string | null;
   value: number;
-  first_activity: string | null;
+  earned_at: string | null;
 }
 
 interface MemberResponse {
@@ -68,106 +73,181 @@ type QueryBuilder = (
 /**
  * Build SQL query for a specific achievement type.
  * Returns members who have reached at least bronze tier, ordered by value desc.
+ *
+ * The `earned_at` field uses cumulative sums with window functions to find
+ * the earliest date/hour where the user's running total crossed the threshold.
+ * For achievements where this is impractical (spending, max-based), earned_at is NULL.
  */
 function getQueryBuilder(achievementId: string): QueryBuilder | null {
   switch (achievementId) {
-    // Volume achievements — aggregate from usage_records
+    // Volume achievements — cumulative sum to find when threshold was crossed
     case "power-user":
     case "first-blood":
     case "millionaire":
     case "billionaire":
       return (threshold, limit, offset) => ({
         sql: `
-          SELECT u.id, u.name, u.image, u.slug,
-                 COALESCE(SUM(ur.total_tokens), 0) AS value,
-                 MIN(ur.hour_start) AS first_activity
+          WITH user_totals AS (
+            SELECT user_id, SUM(total_tokens) AS value
+            FROM usage_records
+            GROUP BY user_id
+          ),
+          cumulative AS (
+            SELECT user_id, hour_start,
+                   SUM(total_tokens) OVER (PARTITION BY user_id ORDER BY hour_start) AS running_total
+            FROM usage_records
+          ),
+          threshold_crossed AS (
+            SELECT user_id, MIN(hour_start) AS earned_at
+            FROM cumulative
+            WHERE running_total >= ?
+            GROUP BY user_id
+          )
+          SELECT u.id, u.name, u.image, u.slug, ut.value, tc.earned_at
           FROM users u
-          JOIN usage_records ur ON ur.user_id = u.id
-          WHERE u.is_public = 1
-          GROUP BY u.id
-          HAVING value >= ?
-          ORDER BY value DESC
+          JOIN user_totals ut ON ut.user_id = u.id
+          LEFT JOIN threshold_crossed tc ON tc.user_id = u.id
+          WHERE u.is_public = 1 AND ut.value >= ?
+          ORDER BY ut.value DESC
           LIMIT ? OFFSET ?
         `,
-        params: [threshold, limit, offset],
+        params: [threshold, threshold, limit, offset],
       });
 
     case "input-hog":
       return (threshold, limit, offset) => ({
         sql: `
-          SELECT u.id, u.name, u.image, u.slug,
-                 COALESCE(SUM(ur.input_tokens), 0) AS value,
-                 MIN(ur.hour_start) AS first_activity
+          WITH user_totals AS (
+            SELECT user_id, SUM(input_tokens) AS value
+            FROM usage_records
+            GROUP BY user_id
+          ),
+          cumulative AS (
+            SELECT user_id, hour_start,
+                   SUM(input_tokens) OVER (PARTITION BY user_id ORDER BY hour_start) AS running_total
+            FROM usage_records
+          ),
+          threshold_crossed AS (
+            SELECT user_id, MIN(hour_start) AS earned_at
+            FROM cumulative
+            WHERE running_total >= ?
+            GROUP BY user_id
+          )
+          SELECT u.id, u.name, u.image, u.slug, ut.value, tc.earned_at
           FROM users u
-          JOIN usage_records ur ON ur.user_id = u.id
-          WHERE u.is_public = 1
-          GROUP BY u.id
-          HAVING value >= ?
-          ORDER BY value DESC
+          JOIN user_totals ut ON ut.user_id = u.id
+          LEFT JOIN threshold_crossed tc ON tc.user_id = u.id
+          WHERE u.is_public = 1 AND ut.value >= ?
+          ORDER BY ut.value DESC
           LIMIT ? OFFSET ?
         `,
-        params: [threshold, limit, offset],
+        params: [threshold, threshold, limit, offset],
       });
 
     case "output-addict":
       return (threshold, limit, offset) => ({
         sql: `
-          SELECT u.id, u.name, u.image, u.slug,
-                 COALESCE(SUM(ur.output_tokens), 0) AS value,
-                 MIN(ur.hour_start) AS first_activity
+          WITH user_totals AS (
+            SELECT user_id, SUM(output_tokens) AS value
+            FROM usage_records
+            GROUP BY user_id
+          ),
+          cumulative AS (
+            SELECT user_id, hour_start,
+                   SUM(output_tokens) OVER (PARTITION BY user_id ORDER BY hour_start) AS running_total
+            FROM usage_records
+          ),
+          threshold_crossed AS (
+            SELECT user_id, MIN(hour_start) AS earned_at
+            FROM cumulative
+            WHERE running_total >= ?
+            GROUP BY user_id
+          )
+          SELECT u.id, u.name, u.image, u.slug, ut.value, tc.earned_at
           FROM users u
-          JOIN usage_records ur ON ur.user_id = u.id
-          WHERE u.is_public = 1
-          GROUP BY u.id
-          HAVING value >= ?
-          ORDER BY value DESC
+          JOIN user_totals ut ON ut.user_id = u.id
+          LEFT JOIN threshold_crossed tc ON tc.user_id = u.id
+          WHERE u.is_public = 1 AND ut.value >= ?
+          ORDER BY ut.value DESC
           LIMIT ? OFFSET ?
         `,
-        params: [threshold, limit, offset],
+        params: [threshold, threshold, limit, offset],
       });
 
     case "reasoning-junkie":
       return (threshold, limit, offset) => ({
         sql: `
-          SELECT u.id, u.name, u.image, u.slug,
-                 COALESCE(SUM(ur.reasoning_output_tokens), 0) AS value,
-                 MIN(ur.hour_start) AS first_activity
+          WITH user_totals AS (
+            SELECT user_id, SUM(reasoning_output_tokens) AS value
+            FROM usage_records
+            GROUP BY user_id
+          ),
+          cumulative AS (
+            SELECT user_id, hour_start,
+                   SUM(reasoning_output_tokens) OVER (PARTITION BY user_id ORDER BY hour_start) AS running_total
+            FROM usage_records
+          ),
+          threshold_crossed AS (
+            SELECT user_id, MIN(hour_start) AS earned_at
+            FROM cumulative
+            WHERE running_total >= ?
+            GROUP BY user_id
+          )
+          SELECT u.id, u.name, u.image, u.slug, ut.value, tc.earned_at
           FROM users u
-          JOIN usage_records ur ON ur.user_id = u.id
-          WHERE u.is_public = 1
-          GROUP BY u.id
-          HAVING value >= ?
-          ORDER BY value DESC
+          JOIN user_totals ut ON ut.user_id = u.id
+          LEFT JOIN threshold_crossed tc ON tc.user_id = u.id
+          WHERE u.is_public = 1 AND ut.value >= ?
+          ORDER BY ut.value DESC
           LIMIT ? OFFSET ?
         `,
-        params: [threshold, limit, offset],
+        params: [threshold, threshold, limit, offset],
       });
 
-    // Consistency — day counts (UTC)
+    // Consistency — day counts with cumulative day tracking
     case "veteran":
     case "centurion":
       return (threshold, limit, offset) => ({
         sql: `
-          SELECT u.id, u.name, u.image, u.slug,
-                 COUNT(DISTINCT DATE(ur.hour_start)) AS value,
-                 MIN(ur.hour_start) AS first_activity
+          WITH user_totals AS (
+            SELECT user_id, COUNT(DISTINCT DATE(hour_start)) AS value
+            FROM usage_records
+            GROUP BY user_id
+          ),
+          daily AS (
+            SELECT user_id, DATE(hour_start) AS day, MIN(hour_start) AS first_hour
+            FROM usage_records
+            GROUP BY user_id, DATE(hour_start)
+          ),
+          numbered AS (
+            SELECT user_id, day, first_hour,
+                   ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY day) AS day_num
+            FROM daily
+          ),
+          threshold_crossed AS (
+            SELECT user_id, MIN(first_hour) AS earned_at
+            FROM numbered
+            WHERE day_num >= ?
+            GROUP BY user_id
+          )
+          SELECT u.id, u.name, u.image, u.slug, ut.value, tc.earned_at
           FROM users u
-          JOIN usage_records ur ON ur.user_id = u.id
-          WHERE u.is_public = 1
-          GROUP BY u.id
-          HAVING value >= ?
-          ORDER BY value DESC
+          JOIN user_totals ut ON ut.user_id = u.id
+          LEFT JOIN threshold_crossed tc ON tc.user_id = u.id
+          WHERE u.is_public = 1 AND ut.value >= ?
+          ORDER BY ut.value DESC
           LIMIT ? OFFSET ?
         `,
-        params: [threshold, limit, offset],
+        params: [threshold, threshold, limit, offset],
       });
 
-    // Big day — max tokens in a single day
+    // Big day — max tokens in a single day (earned_at = first day that hit the max)
     case "big-day":
       return (threshold, limit, offset) => ({
         sql: `
           WITH daily AS (
-            SELECT user_id, DATE(hour_start) AS day, SUM(total_tokens) AS day_tokens
+            SELECT user_id, DATE(hour_start) AS day, SUM(total_tokens) AS day_tokens,
+                   MIN(hour_start) AS first_hour
             FROM usage_records
             GROUP BY user_id, DATE(hour_start)
           ),
@@ -175,19 +255,25 @@ function getQueryBuilder(achievementId: string): QueryBuilder | null {
             SELECT user_id, MAX(day_tokens) AS value
             FROM daily
             GROUP BY user_id
+          ),
+          first_big_day AS (
+            SELECT d.user_id, MIN(d.first_hour) AS earned_at
+            FROM daily d
+            JOIN user_max um ON d.user_id = um.user_id AND d.day_tokens >= ?
+            GROUP BY d.user_id
           )
-          SELECT u.id, u.name, u.image, u.slug, um.value,
-                 (SELECT MIN(hour_start) FROM usage_records WHERE user_id = u.id) AS first_activity
+          SELECT u.id, u.name, u.image, u.slug, um.value, fbd.earned_at
           FROM users u
           JOIN user_max um ON um.user_id = u.id
+          LEFT JOIN first_big_day fbd ON fbd.user_id = u.id
           WHERE u.is_public = 1 AND um.value >= ?
           ORDER BY um.value DESC
           LIMIT ? OFFSET ?
         `,
-        params: [threshold, limit, offset],
+        params: [threshold, threshold, limit, offset],
       });
 
-    // Efficiency — cache rate
+    // Efficiency — cache rate (earned_at not easily calculable, use NULL)
     case "cache-master":
       return (threshold, limit, offset) => ({
         sql: `
@@ -195,7 +281,7 @@ function getQueryBuilder(achievementId: string): QueryBuilder | null {
                  CASE WHEN SUM(ur.input_tokens) > 0
                       THEN (SUM(ur.cached_input_tokens) * 100.0 / SUM(ur.input_tokens))
                       ELSE 0 END AS value,
-                 MIN(ur.hour_start) AS first_activity
+                 NULL AS earned_at
           FROM users u
           JOIN usage_records ur ON ur.user_id = u.id
           WHERE u.is_public = 1
@@ -207,91 +293,173 @@ function getQueryBuilder(achievementId: string): QueryBuilder | null {
         params: [threshold, limit, offset],
       });
 
-    // Diversity — count distinct values
+    // Diversity — cumulative distinct count tracking
     case "tool-hoarder":
       return (threshold, limit, offset) => ({
         sql: `
-          SELECT u.id, u.name, u.image, u.slug,
-                 COUNT(DISTINCT ur.source) AS value,
-                 MIN(ur.hour_start) AS first_activity
+          WITH user_totals AS (
+            SELECT user_id, COUNT(DISTINCT source) AS value
+            FROM usage_records
+            GROUP BY user_id
+          ),
+          first_source AS (
+            SELECT user_id, source, MIN(hour_start) AS first_hour
+            FROM usage_records
+            GROUP BY user_id, source
+          ),
+          numbered AS (
+            SELECT user_id, source, first_hour,
+                   ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY first_hour) AS source_num
+            FROM first_source
+          ),
+          threshold_crossed AS (
+            SELECT user_id, MIN(first_hour) AS earned_at
+            FROM numbered
+            WHERE source_num >= ?
+            GROUP BY user_id
+          )
+          SELECT u.id, u.name, u.image, u.slug, ut.value, tc.earned_at
           FROM users u
-          JOIN usage_records ur ON ur.user_id = u.id
-          WHERE u.is_public = 1
-          GROUP BY u.id
-          HAVING value >= ?
-          ORDER BY value DESC
+          JOIN user_totals ut ON ut.user_id = u.id
+          LEFT JOIN threshold_crossed tc ON tc.user_id = u.id
+          WHERE u.is_public = 1 AND ut.value >= ?
+          ORDER BY ut.value DESC
           LIMIT ? OFFSET ?
         `,
-        params: [threshold, limit, offset],
+        params: [threshold, threshold, limit, offset],
       });
 
     case "model-tourist":
       return (threshold, limit, offset) => ({
         sql: `
-          SELECT u.id, u.name, u.image, u.slug,
-                 COUNT(DISTINCT ur.model) AS value,
-                 MIN(ur.hour_start) AS first_activity
+          WITH user_totals AS (
+            SELECT user_id, COUNT(DISTINCT model) AS value
+            FROM usage_records
+            GROUP BY user_id
+          ),
+          first_model AS (
+            SELECT user_id, model, MIN(hour_start) AS first_hour
+            FROM usage_records
+            GROUP BY user_id, model
+          ),
+          numbered AS (
+            SELECT user_id, model, first_hour,
+                   ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY first_hour) AS model_num
+            FROM first_model
+          ),
+          threshold_crossed AS (
+            SELECT user_id, MIN(first_hour) AS earned_at
+            FROM numbered
+            WHERE model_num >= ?
+            GROUP BY user_id
+          )
+          SELECT u.id, u.name, u.image, u.slug, ut.value, tc.earned_at
           FROM users u
-          JOIN usage_records ur ON ur.user_id = u.id
-          WHERE u.is_public = 1
-          GROUP BY u.id
-          HAVING value >= ?
-          ORDER BY value DESC
+          JOIN user_totals ut ON ut.user_id = u.id
+          LEFT JOIN threshold_crossed tc ON tc.user_id = u.id
+          WHERE u.is_public = 1 AND ut.value >= ?
+          ORDER BY ut.value DESC
           LIMIT ? OFFSET ?
         `,
-        params: [threshold, limit, offset],
+        params: [threshold, threshold, limit, offset],
       });
 
     case "device-nomad":
       return (threshold, limit, offset) => ({
         sql: `
-          SELECT u.id, u.name, u.image, u.slug,
-                 COUNT(DISTINCT ur.device_id) AS value,
-                 MIN(ur.hour_start) AS first_activity
+          WITH user_totals AS (
+            SELECT user_id, COUNT(DISTINCT device_id) AS value
+            FROM usage_records
+            GROUP BY user_id
+          ),
+          first_device AS (
+            SELECT user_id, device_id, MIN(hour_start) AS first_hour
+            FROM usage_records
+            GROUP BY user_id, device_id
+          ),
+          numbered AS (
+            SELECT user_id, device_id, first_hour,
+                   ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY first_hour) AS device_num
+            FROM first_device
+          ),
+          threshold_crossed AS (
+            SELECT user_id, MIN(first_hour) AS earned_at
+            FROM numbered
+            WHERE device_num >= ?
+            GROUP BY user_id
+          )
+          SELECT u.id, u.name, u.image, u.slug, ut.value, tc.earned_at
           FROM users u
-          JOIN usage_records ur ON ur.user_id = u.id
-          WHERE u.is_public = 1
-          GROUP BY u.id
-          HAVING value >= ?
-          ORDER BY value DESC
+          JOIN user_totals ut ON ut.user_id = u.id
+          LEFT JOIN threshold_crossed tc ON tc.user_id = u.id
+          WHERE u.is_public = 1 AND ut.value >= ?
+          ORDER BY ut.value DESC
           LIMIT ? OFFSET ?
         `,
-        params: [threshold, limit, offset],
+        params: [threshold, threshold, limit, offset],
       });
 
-    // Session-based achievements
+    // Session-based achievements — cumulative session count tracking
     case "quick-draw":
       return (threshold, limit, offset) => ({
         sql: `
-          SELECT u.id, u.name, u.image, u.slug,
-                 SUM(CASE WHEN sr.duration_seconds < 300 THEN 1 ELSE 0 END) AS value,
-                 MIN(sr.started_at) AS first_activity
+          WITH user_totals AS (
+            SELECT user_id, SUM(CASE WHEN duration_seconds < 300 THEN 1 ELSE 0 END) AS value
+            FROM session_records
+            GROUP BY user_id
+          ),
+          quick_sessions AS (
+            SELECT user_id, started_at,
+                   ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY started_at) AS session_num
+            FROM session_records
+            WHERE duration_seconds < 300
+          ),
+          threshold_crossed AS (
+            SELECT user_id, MIN(started_at) AS earned_at
+            FROM quick_sessions
+            WHERE session_num >= ?
+            GROUP BY user_id
+          )
+          SELECT u.id, u.name, u.image, u.slug, ut.value, tc.earned_at
           FROM users u
-          JOIN session_records sr ON sr.user_id = u.id
-          WHERE u.is_public = 1
-          GROUP BY u.id
-          HAVING value >= ?
-          ORDER BY value DESC
+          JOIN user_totals ut ON ut.user_id = u.id
+          LEFT JOIN threshold_crossed tc ON tc.user_id = u.id
+          WHERE u.is_public = 1 AND ut.value >= ?
+          ORDER BY ut.value DESC
           LIMIT ? OFFSET ?
         `,
-        params: [threshold, limit, offset],
+        params: [threshold, threshold, limit, offset],
       });
 
     case "marathon":
       return (threshold, limit, offset) => ({
         sql: `
-          SELECT u.id, u.name, u.image, u.slug,
-                 SUM(CASE WHEN sr.duration_seconds > 7200 THEN 1 ELSE 0 END) AS value,
-                 MIN(sr.started_at) AS first_activity
+          WITH user_totals AS (
+            SELECT user_id, SUM(CASE WHEN duration_seconds > 7200 THEN 1 ELSE 0 END) AS value
+            FROM session_records
+            GROUP BY user_id
+          ),
+          marathon_sessions AS (
+            SELECT user_id, started_at,
+                   ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY started_at) AS session_num
+            FROM session_records
+            WHERE duration_seconds > 7200
+          ),
+          threshold_crossed AS (
+            SELECT user_id, MIN(started_at) AS earned_at
+            FROM marathon_sessions
+            WHERE session_num >= ?
+            GROUP BY user_id
+          )
+          SELECT u.id, u.name, u.image, u.slug, ut.value, tc.earned_at
           FROM users u
-          JOIN session_records sr ON sr.user_id = u.id
-          WHERE u.is_public = 1
-          GROUP BY u.id
-          HAVING value >= ?
-          ORDER BY value DESC
+          JOIN user_totals ut ON ut.user_id = u.id
+          LEFT JOIN threshold_crossed tc ON tc.user_id = u.id
+          WHERE u.is_public = 1 AND ut.value >= ?
+          ORDER BY ut.value DESC
           LIMIT ? OFFSET ?
         `,
-        params: [threshold, limit, offset],
+        params: [threshold, threshold, limit, offset],
       });
 
     case "chatterbox":
@@ -301,61 +469,94 @@ function getQueryBuilder(achievementId: string): QueryBuilder | null {
             SELECT user_id, MAX(total_messages) AS value
             FROM session_records
             GROUP BY user_id
+          ),
+          first_chatty AS (
+            SELECT sr.user_id, MIN(sr.started_at) AS earned_at
+            FROM session_records sr
+            JOIN user_max um ON sr.user_id = um.user_id
+            WHERE sr.total_messages >= ?
+            GROUP BY sr.user_id
           )
-          SELECT u.id, u.name, u.image, u.slug, um.value,
-                 (SELECT MIN(started_at) FROM session_records WHERE user_id = u.id) AS first_activity
+          SELECT u.id, u.name, u.image, u.slug, um.value, fc.earned_at
           FROM users u
           JOIN user_max um ON um.user_id = u.id
+          LEFT JOIN first_chatty fc ON fc.user_id = u.id
           WHERE u.is_public = 1 AND um.value >= ?
           ORDER BY um.value DESC
           LIMIT ? OFFSET ?
         `,
-        params: [threshold, limit, offset],
+        params: [threshold, threshold, limit, offset],
       });
 
     case "session-hoarder":
       return (threshold, limit, offset) => ({
         sql: `
-          SELECT u.id, u.name, u.image, u.slug,
-                 COUNT(*) AS value,
-                 MIN(sr.started_at) AS first_activity
+          WITH user_totals AS (
+            SELECT user_id, COUNT(*) AS value
+            FROM session_records
+            GROUP BY user_id
+          ),
+          numbered AS (
+            SELECT user_id, started_at,
+                   ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY started_at) AS session_num
+            FROM session_records
+          ),
+          threshold_crossed AS (
+            SELECT user_id, MIN(started_at) AS earned_at
+            FROM numbered
+            WHERE session_num >= ?
+            GROUP BY user_id
+          )
+          SELECT u.id, u.name, u.image, u.slug, ut.value, tc.earned_at
           FROM users u
-          JOIN session_records sr ON sr.user_id = u.id
-          WHERE u.is_public = 1
-          GROUP BY u.id
-          HAVING value >= ?
-          ORDER BY value DESC
+          JOIN user_totals ut ON ut.user_id = u.id
+          LEFT JOIN threshold_crossed tc ON tc.user_id = u.id
+          WHERE u.is_public = 1 AND ut.value >= ?
+          ORDER BY ut.value DESC
           LIMIT ? OFFSET ?
         `,
-        params: [threshold, limit, offset],
+        params: [threshold, threshold, limit, offset],
       });
 
     case "automation-addict":
       return (threshold, limit, offset) => ({
         sql: `
-          SELECT u.id, u.name, u.image, u.slug,
-                 SUM(CASE WHEN sr.kind = 'automated' THEN 1 ELSE 0 END) AS value,
-                 MIN(sr.started_at) AS first_activity
+          WITH user_totals AS (
+            SELECT user_id, SUM(CASE WHEN kind = 'automated' THEN 1 ELSE 0 END) AS value
+            FROM session_records
+            GROUP BY user_id
+          ),
+          auto_sessions AS (
+            SELECT user_id, started_at,
+                   ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY started_at) AS session_num
+            FROM session_records
+            WHERE kind = 'automated'
+          ),
+          threshold_crossed AS (
+            SELECT user_id, MIN(started_at) AS earned_at
+            FROM auto_sessions
+            WHERE session_num >= ?
+            GROUP BY user_id
+          )
+          SELECT u.id, u.name, u.image, u.slug, ut.value, tc.earned_at
           FROM users u
-          JOIN session_records sr ON sr.user_id = u.id
-          WHERE u.is_public = 1
-          GROUP BY u.id
-          HAVING value >= ?
-          ORDER BY value DESC
+          JOIN user_totals ut ON ut.user_id = u.id
+          LEFT JOIN threshold_crossed tc ON tc.user_id = u.id
+          WHERE u.is_public = 1 AND ut.value >= ?
+          ORDER BY ut.value DESC
           LIMIT ? OFFSET ?
         `,
-        params: [threshold, limit, offset],
+        params: [threshold, threshold, limit, offset],
       });
 
-    // Spending achievements — need cost calculation
-    // These are more complex because cost requires pricing lookup per model
-    // For now, return null and exclude from members endpoint
+    // Spending achievements — cost requires runtime pricing lookup, not supported in SQL
+    // Return null to gracefully degrade (empty members list)
     case "big-spender":
     case "daily-burn":
       return null;
 
-    // Streak achievement — would need real-time calculation
-    // Excluding from members for now as it's complex
+    // Streak achievement — requires date continuity analysis, complex in SQL
+    // Return null to gracefully degrade (empty members list)
     case "streak":
       return null;
 
@@ -452,7 +653,7 @@ export async function GET(
         image: row.image,
         slug: row.slug,
         tier: tier === "locked" ? "bronze" : tier,
-        earnedAt: row.first_activity ?? new Date().toISOString(),
+        earnedAt: row.earned_at ?? new Date().toISOString(),
         currentValue: row.value,
       };
     });
