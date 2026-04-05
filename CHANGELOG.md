@@ -1,5 +1,56 @@
 # Changelog
 
+## v2.0.0
+
+### Added
+- Add achievements section to public profile page
+- Integrate UserProfileDialog for member clicks
+- Add expandable card with member leaderboard
+- Raise thresholds for heavy users (1B+/week baseline)
+- Expand earnedBy to cover big-day, chatterbox, cache-master
+- Integrate server-side achievements into dashboard
+- Add Achievements page with category grid UI
+- Add GET /api/achievements/[id]/members route
+- Add GET /api/achievements route with tests
+- Expand achievement definitions to 25 with new fields
+- Add accent bar to all 4 core metric cards
+- Integrate achievements into HeatmapHero sidebar
+- Add StatCard variant prop for visual hierarchy
+- Add EmptyState component for onboarding guidance
+- Add HeatmapHero as dashboard primary visual
+
+### Changed
+- Widen layout from max-w-4xl to max-w-6xl
+- Mark Achievement System Overhaul Phase 1-4 as completed
+- Unify day-based achievements to UTC, document members 404
+- Clarify tzOffset affects all day-based achievements
+- Document tzOffset param and fix Phase 2 social exclusion
+- Fix Decision 4 conclusion to include weekend-warrior
+- Include weekend-warrior in timezone-dependent achievements
+- Add Decision 5 for time-of-day achievement social limitations
+- Fix inconsistencies in achievement system overhaul
+- Add Data Model Decisions to achievement system overhaul
+- Add achievement system overhaul plan (doc/33)
+- Replace DM Sans with Space Grotesk for display font
+- Replace teal/cyan palette with electric violet + acid lime
+- Add osv-scanner config to ignore false positive
+
+### Fixed
+- Exclude test files from stale version check
+- Resolve syntax and type errors
+- Address spending source + earnedAt precision issues
+- Address 5 review issues
+- Remove orphaned computeCurrentMonthTokens tests
+- Change achievements to 2-column grid, max 6 items
+- Change Hero layout from fixed width to 6:4 ratio
+- Improve Hero layout and move period selector
+- Boost light mode color contrast for accessibility
+- Align dark mode input background with B-5 spec
+
+### Removed
+- Remove unused AchievementShelf component
+- Remove monthly budget feature
+
 ## v1.15.1
 
 ### Added
