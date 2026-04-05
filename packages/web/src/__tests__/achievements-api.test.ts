@@ -48,74 +48,74 @@ describe("GET /api/achievements", () => {
       });
 
       // Setup default mock responses for all queries
-      // 1. Usage aggregates
-      mockClient.firstOrNull.mockResolvedValueOnce({
-        total_tokens: 1_000_000,
-        input_tokens: 600_000,
-        output_tokens: 400_000,
-        cached_input_tokens: 200_000,
-        reasoning_output_tokens: 50_000,
-      });
-      // 2. Daily usage
-      mockClient.query.mockResolvedValueOnce({
-        results: [
-          { day: "2026-04-03", total_tokens: 100_000 },
-          { day: "2026-04-04", total_tokens: 200_000 },
-          { day: "2026-04-05", total_tokens: 150_000 },
-        ],
-      });
-      // 3. Cost by model/day
-      mockClient.query.mockResolvedValueOnce({
-        results: [
-          {
-            day: "2026-04-03",
-            model: "claude-sonnet-4-20250514",
-            input_tokens: 50_000,
-            output_tokens: 30_000,
-            cached_input_tokens: 10_000,
-          },
-        ],
-      });
-      // 4. Diversity counts
-      mockClient.firstOrNull.mockResolvedValueOnce({
-        source_count: 3,
-        model_count: 5,
-        device_count: 2,
-      });
-      // 5. Session aggregates
-      mockClient.firstOrNull.mockResolvedValueOnce({
-        total_sessions: 50,
-        quick_sessions: 20,
-        marathon_sessions: 5,
-        max_messages: 150,
-        automated_sessions: 10,
-      });
-      // 6. Hourly usage
-      mockClient.query.mockResolvedValueOnce({
-        results: [
-          { hour_start: "2026-04-05T02:00:00Z", total_tokens: 10_000 },
-          { hour_start: "2026-04-05T07:00:00Z", total_tokens: 20_000 },
-        ],
-      });
-      // 7. Cost by model
-      mockClient.query.mockResolvedValueOnce({
-        results: [
-          {
-            model: "claude-sonnet-4-20250514",
-            input_tokens: 600_000,
-            output_tokens: 400_000,
-            cached_input_tokens: 200_000,
-          },
-        ],
-      });
-      // 8. EarnedBy query (power-user)
-      mockClient.query.mockResolvedValueOnce({
-        results: [
-          { id: "u2", name: "Alice", image: null, slug: "alice", total_tokens: 50_000_000 },
-        ],
-      });
-      // 9. Count total earners
-      mockClient.firstOrNull.mockResolvedValueOnce({ count: 5 });
+      // Use mockResolvedValue (not Once) for repeated queries
+
+      // firstOrNull mocks in order: usage aggregates, diversity, session aggregates, then count queries
+      mockClient.firstOrNull
+        .mockResolvedValueOnce({
+          total_tokens: 1_000_000,
+          input_tokens: 600_000,
+          output_tokens: 400_000,
+          cached_input_tokens: 200_000,
+          reasoning_output_tokens: 50_000,
+        })
+        .mockResolvedValueOnce({
+          source_count: 3,
+          model_count: 5,
+          device_count: 2,
+        })
+        .mockResolvedValueOnce({
+          total_sessions: 50,
+          quick_sessions: 20,
+          marathon_sessions: 5,
+          max_messages: 150,
+          automated_sessions: 10,
+        })
+        // All count queries return the same value
+        .mockResolvedValue({ count: 5 });
+
+      // query mocks: daily usage, cost by model/day, hourly usage, cost by model, then earnedBy queries
+      mockClient.query
+        .mockResolvedValueOnce({
+          results: [
+            { day: "2026-04-03", total_tokens: 100_000 },
+            { day: "2026-04-04", total_tokens: 200_000 },
+            { day: "2026-04-05", total_tokens: 150_000 },
+          ],
+        })
+        .mockResolvedValueOnce({
+          results: [
+            {
+              day: "2026-04-03",
+              model: "claude-sonnet-4-20250514",
+              input_tokens: 50_000,
+              output_tokens: 30_000,
+              cached_input_tokens: 10_000,
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          results: [
+            { hour_start: "2026-04-05T02:00:00Z", total_tokens: 10_000 },
+            { hour_start: "2026-04-05T07:00:00Z", total_tokens: 20_000 },
+          ],
+        })
+        .mockResolvedValueOnce({
+          results: [
+            {
+              model: "claude-sonnet-4-20250514",
+              input_tokens: 600_000,
+              output_tokens: 400_000,
+              cached_input_tokens: 200_000,
+            },
+          ],
+        })
+        // All earnedBy queries return similar data
+        .mockResolvedValue({
+          results: [
+            { id: "u2", name: "Alice", image: null, slug: "alice", value: 50_000_000 },
+          ],
+        });
     });
 
     it("should return achievements array and summary", async () => {

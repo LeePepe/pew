@@ -265,7 +265,7 @@ function getQueryBuilder(achievementId: string): QueryBuilder | null {
         sql: `
           SELECT u.id, u.name, u.image, u.slug,
                  SUM(CASE WHEN sr.duration_seconds < 300 THEN 1 ELSE 0 END) AS value,
-                 MIN(sr.session_start) AS first_activity
+                 MIN(sr.started_at) AS first_activity
           FROM users u
           JOIN session_records sr ON sr.user_id = u.id
           WHERE u.is_public = 1
@@ -282,7 +282,7 @@ function getQueryBuilder(achievementId: string): QueryBuilder | null {
         sql: `
           SELECT u.id, u.name, u.image, u.slug,
                  SUM(CASE WHEN sr.duration_seconds > 7200 THEN 1 ELSE 0 END) AS value,
-                 MIN(sr.session_start) AS first_activity
+                 MIN(sr.started_at) AS first_activity
           FROM users u
           JOIN session_records sr ON sr.user_id = u.id
           WHERE u.is_public = 1
@@ -303,7 +303,7 @@ function getQueryBuilder(achievementId: string): QueryBuilder | null {
             GROUP BY user_id
           )
           SELECT u.id, u.name, u.image, u.slug, um.value,
-                 (SELECT MIN(session_start) FROM session_records WHERE user_id = u.id) AS first_activity
+                 (SELECT MIN(started_at) FROM session_records WHERE user_id = u.id) AS first_activity
           FROM users u
           JOIN user_max um ON um.user_id = u.id
           WHERE u.is_public = 1 AND um.value >= ?
@@ -318,7 +318,7 @@ function getQueryBuilder(achievementId: string): QueryBuilder | null {
         sql: `
           SELECT u.id, u.name, u.image, u.slug,
                  COUNT(*) AS value,
-                 MIN(sr.session_start) AS first_activity
+                 MIN(sr.started_at) AS first_activity
           FROM users u
           JOIN session_records sr ON sr.user_id = u.id
           WHERE u.is_public = 1
@@ -335,7 +335,7 @@ function getQueryBuilder(achievementId: string): QueryBuilder | null {
         sql: `
           SELECT u.id, u.name, u.image, u.slug,
                  SUM(CASE WHEN sr.kind = 'automated' THEN 1 ELSE 0 END) AS value,
-                 MIN(sr.session_start) AS first_activity
+                 MIN(sr.started_at) AS first_activity
           FROM users u
           JOIN session_records sr ON sr.user_id = u.id
           WHERE u.is_public = 1

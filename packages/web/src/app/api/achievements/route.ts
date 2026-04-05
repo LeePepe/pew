@@ -398,57 +398,170 @@ export async function GET(request: Request) {
       (d) => !TIMEZONE_DEPENDANT_IDS.has(d.id)
     );
 
+    // Helper to run earnedBy query for an achievement
+    async function queryEarnedBy(
+      def: typeof ACHIEVEMENT_DEFS[number],
+      sql: string,
+      countSql: string,
+      threshold: number
+    ) {
+      const earners = await db.query<{
+        id: string;
+        name: string | null;
+        image: string | null;
+        slug: string | null;
+        value: number;
+      }>(sql, [threshold, 5, 0]);
+
+      const users: EarnedByUser[] = earners.results.map((r) => {
+        const { tier } = computeTierProgress(r.value, def.tiers);
+        return {
+          id: r.id,
+          name: r.name ?? "Anonymous",
+          image: r.image,
+          slug: r.slug,
+          tier: tier === "locked" ? "bronze" : tier,
+        };
+      });
+
+      earnedByMap.set(def.id, users);
+
+      const countResult = await db.firstOrNull<{ count: number }>(countSql, [threshold]);
+      totalEarnedMap.set(def.id, countResult?.count ?? 0);
+    }
+
     for (const def of socialAchievements) {
-      // Skip querying if we don't have a simple threshold-based query
-      // For now, only implement earnedBy for power-user (total_tokens)
-      // TODO: Implement earnedBy for other achievements in Phase 2
-      if (def.id === "power-user") {
-        const bronzeThreshold = def.tiers[0];
-        const earners = await db.query<{
-          id: string;
-          name: string | null;
-          image: string | null;
-          slug: string | null;
-          total_tokens: number;
-        }>(
-          `SELECT u.id, u.name, u.image, u.slug, COALESCE(SUM(ur.total_tokens), 0) AS total_tokens
-          FROM users u
-          JOIN usage_records ur ON ur.user_id = u.id
-          WHERE u.is_public = 1
-          GROUP BY u.id
-          HAVING total_tokens >= ?
-          ORDER BY total_tokens DESC
-          LIMIT 5`,
-          [bronzeThreshold]
+      const bronzeThreshold = def.tiers[0];
+
+      // Volume achievements (total_tokens based)
+      if (["power-user", "first-blood", "millionaire", "billionaire"].includes(def.id)) {
+        await queryEarnedBy(
+          def,
+          `SELECT u.id, u.name, u.image, u.slug, COALESCE(SUM(ur.total_tokens), 0) AS value
+           FROM users u JOIN usage_records ur ON ur.user_id = u.id
+           WHERE u.is_public = 1 GROUP BY u.id HAVING value >= ? ORDER BY value DESC LIMIT ? OFFSET ?`,
+          `SELECT COUNT(*) AS count FROM (SELECT u.id FROM users u JOIN usage_records ur ON ur.user_id = u.id WHERE u.is_public = 1 GROUP BY u.id HAVING COALESCE(SUM(ur.total_tokens), 0) >= ?)`,
+          bronzeThreshold
         );
-
-        const users: EarnedByUser[] = earners.results.map((r) => {
-          const { tier } = computeTierProgress(r.total_tokens, def.tiers);
-          return {
-            id: r.id,
-            name: r.name ?? "Anonymous",
-            image: r.image,
-            slug: r.slug,
-            tier: tier === "locked" ? "bronze" : tier,
-          };
-        });
-
-        earnedByMap.set(def.id, users);
-
-        // Count total earners
-        const countResult = await db.firstOrNull<{ count: number }>(
-          `SELECT COUNT(*) AS count FROM (
-            SELECT u.id
-            FROM users u
-            JOIN usage_records ur ON ur.user_id = u.id
-            WHERE u.is_public = 1
-            GROUP BY u.id
-            HAVING COALESCE(SUM(ur.total_tokens), 0) >= ?
-          )`,
-          [bronzeThreshold]
-        );
-        totalEarnedMap.set(def.id, countResult?.count ?? 0);
       }
+      // Input tokens
+      else if (def.id === "input-hog") {
+        await queryEarnedBy(
+          def,
+          `SELECT u.id, u.name, u.image, u.slug, COALESCE(SUM(ur.input_tokens), 0) AS value
+           FROM users u JOIN usage_records ur ON ur.user_id = u.id
+           WHERE u.is_public = 1 GROUP BY u.id HAVING value >= ? ORDER BY value DESC LIMIT ? OFFSET ?`,
+          `SELECT COUNT(*) AS count FROM (SELECT u.id FROM users u JOIN usage_records ur ON ur.user_id = u.id WHERE u.is_public = 1 GROUP BY u.id HAVING COALESCE(SUM(ur.input_tokens), 0) >= ?)`,
+          bronzeThreshold
+        );
+      }
+      // Output tokens
+      else if (def.id === "output-addict") {
+        await queryEarnedBy(
+          def,
+          `SELECT u.id, u.name, u.image, u.slug, COALESCE(SUM(ur.output_tokens), 0) AS value
+           FROM users u JOIN usage_records ur ON ur.user_id = u.id
+           WHERE u.is_public = 1 GROUP BY u.id HAVING value >= ? ORDER BY value DESC LIMIT ? OFFSET ?`,
+          `SELECT COUNT(*) AS count FROM (SELECT u.id FROM users u JOIN usage_records ur ON ur.user_id = u.id WHERE u.is_public = 1 GROUP BY u.id HAVING COALESCE(SUM(ur.output_tokens), 0) >= ?)`,
+          bronzeThreshold
+        );
+      }
+      // Reasoning tokens
+      else if (def.id === "reasoning-junkie") {
+        await queryEarnedBy(
+          def,
+          `SELECT u.id, u.name, u.image, u.slug, COALESCE(SUM(ur.reasoning_output_tokens), 0) AS value
+           FROM users u JOIN usage_records ur ON ur.user_id = u.id
+           WHERE u.is_public = 1 GROUP BY u.id HAVING value >= ? ORDER BY value DESC LIMIT ? OFFSET ?`,
+          `SELECT COUNT(*) AS count FROM (SELECT u.id FROM users u JOIN usage_records ur ON ur.user_id = u.id WHERE u.is_public = 1 GROUP BY u.id HAVING COALESCE(SUM(ur.reasoning_output_tokens), 0) >= ?)`,
+          bronzeThreshold
+        );
+      }
+      // Veteran / Centurion (active days)
+      else if (["veteran", "centurion"].includes(def.id)) {
+        await queryEarnedBy(
+          def,
+          `SELECT u.id, u.name, u.image, u.slug, COUNT(DISTINCT DATE(ur.hour_start)) AS value
+           FROM users u JOIN usage_records ur ON ur.user_id = u.id
+           WHERE u.is_public = 1 GROUP BY u.id HAVING value >= ? ORDER BY value DESC LIMIT ? OFFSET ?`,
+          `SELECT COUNT(*) AS count FROM (SELECT u.id FROM users u JOIN usage_records ur ON ur.user_id = u.id WHERE u.is_public = 1 GROUP BY u.id HAVING COUNT(DISTINCT DATE(ur.hour_start)) >= ?)`,
+          bronzeThreshold
+        );
+      }
+      // Diversity (sources, models, devices)
+      else if (def.id === "tool-hoarder") {
+        await queryEarnedBy(
+          def,
+          `SELECT u.id, u.name, u.image, u.slug, COUNT(DISTINCT ur.source) AS value
+           FROM users u JOIN usage_records ur ON ur.user_id = u.id
+           WHERE u.is_public = 1 GROUP BY u.id HAVING value >= ? ORDER BY value DESC LIMIT ? OFFSET ?`,
+          `SELECT COUNT(*) AS count FROM (SELECT u.id FROM users u JOIN usage_records ur ON ur.user_id = u.id WHERE u.is_public = 1 GROUP BY u.id HAVING COUNT(DISTINCT ur.source) >= ?)`,
+          bronzeThreshold
+        );
+      }
+      else if (def.id === "model-tourist") {
+        await queryEarnedBy(
+          def,
+          `SELECT u.id, u.name, u.image, u.slug, COUNT(DISTINCT ur.model) AS value
+           FROM users u JOIN usage_records ur ON ur.user_id = u.id
+           WHERE u.is_public = 1 GROUP BY u.id HAVING value >= ? ORDER BY value DESC LIMIT ? OFFSET ?`,
+          `SELECT COUNT(*) AS count FROM (SELECT u.id FROM users u JOIN usage_records ur ON ur.user_id = u.id WHERE u.is_public = 1 GROUP BY u.id HAVING COUNT(DISTINCT ur.model) >= ?)`,
+          bronzeThreshold
+        );
+      }
+      else if (def.id === "device-nomad") {
+        await queryEarnedBy(
+          def,
+          `SELECT u.id, u.name, u.image, u.slug, COUNT(DISTINCT ur.device_id) AS value
+           FROM users u JOIN usage_records ur ON ur.user_id = u.id
+           WHERE u.is_public = 1 GROUP BY u.id HAVING value >= ? ORDER BY value DESC LIMIT ? OFFSET ?`,
+          `SELECT COUNT(*) AS count FROM (SELECT u.id FROM users u JOIN usage_records ur ON ur.user_id = u.id WHERE u.is_public = 1 GROUP BY u.id HAVING COUNT(DISTINCT ur.device_id) >= ?)`,
+          bronzeThreshold
+        );
+      }
+      // Session-based achievements
+      else if (def.id === "session-hoarder") {
+        await queryEarnedBy(
+          def,
+          `SELECT u.id, u.name, u.image, u.slug, COUNT(*) AS value
+           FROM users u JOIN session_records sr ON sr.user_id = u.id
+           WHERE u.is_public = 1 GROUP BY u.id HAVING value >= ? ORDER BY value DESC LIMIT ? OFFSET ?`,
+          `SELECT COUNT(*) AS count FROM (SELECT u.id FROM users u JOIN session_records sr ON sr.user_id = u.id WHERE u.is_public = 1 GROUP BY u.id HAVING COUNT(*) >= ?)`,
+          bronzeThreshold
+        );
+      }
+      else if (def.id === "quick-draw") {
+        await queryEarnedBy(
+          def,
+          `SELECT u.id, u.name, u.image, u.slug, SUM(CASE WHEN sr.duration_seconds < 300 THEN 1 ELSE 0 END) AS value
+           FROM users u JOIN session_records sr ON sr.user_id = u.id
+           WHERE u.is_public = 1 GROUP BY u.id HAVING value >= ? ORDER BY value DESC LIMIT ? OFFSET ?`,
+          `SELECT COUNT(*) AS count FROM (SELECT u.id FROM users u JOIN session_records sr ON sr.user_id = u.id WHERE u.is_public = 1 GROUP BY u.id HAVING SUM(CASE WHEN sr.duration_seconds < 300 THEN 1 ELSE 0 END) >= ?)`,
+          bronzeThreshold
+        );
+      }
+      else if (def.id === "marathon") {
+        await queryEarnedBy(
+          def,
+          `SELECT u.id, u.name, u.image, u.slug, SUM(CASE WHEN sr.duration_seconds > 7200 THEN 1 ELSE 0 END) AS value
+           FROM users u JOIN session_records sr ON sr.user_id = u.id
+           WHERE u.is_public = 1 GROUP BY u.id HAVING value >= ? ORDER BY value DESC LIMIT ? OFFSET ?`,
+          `SELECT COUNT(*) AS count FROM (SELECT u.id FROM users u JOIN session_records sr ON sr.user_id = u.id WHERE u.is_public = 1 GROUP BY u.id HAVING SUM(CASE WHEN sr.duration_seconds > 7200 THEN 1 ELSE 0 END) >= ?)`,
+          bronzeThreshold
+        );
+      }
+      else if (def.id === "automation-addict") {
+        await queryEarnedBy(
+          def,
+          `SELECT u.id, u.name, u.image, u.slug, SUM(CASE WHEN sr.kind = 'automated' THEN 1 ELSE 0 END) AS value
+           FROM users u JOIN session_records sr ON sr.user_id = u.id
+           WHERE u.is_public = 1 GROUP BY u.id HAVING value >= ? ORDER BY value DESC LIMIT ? OFFSET ?`,
+          `SELECT COUNT(*) AS count FROM (SELECT u.id FROM users u JOIN session_records sr ON sr.user_id = u.id WHERE u.is_public = 1 GROUP BY u.id HAVING SUM(CASE WHEN sr.kind = 'automated' THEN 1 ELSE 0 END) >= ?)`,
+          bronzeThreshold
+        );
+      }
+      // Skip complex achievements: big-day, chatterbox, cache-master, big-spender, daily-burn, streak
+      // These require CTEs or complex calculations not easily done in earnedBy format
     }
 
     // 6. Build response

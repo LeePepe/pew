@@ -191,10 +191,9 @@ function AchievementRing({ progress, tier, icon }: AchievementRingProps) {
 interface EarnedByAvatarsProps {
   earnedBy: EarnedByUser[];
   totalEarned: number;
-  achievementId: string;
 }
 
-function EarnedByAvatars({ earnedBy, totalEarned, achievementId }: EarnedByAvatarsProps) {
+function EarnedByAvatars({ earnedBy, totalEarned }: EarnedByAvatarsProps) {
   if (earnedBy.length === 0) return null;
 
   const displayCount = Math.min(earnedBy.length, 4);
@@ -219,12 +218,9 @@ function EarnedByAvatars({ earnedBy, totalEarned, achievementId }: EarnedByAvata
         })}
       </div>
       {remainingCount > 0 && (
-        <Link
-          href={`/leaderboard/achievements/${achievementId}/members`}
-          className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-        >
+        <span className="text-[10px] text-muted-foreground">
           +{remainingCount} more
-        </Link>
+        </span>
       )}
     </div>
   );
@@ -311,7 +307,6 @@ function AchievementCard({ achievement, index }: AchievementCardProps) {
       <EarnedByAvatars
         earnedBy={achievement.earnedBy}
         totalEarned={achievement.totalEarned}
-        achievementId={achievement.id}
       />
     </div>
   );

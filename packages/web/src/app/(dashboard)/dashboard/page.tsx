@@ -131,17 +131,20 @@ export default function DashboardPage() {
   // Streak data for HeatmapHero (from server-side achievements or fallback)
   const currentStreak = achievementsData?.summary.currentStreak ?? 0;
 
-  // Streak info from yearHalfHourData for longest streak (not available in achievements API)
+  // Longest streak computed client-side with UTC to match server-side currentStreak
+  const todayUtc = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const longestStreak = useMemo(() => {
     if (!yearHalfHourData.data) return 0;
-    return computeStreak(yearHalfHourData.data.records, today, tzOffset).longestStreak;
-  }, [yearHalfHourData.data, today, tzOffset]);
+    // Use tzOffset=0 (UTC) to match server-side streak calculation
+    return computeStreak(yearHalfHourData.data.records, todayUtc, 0).longestStreak;
+  }, [yearHalfHourData.data, todayUtc]);
 
-  // Active days count for HeatmapHero
+  // Active days count for HeatmapHero (UTC-based to match streak)
   const activeDays = useMemo(() => {
     if (!yearHalfHourData.data) return 0;
-    return toLocalDailyBuckets(yearHalfHourData.data.records, tzOffset).length;
-  }, [yearHalfHourData.data, tzOffset]);
+    // Use tzOffset=0 (UTC) to match server-side day boundaries
+    return toLocalDailyBuckets(yearHalfHourData.data.records, 0).length;
+  }, [yearHalfHourData.data]);
 
   // Year total tokens for HeatmapHero
   const yearTotalTokens = yearData.data?.summary.total_tokens ?? 0;
