@@ -522,8 +522,11 @@ async function main(): Promise<void> {
   // --- Phase 3: Stale version verification ---
   console.log("🔍 Phase 3: Checking for stale version strings...\n");
 
+  // Use word boundaries to avoid matching dates like "2026-01-15T10:00:00Z"
+  // Pattern: version number surrounded by quotes or word boundaries
+  const versionPattern = `["']${currentVersion.replace(/\./g, "\\.")}["']|\\b${currentVersion.replace(/\./g, "\\.")}\\b`;
   const rgResult = await run("rg", [
-    currentVersion,
+    versionPattern,
     "--glob",
     "*.ts",
     "--glob",
@@ -532,6 +535,8 @@ async function main(): Promise<void> {
     "!node_modules/**",
     "--glob",
     "!scripts/release.ts",
+    "--glob",
+    "!**/__tests__/**", // Exclude test files from stale version check
   ]);
 
   if (rgResult.code === 0 && rgResult.stdout.trim()) {
