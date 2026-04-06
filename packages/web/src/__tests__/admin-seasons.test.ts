@@ -481,4 +481,179 @@ describe("PATCH /api/admin/seasons/[seasonId]", () => {
     expect(res.status).toBe(200);
     expect(syncAllRostersForSeason).toHaveBeenCalledWith(mockDbRead, mockDbWrite, "season-1");
   });
+
+  it("should return 403 if not admin", async () => {
+    resolveAdmin.mockResolvedValueOnce(null);
+
+    const res = await PATCH(
+      makeJsonRequest("PATCH", "/api/admin/seasons", { name: "New Name" }),
+      { params: patchParams }
+    );
+    expect(res.status).toBe(403);
+    const json = await res.json();
+    expect(json.error).toBe("Forbidden");
+  });
+
+  it("should return 400 for invalid JSON body", async () => {
+    resolveAdmin.mockResolvedValueOnce(ADMIN);
+
+    const req = new Request("http://localhost/api/admin/seasons/season-1", {
+      method: "PATCH",
+      body: "not-json",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const res = await PATCH(req, { params: patchParams });
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe("Invalid JSON");
+  });
+
+  it("should return 400 for invalid name length", async () => {
+    resolveAdmin.mockResolvedValueOnce(ADMIN);
+    mockDbRead.firstOrNull.mockResolvedValueOnce({
+      id: "season-1",
+      name: "Old Name",
+      slug: "s1",
+      start_date: "2099-06-01T00:00:00Z",
+      end_date: "2099-06-30T23:59:00Z",
+    });
+
+    const res = await PATCH(
+      makeJsonRequest("PATCH", "/api/admin/seasons", { name: "" }),
+      { params: patchParams }
+    );
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toContain("name must be 1-64 characters");
+  });
+
+  it("should return 400 for invalid start_date format", async () => {
+    resolveAdmin.mockResolvedValueOnce(ADMIN);
+    mockDbRead.firstOrNull.mockResolvedValueOnce({
+      id: "season-1",
+      name: "Season",
+      slug: "s1",
+      start_date: "2099-06-01T00:00:00Z",
+      end_date: "2099-06-30T23:59:00Z",
+    });
+
+    const res = await PATCH(
+      makeJsonRequest("PATCH", "/api/admin/seasons", { start_date: "2099/06/15" }),
+      { params: patchParams }
+    );
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toContain("start_date must be ISO 8601");
+  });
+
+  it("should return 400 for invalid end_date format", async () => {
+    resolveAdmin.mockResolvedValueOnce(ADMIN);
+    mockDbRead.firstOrNull.mockResolvedValueOnce({
+      id: "season-1",
+      name: "Season",
+      slug: "s1",
+      start_date: "2099-06-01T00:00:00Z",
+      end_date: "2099-06-30T23:59:00Z",
+    });
+
+    const res = await PATCH(
+      makeJsonRequest("PATCH", "/api/admin/seasons", { end_date: "invalid" }),
+      { params: patchParams }
+    );
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toContain("end_date must be ISO 8601");
+  });
+
+  it("should return 400 if end_date < start_date", async () => {
+    resolveAdmin.mockResolvedValueOnce(ADMIN);
+    mockDbRead.firstOrNull.mockResolvedValueOnce({
+      id: "season-1",
+      name: "Season",
+      slug: "s1",
+      start_date: "2099-06-01T00:00:00Z",
+      end_date: "2099-06-30T23:59:00Z",
+    });
+
+    const res = await PATCH(
+      makeJsonRequest("PATCH", "/api/admin/seasons", {
+        start_date: "2099-07-01T00:00:00Z",
+        end_date: "2099-06-01T00:00:00Z",
+      }),
+      { params: patchParams }
+    );
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toContain("end_date must be >= start_date");
+  });
+
+  it("should return 400 if no valid fields to update", async () => {
+    resolveAdmin.mockResolvedValueOnce(ADMIN);
+    mockDbRead.firstOrNull.mockResolvedValueOnce({
+      id: "season-1",
+      name: "Season",
+      slug: "s1",
+      start_date: "2099-06-01T00:00:00Z",
+      end_date: "2099-06-30T23:59:00Z",
+    });
+
+    const res = await PATCH(
+      makeJsonRequest("PATCH", "/api/admin/seasons", { unknownField: "value" }),
+      { params: patchParams }
+    );
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe("No valid fields to update");
+  });
+
+  it("should return 404 if season disappears after update", async () => {
+    resolveAdmin.mockResolvedValueOnce(ADMIN);
+    mockDbRead.firstOrNull
+      .mockResolvedValueOnce({
+        id: "season-1",
+        name: "Season",
+        slug: "s1",
+        start_date: "2099-06-01T00:00:00Z",
+        end_date: "2099-06-30T23:59:00Z",
+      })
+      .mockResolvedValueOnce(null); // disappeared after update
+    mockDbWrite.execute.mockResolvedValueOnce({ changes: 1, duration: 0.01 });
+
+    const res = await PATCH(
+      makeJsonRequest("PATCH", "/api/admin/seasons", { name: "New Name" }),
+      { params: patchParams }
+    );
+    expect(res.status).toBe(404);
+    const json = await res.json();
+    expect(json.error).toBe("Season not found after update");
+  });
+
+  it("should return 503 when season tables not migrated", async () => {
+    resolveAdmin.mockResolvedValueOnce(ADMIN);
+    mockDbRead.firstOrNull.mockRejectedValueOnce(new Error("no such table: seasons"));
+
+    const res = await PATCH(
+      makeJsonRequest("PATCH", "/api/admin/seasons", { name: "New Name" }),
+      { params: patchParams }
+    );
+    expect(res.status).toBe(503);
+    const json = await res.json();
+    expect(json.error).toBe("Season tables not yet migrated");
+  });
+
+  it("should return 500 on unexpected error", async () => {
+    resolveAdmin.mockResolvedValueOnce(ADMIN);
+    mockDbRead.firstOrNull.mockRejectedValueOnce(new Error("Connection timeout"));
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await PATCH(
+      makeJsonRequest("PATCH", "/api/admin/seasons", { name: "New Name" }),
+      { params: patchParams }
+    );
+    expect(res.status).toBe(500);
+    const json = await res.json();
+    expect(json.error).toBe("Failed to update season");
+    consoleSpy.mockRestore();
+  });
 });
