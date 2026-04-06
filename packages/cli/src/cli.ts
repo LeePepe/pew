@@ -1,5 +1,4 @@
-import { defineCommand, showUsage } from "citty";
-import pc from "picocolors";
+import { defineCommand, showUsage, pc } from "@nocoo/cli-base";
 import { log } from "./log.js";
 import { homedir } from "node:os";
 import type { Source } from "@pew/core";

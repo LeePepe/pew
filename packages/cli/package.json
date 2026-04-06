@@ -39,8 +39,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "citty": "^0.1.0",
-    "picocolors": "^1.1.0"
+    "@nocoo/cli-base": "^0.1.7"
   },
   "devDependencies": {
     "@pew/core": "workspace:*",
