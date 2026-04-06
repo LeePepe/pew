@@ -226,6 +226,23 @@ describe("GET /api/users/[slug]", () => {
       expect(sqlCall[0]).toContain("source = ?");
       expect(sqlCall[1]).toContain("opencode");
     });
+
+    it("should filter by 'from' and 'to' date when provided", async () => {
+      mockClient.firstOrNull.mockResolvedValueOnce(testUser);
+      mockClient.query.mockResolvedValueOnce({ results: [] });
+
+      const [req, ctx] = makeRequest("testuser", {
+        from: "2026-03-01",
+        to: "2026-03-10",
+      });
+      await GET(req, ctx);
+
+      const sqlCall = mockClient.query.mock.calls[0]!;
+      expect(sqlCall[0]).toContain("hour_start >= ?");
+      expect(sqlCall[0]).toContain("hour_start < ?");
+      expect(sqlCall[1]).toContainEqual(expect.stringContaining("2026-03-01"));
+      expect(sqlCall[1]).toContainEqual(expect.stringContaining("2026-03-10"));
+    });
   });
 
   describe("error handling", () => {
