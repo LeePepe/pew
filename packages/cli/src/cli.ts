@@ -1,4 +1,6 @@
-import { defineCommand, showUsage, pc } from "@nocoo/cli-base";
+import { defineCommand, showUsage, pc, readVersion } from "@nocoo/cli-base";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { log } from "./log.js";
 import { homedir } from "node:os";
 import type { Source } from "@pew/core";
@@ -19,10 +21,11 @@ import { statusAll } from "./notifier/registry.js";
 import { ConfigManager } from "./config/manager.js";
 
 // ---------------------------------------------------------------------------
-// CLI version — single source of truth within CLI runtime
+// CLI version — read from package.json (single source of truth)
 // ---------------------------------------------------------------------------
 
-const CLI_VERSION = "2.0.2";
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const CLI_VERSION = readVersion(dirname(__dirname));
 
 // ---------------------------------------------------------------------------
 // Dev mode detection (otter pattern)
