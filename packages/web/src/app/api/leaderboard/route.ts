@@ -3,16 +3,15 @@
  *
  * Query params:
  *   period — "week" | "month" | "all" (default: "week")
- *   limit  — max entries to return (default: 10 public / 50 admin, max: 100)
+ *   limit  — max entries to return (default: 100, max: 100)
  *   team   — team ID for team-scoped leaderboard (optional)
- *   admin  — "true" to bypass public filter (requires admin auth)
  *
  * Returns { period, entries[] } where each entry has user info + total tokens.
+ * Only users with is_public = 1 are included.
  */
 
 import { NextResponse } from "next/server";
 import { getDbRead } from "@/lib/db";
-import { resolveAdmin } from "@/lib/admin";
 
 // ---------------------------------------------------------------------------
 // Validation
@@ -21,7 +20,6 @@ import { resolveAdmin } from "@/lib/admin";
 const VALID_PERIODS = new Set(["week", "month", "all"]);
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 100;
-const ADMIN_DEFAULT_LIMIT = 100;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -33,7 +31,6 @@ interface LeaderboardRow {
   nickname: string | null;
   image: string | null;
   slug: string | null;
-  is_public: number | null;
   total_tokens: number;
   input_tokens: number;
   output_tokens: number;
@@ -79,7 +76,6 @@ export async function GET(request: Request) {
   const period = url.searchParams.get("period") ?? "week";
   const limitParam = url.searchParams.get("limit");
   const teamId = url.searchParams.get("team");
-  const adminParam = url.searchParams.get("admin");
 
   // Validate period
   if (!VALID_PERIODS.has(period)) {
@@ -102,17 +98,6 @@ export async function GET(request: Request) {
     limit = parsed;
   }
 
-  // Admin mode: bypass public filters if caller is a verified admin
-  let isAdminMode = false;
-  if (adminParam === "true") {
-    const admin = await resolveAdmin(request);
-    isAdminMode = admin !== null;
-    // Admin defaults to higher limit when no explicit limit is set
-    if (isAdminMode && !limitParam) {
-      limit = ADMIN_DEFAULT_LIMIT;
-    }
-  }
-
   const db = await getDbRead();
   const fromDate = periodStartDate(period);
 
@@ -130,14 +115,10 @@ export async function GET(request: Request) {
     teamJoin = "JOIN team_members tm ON tm.user_id = ur.user_id";
     conditions.push("tm.team_id = ?");
     params.push(teamId);
-    // Team leaderboard still respects user opt-out unless admin mode
-    if (!isAdminMode) {
-      conditions.push("u.is_public = 1");
-    }
-  } else if (!isAdminMode) {
-    // Public leaderboard only shows users who opted in
-    conditions.push("u.is_public = 1");
   }
+
+  // Always filter by is_public = 1 (opt-out respected)
+  conditions.push("u.is_public = 1");
 
   params.push(limit);
 
@@ -149,7 +130,6 @@ export async function GET(request: Request) {
       ${withNickname ? "u.nickname," : ""}
       u.image,
       u.slug,
-      ${isAdminMode ? "u.is_public," : ""}
       SUM(ur.total_tokens) AS total_tokens,
       SUM(ur.input_tokens) AS input_tokens,
       SUM(ur.output_tokens) AS output_tokens,
@@ -282,9 +262,6 @@ export async function GET(request: Request) {
           name: row.nickname ?? row.name,
           image: row.image,
           slug: row.slug,
-          ...(isAdminMode && {
-            is_public: row.is_public == null ? null : row.is_public === 1,
-          }),
         },
         teams: teamsByUser.get(row.user_id) ?? [],
         total_tokens: row.total_tokens,
@@ -296,7 +273,7 @@ export async function GET(request: Request) {
       };
     });
 
-    const headers: HeadersInit = isAdminMode || teamId
+    const headers: HeadersInit = teamId
       ? { "Cache-Control": "private, no-store" }
       : { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" };
 

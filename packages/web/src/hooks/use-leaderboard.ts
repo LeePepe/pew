@@ -15,7 +15,6 @@ export interface LeaderboardEntry {
     name: string | null;
     image: string | null;
     slug: string | null;
-    is_public?: boolean;
   };
   teams: { id: string; name: string; logo_url: string | null }[];
   total_tokens: number;
@@ -39,7 +38,6 @@ interface UseLeaderboardOptions {
   period?: LeaderboardPeriod;
   limit?: number;
   teamId?: string | null;
-  admin?: boolean;
 }
 
 interface UseLeaderboardResult {
@@ -54,7 +52,7 @@ interface UseLeaderboardResult {
 export function useLeaderboard(
   options: UseLeaderboardOptions = {},
 ): UseLeaderboardResult {
-  const { period = "week", limit, teamId, admin } = options;
+  const { period = "week", limit, teamId } = options;
   const [data, setData] = useState<LeaderboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -77,9 +75,6 @@ export function useLeaderboard(
       if (teamId) {
         params.set("team", teamId);
       }
-      if (admin) {
-        params.set("admin", "true");
-      }
 
       const res = await fetch(`/api/leaderboard?${params.toString()}`);
       if (!res.ok) {
@@ -98,7 +93,7 @@ export function useLeaderboard(
       setRefreshing(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period, limit, teamId, admin]);
+  }, [period, limit, teamId]);
 
   useEffect(() => {
     fetchData();
