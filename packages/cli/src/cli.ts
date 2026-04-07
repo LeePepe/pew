@@ -1,4 +1,4 @@
-import { defineCommand, showUsage, pc, readVersion } from "@nocoo/cli-base";
+import { defineCommand, showUsage, pc, readVersion, openBrowser } from "@nocoo/cli-base";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { log } from "./log.js";
@@ -372,8 +372,6 @@ const loginCommand = defineCommand({
     const paths = resolveDefaultPaths();
     const dev = isDevMode();
     const host = resolveHost(dev);
-    const { exec } = await import("node:child_process");
-
     log.start("Opening browser for authentication...");
 
     const result = await executeLogin({
@@ -381,15 +379,7 @@ const loginCommand = defineCommand({
       apiUrl: host,
       dev,
       force: args.force,
-      openBrowser: async (url) => {
-        const cmd =
-          process.platform === "darwin"
-            ? "open"
-            : process.platform === "win32"
-              ? "start"
-              : "xdg-open";
-        exec(`${cmd} "${url}"`);
-      },
+      openBrowser,
     });
 
     if (result.alreadyLoggedIn) {
