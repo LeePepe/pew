@@ -63,9 +63,9 @@ function SeasonCard({
       {/* Timeline column — dot + connector line */}
       <div className="relative flex flex-col items-center pt-4">
         <TimelineDot status={season.status} />
-        {/* Vertical connector — hidden for last item */}
+        {/* Vertical connector — extends through gap to next card, hidden for last item */}
         {!isLast && (
-          <div className="absolute top-7 left-1/2 -translate-x-1/2 w-0.5 h-[calc(100%-4px)] bg-border" />
+          <div className="absolute top-7 left-1/2 -translate-x-1/2 w-0.5 h-[calc(100%+8px-4px)] bg-border" />
         )}
       </div>
 
@@ -197,7 +197,7 @@ export default function SeasonsPage() {
 
         {/* Content — Timeline layout */}
         {data && (
-          <div className="space-y-0">
+          <div className="space-y-2">
             {sortedSeasons.length === 0 ? (
               <div className="rounded-[var(--radius-card)] bg-secondary p-8 text-center text-sm text-muted-foreground">
                 <Trophy className="mx-auto h-12 w-12 mb-4 opacity-30" />
