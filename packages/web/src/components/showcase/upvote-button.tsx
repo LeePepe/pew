@@ -4,7 +4,7 @@
 
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +28,12 @@ export function UpvoteButton({
   const [count, setCount] = useState(initialCount);
   const [upvoted, setUpvoted] = useState(initialUpvoted === true);
   const [loading, setLoading] = useState(false);
+
+  // Sync with parent when props change (e.g., after refetch)
+  useEffect(() => {
+    setCount(initialCount);
+    setUpvoted(initialUpvoted === true);
+  }, [initialCount, initialUpvoted]);
 
   const handleClick = useCallback(async () => {
     if (!isLoggedIn) {
