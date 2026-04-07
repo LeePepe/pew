@@ -441,7 +441,7 @@ export const HermesNotifierDriver: NotifierDriver = {
     }
   },
   
-  async getStatus(paths: NotifierPaths): Promise<NotifierStatus> {
+  async status(paths: NotifierPaths): Promise<NotifierStatus> {
     const pluginPath = join(paths.hermesPluginDir, "pew", "__init__.py");
     const content = await readFile(pluginPath, "utf8").catch(() => null);
     
@@ -483,10 +483,39 @@ export const SOURCES: readonly Source[] = Object.freeze([
 import { VALID_SOURCES } from "@pew/core";
 ```
 
-**Web API** (core 的 VALID_SOURCES 已包含 hermes，路由自动生效):
+**Web API** (每个路由各自维护 VALID_SOURCES，必须逐个添加):
 ```typescript
-// packages/web/src/app/api/ingest/route.ts
-// 使用 VALID_SOURCES.has(source) 校验，无需改动
+// packages/web/src/app/api/usage/route.ts (第 21 行)
+const VALID_SOURCES = new Set([
+  "claude-code",
+  "codex",
+  "gemini-cli",
+  "opencode",
+  "openclaw",
+  "vscode-copilot",
+  "copilot-cli",
+  "hermes",  // ← 新增
+]);
+
+// packages/web/src/app/api/sessions/route.ts (第 21 行)
+const VALID_SOURCES = new Set([
+  // ... 同上，添加 "hermes"
+]);
+
+// packages/web/src/app/api/projects/route.ts (第 14 行)
+const VALID_SOURCES = new Set([
+  // ... 同上，添加 "hermes"
+]);
+
+// packages/web/src/app/api/projects/[id]/route.ts (第 14 行)
+const VALID_SOURCES = new Set([
+  // ... 同上，添加 "hermes"
+]);
+
+// packages/web/src/app/api/users/[slug]/route.ts (第 28 行)
+const VALID_SOURCES = new Set([
+  // ... 同上，添加 "hermes"
+]);
 ```
 
 **Web 样式/配置**:
@@ -502,7 +531,7 @@ export const DEFAULT_SOURCE_DEFAULTS: Record<string, ModelPricing> = {
 const AGENT_COLOR_MAP: Record<string, ChartColor> = {
   "claude-code": { color: chart.violet, token: "chart-1" },
   // ...
-  hermes: { color: chart.purple, token: "chart-8" },  // ← 新增
+  hermes: { color: chart.acid, token: "chart-8" },  // ← 新增（复用 acid 绿，8色循环）
 };
 ```
 
@@ -520,6 +549,11 @@ M packages/core/src/types.ts          # Source union 添加 "hermes"
 M packages/core/src/constants.ts      # SOURCES 数组添加 "hermes"
 M packages/web/src/lib/pricing.ts     # DEFAULT_SOURCE_DEFAULTS 添加 hermes
 M packages/web/src/lib/palette.ts     # AGENT_COLOR_MAP 添加 hermes
+M packages/web/src/app/api/usage/route.ts        # VALID_SOURCES 添加 "hermes"
+M packages/web/src/app/api/sessions/route.ts     # VALID_SOURCES 添加 "hermes"
+M packages/web/src/app/api/projects/route.ts     # VALID_SOURCES 添加 "hermes"
+M packages/web/src/app/api/projects/[id]/route.ts  # VALID_SOURCES 添加 "hermes"
+M packages/web/src/app/api/users/[slug]/route.ts   # VALID_SOURCES 添加 "hermes"
 ```
 
 **测试**:
@@ -535,8 +569,8 @@ feat(core,web): add hermes to Source type globally
 - Add "hermes" to Source union type (types.ts)
 - Add to SOURCES runtime array (constants.ts)
 - Add hermes pricing (conservative: $3/$15/$0.3)
-- Add hermes color palette (purple)
-- Web API routes auto-support via VALID_SOURCES
+- Add hermes color palette (acid green, chart-8)
+- Update VALID_SOURCES in 5 Web API routes (usage/sessions/projects/users)
 
 BREAKING CHANGE: Source type now includes "hermes"
 ```
