@@ -24,6 +24,7 @@ import { IoRatioChart } from "@/components/dashboard/io-ratio-chart";
 import { SourceDonutChart } from "@/components/dashboard/source-donut-chart";
 import { HeatmapHero } from "@/components/dashboard/heatmap-hero";
 import { WeekdayWeekendChart } from "@/components/dashboard/weekday-weekend-chart";
+import { SalaryEstimator } from "@/components/dashboard/salary-estimator-card";
 import { SnapshotAlert } from "@/components/dashboard/snapshot-alert";
 import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
 import { DashboardEmptyState } from "@/components/dashboard/empty-state";
@@ -345,7 +346,10 @@ export default function DashboardPage() {
           {/* ── Insights ────────────────────────────────────── */}
           {weekdayWeekend && (
             <DashboardSegment title="Insights">
-              <WeekdayWeekendChart stats={weekdayWeekend} />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4">
+                <WeekdayWeekendChart stats={weekdayWeekend} />
+                <SalaryEstimator dailyCosts={dailyCostPoints} />
+              </div>
             </DashboardSegment>
           )}
         </>
