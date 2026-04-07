@@ -8,32 +8,11 @@ import { NextResponse } from "next/server";
 import { resolveUser } from "@/lib/auth-helpers";
 import { getDbRead } from "@/lib/db";
 import { isAdmin } from "@/lib/admin";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface ShowcaseRow {
-  id: string;
-  user_id: string;
-  repo_key: string;
-  github_url: string;
-  title: string;
-  description: string | null;
-  tagline: string | null;
-  og_image_url: string | null;
-  is_public: number;
-  created_at: string;
-  refreshed_at: string;
-  // Joined user fields (admin includes email)
-  user_name: string | null;
-  user_nickname: string | null;
-  user_image: string | null;
-  user_slug: string | null;
-  user_email: string;
-  // Computed
-  upvote_count: number;
-}
+import {
+  type AdminShowcaseRow,
+  DEFAULT_ADMIN_SHOWCASE_LIMIT,
+  MAX_ADMIN_SHOWCASE_LIMIT,
+} from "@/lib/showcase-types";
 
 // ---------------------------------------------------------------------------
 // GET — admin list all showcases
@@ -52,7 +31,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const isPublicParam = url.searchParams.get("is_public");
   const userIdParam = url.searchParams.get("user_id");
-  const limit = Math.min(parseInt(url.searchParams.get("limit") || "50", 10), 200);
+  const limit = Math.min(parseInt(url.searchParams.get("limit") || String(DEFAULT_ADMIN_SHOWCASE_LIMIT), 10), MAX_ADMIN_SHOWCASE_LIMIT);
   const offset = parseInt(url.searchParams.get("offset") || "0", 10);
 
   const dbRead = await getDbRead();
@@ -95,7 +74,7 @@ export async function GET(request: Request) {
       ORDER BY s.created_at DESC, s.id DESC
       LIMIT ? OFFSET ?
     `;
-    const { results } = await dbRead.query<ShowcaseRow>(query, [
+    const { results } = await dbRead.query<AdminShowcaseRow>(query, [
       ...params,
       limit,
       offset,

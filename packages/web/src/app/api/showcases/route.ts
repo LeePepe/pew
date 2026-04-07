@@ -15,32 +15,12 @@ import {
   gitHubErrorToStatus,
   gitHubErrorMessage,
 } from "@/lib/github";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface ShowcaseRow {
-  id: string;
-  user_id: string;
-  repo_key: string;
-  github_url: string;
-  title: string;
-  description: string | null;
-  tagline: string | null;
-  og_image_url: string | null;
-  is_public: number;
-  created_at: string;
-  refreshed_at: string;
-  // Joined user fields
-  user_name: string | null;
-  user_nickname: string | null;
-  user_image: string | null;
-  user_slug: string | null;
-  // Computed
-  upvote_count: number;
-  has_upvoted?: number;
-}
+import {
+  type ShowcaseRow,
+  MAX_TAGLINE_LENGTH,
+  DEFAULT_SHOWCASE_LIMIT,
+  MAX_SHOWCASE_LIMIT,
+} from "@/lib/showcase-types";
 
 // ---------------------------------------------------------------------------
 // GET — list showcases
@@ -49,7 +29,7 @@ interface ShowcaseRow {
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const mine = url.searchParams.get("mine") === "1";
-  const limit = Math.min(parseInt(url.searchParams.get("limit") || "20", 10), 100);
+  const limit = Math.min(parseInt(url.searchParams.get("limit") || String(DEFAULT_SHOWCASE_LIMIT), 10), MAX_SHOWCASE_LIMIT);
   const offset = parseInt(url.searchParams.get("offset") || "0", 10);
 
   // Auth check for mine=1
@@ -208,9 +188,9 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    if (tagline.length > 280) {
+    if (tagline.length > MAX_TAGLINE_LENGTH) {
       return NextResponse.json(
-        { error: "tagline must be 280 characters or less" },
+        { error: `tagline must be ${MAX_TAGLINE_LENGTH} characters or less` },
         { status: 400 }
       );
     }
