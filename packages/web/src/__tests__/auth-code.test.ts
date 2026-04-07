@@ -76,7 +76,7 @@ describe("POST /api/auth/code", () => {
     expect(diffMinutes).toBeLessThanOrEqual(5);
   });
 
-  it("should invalidate previous unused codes AFTER successful insert", async () => {
+  it("should NOT invalidate other codes (avoids concurrent request race condition)", async () => {
     mockResolveUser.mockResolvedValue({
       userId: "user-123",
       email: "test@example.com",
@@ -94,24 +94,12 @@ describe("POST /api/auth/code", () => {
 
     await POST(request);
 
-    // First call should INSERT new code
-    expect(mockExecute).toHaveBeenNthCalledWith(
-      1,
+    // Should only have ONE call (INSERT) - no UPDATE to invalidate other codes
+    expect(mockExecute).toHaveBeenCalledTimes(1);
+    expect(mockExecute).toHaveBeenCalledWith(
       expect.stringContaining("INSERT INTO auth_codes"),
       expect.arrayContaining(["user-123"])
     );
-
-    // Second call should invalidate OTHER codes (after successful insert)
-    expect(mockExecute).toHaveBeenNthCalledWith(
-      2,
-      expect.stringContaining("UPDATE auth_codes"),
-      expect.arrayContaining(["user-123"])
-    );
-
-    // The UPDATE should exclude the newly inserted code
-    const secondCall = mockExecute.mock.calls[1] as [string, unknown[]] | undefined;
-    expect(secondCall).toBeDefined();
-    expect(secondCall![0]).toContain("code != ?");
   });
 
   it("should return 500 on database error", async () => {

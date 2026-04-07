@@ -69,14 +69,11 @@ export async function POST(request: Request) {
       }
     }
 
-    // 3. Invalidate any OTHER existing unused codes for this user (after successful insert)
-    // This ensures the user always has at least one valid code (the new one we just created)
-    await dbWrite.execute(
-      `UPDATE auth_codes
-       SET used_at = datetime('now')
-       WHERE user_id = ? AND used_at IS NULL AND code != ?`,
-      [userId, code]
-    );
+    // Note: We intentionally do NOT invalidate other codes here.
+    // Doing so would create a race condition where concurrent requests
+    // could invalidate each other's newly-created codes.
+    // Old codes will expire naturally (5 minutes) and each code can
+    // only be used once, so having multiple valid codes is safe.
 
     return NextResponse.json({
       code,
