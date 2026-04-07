@@ -23,6 +23,12 @@ export interface GitHubMetadata {
   title: string;           // repo name for display
   description: string | null;
   fullName: string;        // "owner/repo" from API (current)
+  stars: number;           // stargazers_count
+  forks: number;           // forks_count
+  language: string | null; // primary language
+  license: string | null;  // license SPDX ID (e.g. "MIT")
+  topics: string[];        // repository topics/tags
+  homepage: string | null; // project homepage URL
 }
 
 export type GitHubErrorCode =
@@ -153,6 +159,12 @@ export async function fetchGitHubMetadata(
     title: data.name || `${owner}/${repo}`,
     description: data.description || null,
     fullName: data.full_name || `${owner}/${repo}`,
+    stars: data.stargazers_count ?? 0,
+    forks: data.forks_count ?? 0,
+    language: data.language || null,
+    license: data.license?.spdx_id || null,
+    topics: Array.isArray(data.topics) ? data.topics : [],
+    homepage: data.homepage || null,
   };
 }
 

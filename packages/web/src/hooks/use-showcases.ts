@@ -124,6 +124,12 @@ export interface ShowcasePreview {
   description: string | null;
   og_image_url: string;
   already_exists: boolean;
+  stars: number;
+  forks: number;
+  language: string | null;
+  license: string | null;
+  topics: string[];
+  homepage: string | null;
 }
 
 export interface UseShowcasePreviewResult {

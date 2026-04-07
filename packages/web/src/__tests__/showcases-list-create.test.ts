@@ -390,7 +390,7 @@ describe("POST /api/showcases", () => {
         name: "repo",
         title: "My Repo",
         description: "A cool project",
-        fullName: "owner/repo",
+        fullName: "owner/repo", stars: 0, forks: 0, language: null, license: null, topics: [], homepage: null,
       });
       mockBuildOgImageUrl.mockReturnValue("https://og.test/1/owner/repo");
     });
@@ -551,7 +551,7 @@ describe("POST /api/showcases", () => {
         name: "repo",
         title: "repo",
         description: null,
-        fullName: "owner/repo",
+        fullName: "owner/repo", stars: 0, forks: 0, language: null, license: null, topics: [], homepage: null,
       });
       mockBuildOgImageUrl.mockReturnValue("https://og.example.com/image");
       const mockDbRead = { firstOrNull: vi.fn().mockResolvedValue(null) };
@@ -578,7 +578,7 @@ describe("POST /api/showcases", () => {
         name: "repo",
         title: "repo",
         description: null,
-        fullName: "owner/repo",
+        fullName: "owner/repo", stars: 0, forks: 0, language: null, license: null, topics: [], homepage: null,
       });
       mockBuildOgImageUrl.mockReturnValue("https://og.example.com/image");
       const mockDbRead = { firstOrNull: vi.fn().mockResolvedValue(null) };

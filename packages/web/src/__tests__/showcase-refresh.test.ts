@@ -127,7 +127,7 @@ describe("POST /api/showcases/[id]/refresh", () => {
         name: "repo",
         title: "Updated Title",
         description: "New description",
-        fullName: "owner/repo",
+        fullName: "owner/repo", stars: 0, forks: 0, language: null, license: null, topics: [], homepage: null,
       });
       mockBuildOgImageUrl.mockReturnValue("https://og.test/1/owner/repo");
 
@@ -158,7 +158,7 @@ describe("POST /api/showcases/[id]/refresh", () => {
         name: "newrepo",
         title: "New Repo Name",
         description: "Desc",
-        fullName: "newowner/newrepo",
+        fullName: "newowner/newrepo", stars: 0, forks: 0, language: null, license: null, topics: [], homepage: null,
       });
       mockBuildOgImageUrl.mockReturnValue("https://og.test/1/newowner/newrepo");
 
@@ -184,6 +184,7 @@ describe("POST /api/showcases/[id]/refresh", () => {
         title: "Existing",
         description: null,
         fullName: "existing/repo",
+        stars: 0, forks: 0, language: null, license: null, topics: [], homepage: null,
       });
 
       const res = await POST(createRequest(), createContext());
@@ -279,7 +280,7 @@ describe("POST /api/showcases/[id]/refresh", () => {
         name: "repo",
         title: "Title",
         description: null,
-        fullName: "owner/repo",
+        fullName: "owner/repo", stars: 0, forks: 0, language: null, license: null, topics: [], homepage: null,
       });
       mockBuildOgImageUrl.mockReturnValue("https://og.test/1/owner/repo");
 
@@ -303,7 +304,7 @@ describe("POST /api/showcases/[id]/refresh", () => {
         name: "newrepo",
         title: "New",
         description: null,
-        fullName: "newowner/newrepo",
+        fullName: "newowner/newrepo", stars: 0, forks: 0, language: null, license: null, topics: [], homepage: null,
       });
 
       const res = await POST(createRequest(), createContext());

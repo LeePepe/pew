@@ -6,14 +6,41 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { Dialog } from "radix-ui";
-import { X, Loader2, ExternalLink, AlertCircle } from "lucide-react";
+import { X, Loader2, ExternalLink, AlertCircle, Star, GitFork, Code, Scale } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ShowcaseImage } from "./showcase-image";
-import { useShowcasePreview, type ShowcasePreview } from "@/hooks/use-showcases";
+import { useShowcasePreview } from "@/hooks/use-showcases";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
+}
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+// Display data for preview card (edit mode doesn't have GitHub stats)
+type DisplayData = {
+  repo_key: string;
+  github_url: string;
+  title: string;
+  description: string | null;
+  og_image_url: string;
+  already_exists: boolean;
+  // Optional GitHub stats (only present from preview fetch)
+  stars?: number;
+  forks?: number;
+  language?: string | null;
+  license?: string | null;
+  topics?: string[];
+  homepage?: string | null;
+};
 
 interface ShowcaseFormModalProps {
   open: boolean;
@@ -172,7 +199,7 @@ export function ShowcaseFormModal({
   }, [editMode, editData, githubUrl, tagline, isPublic, onSuccess, onOpenChange]);
 
   // Computed display data
-  const displayData: ShowcasePreview | null = editMode && editData
+  const displayData: DisplayData | null = editMode && editData
     ? {
         repo_key: editData.repo_key,
         github_url: editData.github_url,
@@ -288,6 +315,36 @@ export function ShowcaseFormModal({
                     <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">
                       {displayData.description}
                     </p>
+                  )}
+
+                  {/* GitHub stats badges */}
+                  {displayData.stars !== undefined && (
+                    <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                      {displayData.stars > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                          <Star className="h-2.5 w-2.5" />
+                          {formatCount(displayData.stars)}
+                        </span>
+                      )}
+                      {displayData.forks !== undefined && displayData.forks > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/15 px-2 py-0.5 text-[10px] font-medium text-blue-600 dark:text-blue-400">
+                          <GitFork className="h-2.5 w-2.5" />
+                          {formatCount(displayData.forks)}
+                        </span>
+                      )}
+                      {displayData.language && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/15 px-2 py-0.5 text-[10px] font-medium text-purple-600 dark:text-purple-400">
+                          <Code className="h-2.5 w-2.5" />
+                          {displayData.language}
+                        </span>
+                      )}
+                      {displayData.license && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2 py-0.5 text-[10px] font-medium text-green-600 dark:text-green-400">
+                          <Scale className="h-2.5 w-2.5" />
+                          {displayData.license}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

@@ -5,7 +5,7 @@
 "use client";
 
 import Link from "next/link";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Github } from "lucide-react";
 import { ShowcaseImage } from "./showcase-image";
 import { UpvoteButton } from "./upvote-button";
 import type { Showcase } from "@/hooks/use-showcases";
@@ -18,6 +18,7 @@ interface ShowcaseCardProps {
 
 export function ShowcaseCard({ showcase, isLoggedIn, onLoginRequired }: ShowcaseCardProps) {
   const displayName = showcase.user.nickname || showcase.user.name || "Anonymous";
+  const githubOwner = showcase.repo_key.split("/")[0];
 
   return (
     <article className="group relative flex gap-4 rounded-xl bg-secondary p-4 transition-all hover:bg-secondary/80">
@@ -69,25 +70,40 @@ export function ShowcaseCard({ showcase, isLoggedIn, onLoginRequired }: Showcase
           )}
         </div>
 
-        {/* Footer: Submitter */}
-        <div className="mt-2 flex items-center gap-2">
-          {showcase.user.image ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={showcase.user.image}
-              alt={displayName}
-              className="h-5 w-5 rounded-full"
-            />
-          ) : (
-            <div className="h-5 w-5 rounded-full bg-accent flex items-center justify-center">
-              <span className="text-[10px] font-medium text-muted-foreground">
-                {displayName.charAt(0).toUpperCase()}
-              </span>
-            </div>
-          )}
-          <span className="text-xs text-muted-foreground truncate">
-            {displayName}
-          </span>
+        {/* Footer: Submitter + GitHub owner */}
+        <div className="mt-2 flex items-center gap-3">
+          {/* Pew user */}
+          <div className="flex items-center gap-1.5">
+            {showcase.user.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={showcase.user.image}
+                alt={displayName}
+                className="h-5 w-5 rounded-full"
+              />
+            ) : (
+              <div className="h-5 w-5 rounded-full bg-accent flex items-center justify-center">
+                <span className="text-[10px] font-medium text-muted-foreground">
+                  {displayName.charAt(0).toUpperCase()}
+                </span>
+              </div>
+            )}
+            <span className="text-xs text-muted-foreground truncate">
+              {displayName}
+            </span>
+          </div>
+
+          {/* GitHub owner */}
+          <a
+            href={`https://github.com/${githubOwner}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            title={`View ${githubOwner} on GitHub`}
+          >
+            <Github className="h-3.5 w-3.5" />
+            <span className="truncate max-w-[100px]">{githubOwner}</span>
+          </a>
         </div>
       </div>
 

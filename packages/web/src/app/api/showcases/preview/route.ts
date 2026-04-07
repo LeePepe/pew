@@ -58,10 +58,22 @@ export async function POST(request: Request) {
   // Fetch metadata from GitHub
   let title: string;
   let description: string | null;
+  let stars: number;
+  let forks: number;
+  let language: string | null;
+  let license: string | null;
+  let topics: string[];
+  let homepage: string | null;
   try {
     const metadata = await fetchGitHubMetadata(owner, repo);
     title = metadata.title;
     description = metadata.description;
+    stars = metadata.stars;
+    forks = metadata.forks;
+    language = metadata.language;
+    license = metadata.license;
+    topics = metadata.topics;
+    homepage = metadata.homepage;
   } catch (err) {
     if (err instanceof GitHubError) {
       return NextResponse.json(
@@ -104,5 +116,11 @@ export async function POST(request: Request) {
     description,
     og_image_url: buildOgImageUrl(owner, repo),
     already_exists: alreadyExists,
+    stars,
+    forks,
+    language,
+    license,
+    topics,
+    homepage,
   });
 }

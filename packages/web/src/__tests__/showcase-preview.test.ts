@@ -171,6 +171,12 @@ describe("POST /api/showcases/preview", () => {
         title: "My Repo",
         description: "A cool project",
         fullName: "owner/repo",
+        stars: 100,
+        forks: 10,
+        language: "TypeScript",
+        license: "MIT",
+        topics: ["test"],
+        homepage: null,
       });
       mockBuildOgImageUrl.mockReturnValue("https://opengraph.githubassets.com/1/owner/repo");
     });
