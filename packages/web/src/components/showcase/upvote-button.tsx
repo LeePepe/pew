@@ -14,6 +14,7 @@ interface UpvoteButtonProps {
   initialUpvoted: boolean | null;
   isLoggedIn: boolean;
   onLoginRequired?: (() => void) | undefined;
+  onUpvoteChange?: (() => void) | undefined;
   disabled?: boolean;
 }
 
@@ -23,6 +24,7 @@ export function UpvoteButton({
   initialUpvoted,
   isLoggedIn,
   onLoginRequired,
+  onUpvoteChange,
   disabled = false,
 }: UpvoteButtonProps) {
   const [count, setCount] = useState(initialCount);
@@ -66,6 +68,8 @@ export function UpvoteButton({
       // Sync with server state
       setUpvoted(data.upvoted);
       setCount(data.upvote_count);
+      // Notify parent to refetch for sorting
+      onUpvoteChange?.();
     } catch {
       // Rollback on network error
       setUpvoted(prevUpvoted);
@@ -73,7 +77,7 @@ export function UpvoteButton({
     } finally {
       setLoading(false);
     }
-  }, [showcaseId, count, upvoted, loading, disabled, isLoggedIn, onLoginRequired]);
+  }, [showcaseId, count, upvoted, loading, disabled, isLoggedIn, onLoginRequired, onUpvoteChange]);
 
   return (
     <button

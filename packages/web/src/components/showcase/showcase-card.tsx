@@ -21,9 +21,10 @@ interface ShowcaseCardProps {
   showcase: Showcase;
   isLoggedIn: boolean;
   onLoginRequired?: () => void;
+  onUpvoteChange?: () => void;
 }
 
-export function ShowcaseCard({ showcase, isLoggedIn, onLoginRequired }: ShowcaseCardProps) {
+export function ShowcaseCard({ showcase, isLoggedIn, onLoginRequired, onUpvoteChange }: ShowcaseCardProps) {
   const displayName = showcase.user.nickname || showcase.user.name || "Anonymous";
   const githubOwner = showcase.repo_key.split("/")[0];
 
@@ -150,6 +151,7 @@ export function ShowcaseCard({ showcase, isLoggedIn, onLoginRequired }: Showcase
           initialUpvoted={showcase.has_upvoted}
           isLoggedIn={isLoggedIn}
           onLoginRequired={onLoginRequired}
+          onUpvoteChange={onUpvoteChange}
         />
       </div>
     </article>

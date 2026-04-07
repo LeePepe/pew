@@ -98,7 +98,7 @@ export async function GET(request: Request) {
           FROM showcases s
           JOIN users u ON u.id = s.user_id
           WHERE s.is_public = 1
-          ORDER BY s.created_at DESC, s.id DESC
+          ORDER BY upvote_count DESC, s.created_at DESC, s.id DESC
           LIMIT ? OFFSET ?
         `;
         const { results } = await dbRead.query<ShowcaseRow>(query, [user.userId, limit, offset]);
@@ -115,7 +115,7 @@ export async function GET(request: Request) {
           FROM showcases s
           JOIN users u ON u.id = s.user_id
           WHERE s.is_public = 1
-          ORDER BY s.created_at DESC, s.id DESC
+          ORDER BY upvote_count DESC, s.created_at DESC, s.id DESC
           LIMIT ? OFFSET ?
         `;
         const { results } = await dbRead.query<ShowcaseRow>(query, [limit, offset]);

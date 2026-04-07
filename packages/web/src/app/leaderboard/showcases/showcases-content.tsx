@@ -121,6 +121,7 @@ export function ShowcasesContent({ isLoggedIn }: ShowcasesContentProps) {
             showcase={showcase}
             isLoggedIn={isLoggedIn}
             onLoginRequired={handleLoginRequired}
+            onUpvoteChange={refetch}
           />
         ))}
       </div>
