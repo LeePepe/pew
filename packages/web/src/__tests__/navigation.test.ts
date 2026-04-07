@@ -37,11 +37,11 @@ describe("sidebar navigation", () => {
       expect(teamsItem!.href).toBe("/teams");
     });
 
-    it("General should link to /settings", () => {
+    it("General should link to /settings/general", () => {
       const settingsGroup = BASE_NAV_GROUPS.find((g) => g.label === "Settings")!;
       const generalItem = settingsGroup.items.find((i) => i.label === "General");
       expect(generalItem).toBeDefined();
-      expect(generalItem!.href).toBe("/settings");
+      expect(generalItem!.href).toBe("/settings/general");
     });
 
     it("should contain all expected nav items across groups", () => {
@@ -58,7 +58,8 @@ describe("sidebar navigation", () => {
       expect(allHrefs).toContain("/teams");
       expect(allHrefs).toContain("/manage-projects");
       expect(allHrefs).toContain("/manage-devices");
-      expect(allHrefs).toContain("/settings");
+      expect(allHrefs).toContain("/settings/general");
+      expect(allHrefs).toContain("/settings/showcases");
     });
 
     it("should mark leaderboard as external", () => {
@@ -187,8 +188,12 @@ describe("sidebar navigation", () => {
 // ---------------------------------------------------------------------------
 
 describe("route labels", () => {
-  it("should map settings to General", () => {
-    expect(ROUTE_LABELS["settings"]).toBe("General");
+  it("should map settings to Settings", () => {
+    expect(ROUTE_LABELS["settings"]).toBe("Settings");
+  });
+
+  it("should map general to General", () => {
+    expect(ROUTE_LABELS["general"]).toBe("General");
   });
 
   it("should map teams to Teams", () => {
@@ -206,7 +211,8 @@ describe("route labels", () => {
   it("should include all expected routes", () => {
     expect(ROUTE_LABELS).toEqual({
       dashboard: "Dashboard",
-      settings: "General",
+      settings: "Settings",
+      general: "General",
       teams: "Teams",
       projects: "Projects",
       "manage-projects": "Projects",
@@ -232,10 +238,11 @@ describe("breadcrumbsFromPathname", () => {
     expect(breadcrumbsFromPathname("/")).toEqual([{ label: "Home", href: "/dashboard" }]);
   });
 
-  it("should return breadcrumbs for /settings", () => {
-    const crumbs = breadcrumbsFromPathname("/settings");
+  it("should return breadcrumbs for /settings/general", () => {
+    const crumbs = breadcrumbsFromPathname("/settings/general");
     expect(crumbs).toEqual([
       { label: "Home", href: "/dashboard" },
+      { label: "Settings", href: "/settings" },
       { label: "General" },
     ]);
   });
