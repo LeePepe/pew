@@ -336,4 +336,208 @@ describe("executeLogin", () => {
     expect(parsed.searchParams.get("state")).toBe(FIXED_NONCE);
     expect(parsed.searchParams.get("callback")).toBeTruthy();
   });
+
+  // ---- Code-based login (headless) ----
+
+  describe("code-based login", () => {
+    it("should authenticate successfully with valid code", async () => {
+      const mockFetch = async (url: string, init?: RequestInit) => {
+        expect(url).toBe("http://localhost:7020/api/auth/code/verify");
+        expect(init?.method).toBe("POST");
+        const body = JSON.parse(init?.body as string);
+        expect(body.code).toBe("ABCD-1234");
+
+        return new Response(JSON.stringify({
+          api_key: "pk_from_code",
+          email: "headless@example.com",
+        }), { status: 200 });
+      };
+
+      const result = await executeLogin({
+        configDir: tempDir,
+        apiUrl: "http://localhost:7020",
+        code: "ABCD-1234",
+        fetch: mockFetch as typeof globalThis.fetch,
+        openBrowser: async () => {
+          throw new Error("Should not open browser");
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.email).toBe("headless@example.com");
+
+      // Verify config was saved
+      const config = JSON.parse(
+        await readFile(join(tempDir, "config.json"), "utf-8")
+      );
+      expect(config.token).toBe("pk_from_code");
+    });
+
+    it("should fail with invalid code", async () => {
+      const mockFetch = async () => {
+        return new Response(JSON.stringify({
+          error: "Invalid code",
+        }), { status: 401 });
+      };
+
+      const result = await executeLogin({
+        configDir: tempDir,
+        apiUrl: "http://localhost:7020",
+        code: "INVALID",
+        fetch: mockFetch as typeof globalThis.fetch,
+        openBrowser: async () => {
+          throw new Error("Should not open browser");
+        },
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("Invalid code");
+    });
+
+    it("should fail with expired code", async () => {
+      const mockFetch = async () => {
+        return new Response(JSON.stringify({
+          error: "Code expired",
+        }), { status: 401 });
+      };
+
+      const result = await executeLogin({
+        configDir: tempDir,
+        apiUrl: "http://localhost:7020",
+        code: "EXPIRED",
+        fetch: mockFetch as typeof globalThis.fetch,
+        openBrowser: async () => {
+          throw new Error("Should not open browser");
+        },
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("Code expired");
+    });
+
+    it("should fail with already-used code", async () => {
+      const mockFetch = async () => {
+        return new Response(JSON.stringify({
+          error: "Code already used",
+        }), { status: 401 });
+      };
+
+      const result = await executeLogin({
+        configDir: tempDir,
+        apiUrl: "http://localhost:7020",
+        code: "USED",
+        fetch: mockFetch as typeof globalThis.fetch,
+        openBrowser: async () => {
+          throw new Error("Should not open browser");
+        },
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("Code already used");
+    });
+
+    it("should handle network errors gracefully", async () => {
+      const mockFetch = async () => {
+        throw new Error("Network unreachable");
+      };
+
+      const result = await executeLogin({
+        configDir: tempDir,
+        apiUrl: "http://localhost:7020",
+        code: "ABCD-1234",
+        fetch: mockFetch as typeof globalThis.fetch,
+        openBrowser: async () => {
+          throw new Error("Should not open browser");
+        },
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("Network unreachable");
+    });
+
+    it("should skip browser flow when code is provided", async () => {
+      let browserOpened = false;
+
+      const mockFetch = async () => {
+        return new Response(JSON.stringify({
+          api_key: "pk_code_only",
+          email: "code@example.com",
+        }), { status: 200 });
+      };
+
+      const result = await executeLogin({
+        configDir: tempDir,
+        apiUrl: "http://localhost:7020",
+        code: "ABCD-5678",
+        fetch: mockFetch as typeof globalThis.fetch,
+        openBrowser: async () => {
+          browserOpened = true;
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(browserOpened).toBe(false);
+    });
+
+    it("should still check existing login before code auth", async () => {
+      // Pre-save a config
+      const { writeFile, mkdir } = await import("node:fs/promises");
+      await mkdir(tempDir, { recursive: true });
+      await writeFile(
+        join(tempDir, "config.json"),
+        JSON.stringify({ token: "pk_existing" })
+      );
+
+      const result = await executeLogin({
+        configDir: tempDir,
+        apiUrl: "http://localhost:7020",
+        code: "ABCD-1234",
+        fetch: async () => {
+          throw new Error("Should not call fetch");
+        },
+        openBrowser: async () => {
+          throw new Error("Should not open browser");
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.alreadyLoggedIn).toBe(true);
+    });
+
+    it("should allow code login with force=true even when already logged in", async () => {
+      // Pre-save a config
+      const { writeFile, mkdir } = await import("node:fs/promises");
+      await mkdir(tempDir, { recursive: true });
+      await writeFile(
+        join(tempDir, "config.json"),
+        JSON.stringify({ token: "pk_old" })
+      );
+
+      const mockFetch = async () => {
+        return new Response(JSON.stringify({
+          api_key: "pk_new_from_code",
+          email: "new@example.com",
+        }), { status: 200 });
+      };
+
+      const result = await executeLogin({
+        configDir: tempDir,
+        apiUrl: "http://localhost:7020",
+        code: "ABCD-9999",
+        force: true,
+        fetch: mockFetch as typeof globalThis.fetch,
+        openBrowser: async () => {
+          throw new Error("Should not open browser");
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.email).toBe("new@example.com");
+
+      const config = JSON.parse(
+        await readFile(join(tempDir, "config.json"), "utf-8")
+      );
+      expect(config.token).toBe("pk_new_from_code");
+    });
+  });
 });

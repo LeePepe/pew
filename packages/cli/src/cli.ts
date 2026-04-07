@@ -354,7 +354,7 @@ const statusCommand = defineCommand({
 const loginCommand = defineCommand({
   meta: {
     name: "login",
-    description: "Connect your CLI to the pew dashboard via browser OAuth",
+    description: "Connect your CLI to the pew dashboard via browser OAuth or one-time code",
   },
   args: {
     force: {
@@ -367,12 +367,22 @@ const loginCommand = defineCommand({
       description: "Use the dev host (pew.dev.hexly.ai)",
       default: false,
     },
+    code: {
+      type: "string",
+      description: "One-time code from web UI (for headless login)",
+      required: false,
+    },
   },
   async run({ args }) {
     const paths = resolveDefaultPaths();
     const dev = isDevMode();
     const host = resolveHost(dev);
-    log.start("Opening browser for authentication...");
+
+    if (args.code) {
+      log.start("Verifying authentication code...");
+    } else {
+      log.start("Opening browser for authentication...");
+    }
 
     const result = await executeLogin({
       configDir: paths.stateDir,
@@ -380,6 +390,7 @@ const loginCommand = defineCommand({
       dev,
       force: args.force,
       openBrowser,
+      code: args.code,
     });
 
     if (result.alreadyLoggedIn) {

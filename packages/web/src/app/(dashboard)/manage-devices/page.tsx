@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Monitor, Info, Trash2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Monitor, Info, Trash2, Terminal, Copy, Check, X } from "lucide-react";
 import { cn, formatTokens } from "@/lib/utils";
 import { sourceLabel } from "@/hooks/use-usage-data";
 import { deviceLabel, shortDeviceId } from "@/lib/device-helpers";
@@ -253,11 +253,206 @@ function DeviceCard({
 }
 
 // ---------------------------------------------------------------------------
+// Auth Code Modal
+// ---------------------------------------------------------------------------
+
+function AuthCodeModal({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const [authCode, setAuthCode] = useState<string | null>(null);
+  const [authCodeExpiresAt, setAuthCodeExpiresAt] = useState<Date | null>(null);
+  const [authCodeRemaining, setAuthCodeRemaining] = useState<number>(0);
+  const [generatingCode, setGeneratingCode] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  // Open/close dialog element
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    if (open) {
+      dialog.showModal();
+    } else {
+      dialog.close();
+    }
+  }, [open]);
+
+  // Reset state when modal closes
+  useEffect(() => {
+    if (!open) {
+      setAuthCode(null);
+      setAuthCodeExpiresAt(null);
+      setAuthCodeRemaining(0);
+      setCopiedCode(false);
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current);
+        countdownRef.current = null;
+      }
+    }
+  }, [open]);
+
+  // Countdown timer for auth code
+  useEffect(() => {
+    if (!authCodeExpiresAt) return;
+
+    const updateRemaining = () => {
+      const remaining = Math.max(0, Math.floor((authCodeExpiresAt.getTime() - Date.now()) / 1000));
+      setAuthCodeRemaining(remaining);
+      if (remaining === 0) {
+        setAuthCode(null);
+        setAuthCodeExpiresAt(null);
+        if (countdownRef.current) {
+          clearInterval(countdownRef.current);
+          countdownRef.current = null;
+        }
+      }
+    };
+
+    updateRemaining();
+    countdownRef.current = setInterval(updateRemaining, 1000);
+
+    return () => {
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current);
+        countdownRef.current = null;
+      }
+    };
+  }, [authCodeExpiresAt]);
+
+  const handleGenerateAuthCode = async () => {
+    setGeneratingCode(true);
+    setCopiedCode(false);
+
+    try {
+      const res = await fetch("/api/auth/code", {
+        method: "POST",
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setAuthCode(data.code);
+        setAuthCodeExpiresAt(new Date(data.expires_at));
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setGeneratingCode(false);
+    }
+  };
+
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDialogElement>) => {
+    // Close when clicking the backdrop (the dialog element itself, not content)
+    if (e.target === dialogRef.current) {
+      onClose();
+    }
+  };
+
+  return (
+    <dialog
+      ref={dialogRef}
+      onClick={handleBackdropClick}
+      onCancel={onClose}
+      className="backdrop:bg-black/50 bg-transparent p-4 max-w-md w-full"
+    >
+      <div className="rounded-xl bg-background border border-border p-5 space-y-4 shadow-lg">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Terminal className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
+            <h3 className="text-sm font-medium text-foreground">CLI Login Code</h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          >
+            <X className="h-4 w-4" strokeWidth={1.5} />
+          </button>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Generate a one-time code to authenticate the pew CLI on a headless machine (no browser).
+        </p>
+
+        {authCode ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <code className="flex-1 rounded-lg border border-border bg-secondary px-4 py-3 text-center font-mono text-lg font-semibold tracking-widest text-foreground">
+                {authCode}
+              </code>
+              <button
+                type="button"
+                onClick={async () => {
+                  await navigator.clipboard.writeText(authCode);
+                  setCopiedCode(true);
+                  setTimeout(() => setCopiedCode(false), 2000);
+                }}
+                className="flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-secondary text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0"
+                title="Copy code"
+              >
+                {copiedCode ? (
+                  <Check className="h-4 w-4 text-success" strokeWidth={1.5} />
+                ) : (
+                  <Copy className="h-4 w-4" strokeWidth={1.5} />
+                )}
+              </button>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Expires in{" "}
+              <span className={cn(
+                "font-mono font-medium",
+                authCodeRemaining <= 60 ? "text-destructive" : "text-foreground"
+              )}>
+                {Math.floor(authCodeRemaining / 60)}:{String(authCodeRemaining % 60).padStart(2, "0")}
+              </span>
+            </p>
+
+            <div className="rounded-lg border border-border bg-secondary p-3">
+              <p className="text-[10px] text-muted-foreground mb-1">On your machine, run:</p>
+              <code className="text-xs font-mono text-foreground">pew login --code {authCode}</code>
+            </div>
+
+            <button
+              onClick={handleGenerateAuthCode}
+              disabled={generatingCode}
+              className={cn(
+                "w-full rounded-lg border border-border bg-secondary px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground hover:bg-accent",
+                generatingCode && "opacity-50 cursor-not-allowed",
+              )}
+            >
+              Generate New Code
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={handleGenerateAuthCode}
+            disabled={generatingCode}
+            className={cn(
+              "w-full rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90",
+              generatingCode && "opacity-50 cursor-not-allowed",
+            )}
+          >
+            {generatingCode ? "Generating..." : "Generate Code"}
+          </button>
+        )}
+      </div>
+    </dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main Page
 // ---------------------------------------------------------------------------
 
 export default function ManageDevicesPage() {
   const { data, loading, error, updateAlias, deleteDevice } = useDevices();
+  const [showAuthCodeModal, setShowAuthCodeModal] = useState(false);
 
   // ---------------------------------------------------------------------------
   // Render
@@ -289,12 +484,27 @@ export default function ManageDevicesPage() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold font-display">Devices</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Manage your synced devices and set aliases.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold font-display">Devices</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manage your synced devices and set aliases.
+          </p>
+        </div>
+        <button
+          onClick={() => setShowAuthCodeModal(true)}
+          className="flex items-center gap-2 rounded-lg bg-secondary border border-border px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0"
+        >
+          <Terminal className="h-3.5 w-3.5" strokeWidth={1.5} />
+          CLI Login Code
+        </button>
       </div>
+
+      {/* Auth Code Modal */}
+      <AuthCodeModal
+        open={showAuthCodeModal}
+        onClose={() => setShowAuthCodeModal(false)}
+      />
 
       {/* Error */}
       {error && (
