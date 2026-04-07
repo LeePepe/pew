@@ -216,13 +216,14 @@ describe("GET /api/leaderboard", () => {
       expect(sqlCall[1]).toContain("team-abc");
     });
 
-    it("should not include is_public when team is set", async () => {
+    it("should include is_public filter even when team is set (opt-out respected)", async () => {
       mockClient.query.mockResolvedValueOnce({ results: [] });
 
       await GET(makeGetRequest("/api/leaderboard", { team: "team-abc" }));
 
       const sqlCall = mockClient.query.mock.calls[0]!;
-      expect(sqlCall[0]).not.toContain("u.is_public");
+      // Team filter still respects user opt-out
+      expect(sqlCall[0]).toContain("u.is_public = 1");
     });
   });
 

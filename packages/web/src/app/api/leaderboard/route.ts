@@ -130,6 +130,10 @@ export async function GET(request: Request) {
     teamJoin = "JOIN team_members tm ON tm.user_id = ur.user_id";
     conditions.push("tm.team_id = ?");
     params.push(teamId);
+    // Team leaderboard still respects user opt-out unless admin mode
+    if (!isAdminMode) {
+      conditions.push("u.is_public = 1");
+    }
   } else if (!isAdminMode) {
     // Public leaderboard only shows users who opted in
     conditions.push("u.is_public = 1");
