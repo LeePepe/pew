@@ -58,7 +58,7 @@ export const BASE_NAV_GROUPS: NavGroupDef[] = [
       { href: "/manage-projects", label: "Projects", icon: "FolderKanban" },
       { href: "/manage-devices", label: "Devices", icon: "MonitorSmartphone" },
       { href: "/settings/showcases", label: "Showcases", icon: "Star" },
-      { href: "/settings", label: "General", icon: "Settings" },
+      { href: "/settings/general", label: "General", icon: "Settings" },
     ],
   },
 ];
@@ -85,7 +85,8 @@ export function getNavGroups(isAdmin: boolean): NavGroupDef[] {
 
 export const ROUTE_LABELS: Record<string, string> = {
   dashboard: "Dashboard",
-  settings: "General",
+  settings: "Settings",
+  general: "General",
   teams: "Teams",
   projects: "Projects",
   "manage-projects": "Projects",
