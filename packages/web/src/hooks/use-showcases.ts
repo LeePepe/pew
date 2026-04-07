@@ -4,7 +4,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -67,8 +67,12 @@ export function useShowcases(options: UseShowcasesOptions = {}): UseShowcasesRes
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Track whether we have data to determine loading vs refreshing
+  const hasDataRef = useRef(false);
+
   const fetchData = useCallback(async () => {
-    if (data === null) {
+    // Use ref to check if we have data (avoids data in deps)
+    if (!hasDataRef.current) {
       setLoading(true);
     } else {
       setRefreshing(true);
@@ -91,18 +95,20 @@ export function useShowcases(options: UseShowcasesOptions = {}): UseShowcasesRes
 
       const json = (await res.json()) as ShowcasesResponse;
       setData(json);
+      hasDataRef.current = true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [mine, limit, offset, data]);
+  }, [mine, limit, offset]);
 
   useEffect(() => {
+    // Reset hasDataRef when params change to show loading state
+    hasDataRef.current = false;
     fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mine, limit, offset]);
+  }, [fetchData]);
 
   return { data, loading, refreshing, error, refetch: fetchData };
 }
