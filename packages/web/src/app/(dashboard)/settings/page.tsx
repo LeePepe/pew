@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import {
   User,
   ExternalLink,
   Copy,
   Check,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -36,6 +37,11 @@ export default function SettingsPage() {
   const [isPublic, setIsPublic] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Delete account state
+  const [deleteConfirmEmail, setDeleteConfirmEmail] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const userName = session?.user?.name ?? "User";
   const userEmail = session?.user?.email ?? "";
@@ -118,6 +124,42 @@ export default function SettingsPage() {
       setSaveMessage({ type: "error", text: "Network error." });
     } finally {
       setSaving(false);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Delete account
+  // ---------------------------------------------------------------------------
+
+  const handleDeleteAccount = async () => {
+    if (!deleteConfirmEmail.trim()) {
+      setDeleteError("Please enter your email to confirm.");
+      return;
+    }
+
+    setDeleting(true);
+    setDeleteError(null);
+
+    try {
+      const res = await fetch("/api/account/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm_email: deleteConfirmEmail }),
+      });
+
+      if (res.ok) {
+        // Sign out and redirect to home
+        await signOut({ callbackUrl: "/" });
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setDeleteError(
+          (data as { error?: string }).error ?? "Failed to delete account.",
+        );
+      }
+    } catch {
+      setDeleteError("Network error.");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -286,6 +328,59 @@ export default function SettingsPage() {
                 )}
               >
                 {saveMessage.text}
+              </span>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <Separator />
+
+      {/* Danger Zone */}
+      <section>
+        <h2 className="flex items-center gap-2 text-sm font-medium text-destructive mb-3">
+          <AlertTriangle className="h-4 w-4" strokeWidth={1.5} />
+          Danger Zone
+        </h2>
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 space-y-4">
+          <div>
+            <p className="text-sm font-medium text-foreground">
+              Delete Account
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Permanently delete your account and all associated data. This action cannot be undone.
+              All your usage records, session history, projects, and team memberships will be removed.
+            </p>
+          </div>
+
+          <div>
+            <label htmlFor="confirm-email" className="block text-xs font-medium text-muted-foreground mb-1.5">
+              To confirm, type your email: <span className="font-mono text-foreground">{userEmail}</span>
+            </label>
+            <input
+              id="confirm-email"
+              type="email"
+              value={deleteConfirmEmail}
+              onChange={(e) => setDeleteConfirmEmail(e.target.value)}
+              placeholder="your-email@example.com"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-destructive/20 transition-shadow"
+            />
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleDeleteAccount}
+              disabled={deleting || deleteConfirmEmail.toLowerCase() !== userEmail.toLowerCase()}
+              className={cn(
+                "rounded-lg bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground transition-colors hover:bg-destructive/90",
+                (deleting || deleteConfirmEmail.toLowerCase() !== userEmail.toLowerCase()) && "opacity-50 cursor-not-allowed",
+              )}
+            >
+              {deleting ? "Deleting..." : "Delete My Account"}
+            </button>
+            {deleteError && (
+              <span className="text-xs text-destructive">
+                {deleteError}
               </span>
             )}
           </div>
