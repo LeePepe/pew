@@ -6,6 +6,11 @@ on:
   push:
     branches: [main]
 
+# Permissions required for osv-scanner SARIF upload
+permissions:
+  contents: read
+  security-events: write
+
 jobs:
   quality-gate:
     runs-on: ubuntu-latest
@@ -13,10 +18,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: latest
 
@@ -33,7 +38,7 @@ jobs:
         run: bun run build
 
       - name: G2a Dependency CVE Scan
-        uses: google/osv-scanner-action@v2
+        uses: google/osv-scanner-action@c51854704019a247608d928f370c98740469d4b5 # v2.3.5
         with:
           scan-args: |-
             --lockfile=bun.lock
