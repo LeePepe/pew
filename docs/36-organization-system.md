@@ -8,14 +8,14 @@
 
 | # | Commit | Description | Status |
 |---|--------|-------------|--------|
-| 1 | `docs: add organization system plan` | This document | |
-| 2 | `feat: add organizations migration` | `019-organizations.sql` | |
-| 3 | `feat: add organization types to @pew/core` | Org-related type definitions | |
-| 4 | `feat: add admin organizations CRUD API` | `GET/POST/PATCH/DELETE /api/admin/organizations` | |
-| 5 | `test: add L1 tests for admin organizations API` | Admin orgs CRUD unit tests | |
-| 6 | `feat: add organization logo upload` | `POST /api/admin/organizations/[orgId]/logo` | |
-| 7 | `feat: add admin organization members API` | `POST/DELETE /api/admin/organizations/[orgId]/members` | |
-| 8 | `feat: add admin organization management page` | `/admin/organizations` CRUD UI | |
+| 1 | `docs: add organization system plan` | This document | done |
+| 2 | `feat: add organizations migration` | `019-organizations.sql` | done |
+| 3 | `feat: add organization types to @pew/core` | Org-related type definitions | done |
+| 4 | `feat: add admin organizations CRUD API` | `GET/POST/PATCH/DELETE /api/admin/organizations` | done |
+| 5 | `test: add L1 tests for admin organizations API` | Admin orgs CRUD unit tests | done |
+| 6 | `feat: add organization logo upload` | `POST /api/admin/organizations/[orgId]/logo` | done |
+| 7 | `feat: add admin organization members API` | `POST/DELETE /api/admin/organizations/[orgId]/members` | done |
+| 8 | `feat: add admin organization management page` | `/admin/organizations` CRUD UI | done |
 | 9 | `feat: add user organization APIs` | List all orgs, list my orgs, view members, join, leave | |
 | 10 | `test: add L1 tests for user org APIs` | Join/leave/list unit tests | |
 | 11 | `feat: add organizations settings page` | `/settings/organizations` with join/leave UI | |
