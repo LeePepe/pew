@@ -191,6 +191,24 @@ describe("GET /api/organizations/mine", () => {
     const json = await res.json();
     expect(json.organizations).toEqual([]);
   });
+
+  it("should return 500 on unexpected error", async () => {
+    resolveUser.mockResolvedValueOnce(USER);
+    mockDbRead.query.mockRejectedValueOnce(new Error("DB connection failed"));
+
+    const res = await LIST_MINE(makeJsonRequest("GET", "/api/organizations/mine"));
+    expect(res.status).toBe(500);
+    const json = await res.json();
+    expect(json.error).toBe("Failed to list organizations");
+  });
+
+  it("should return 500 with empty msg when error is not Error instance", async () => {
+    resolveUser.mockResolvedValueOnce(USER);
+    mockDbRead.query.mockRejectedValueOnce("string error");
+
+    const res = await LIST_MINE(makeJsonRequest("GET", "/api/organizations/mine"));
+    expect(res.status).toBe(500);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -283,6 +301,28 @@ describe("GET /api/organizations/[orgId]/members", () => {
     });
     expect(res.status).toBe(503);
   });
+
+  it("should return 500 on unexpected error", async () => {
+    resolveUser.mockResolvedValueOnce(USER);
+    mockDbRead.firstOrNull.mockRejectedValueOnce(new Error("DB connection failed"));
+
+    const res = await LIST_MEMBERS(makeOrgRequest("GET", "org-1/members"), {
+      params: Promise.resolve({ orgId: "org-1" }),
+    });
+    expect(res.status).toBe(500);
+    const json = await res.json();
+    expect(json.error).toBe("Failed to list members");
+  });
+
+  it("should return 500 with generic message when error is not Error instance", async () => {
+    resolveUser.mockResolvedValueOnce(USER);
+    mockDbRead.firstOrNull.mockRejectedValueOnce("string error");
+
+    const res = await LIST_MEMBERS(makeOrgRequest("GET", "org-1/members"), {
+      params: Promise.resolve({ orgId: "org-1" }),
+    });
+    expect(res.status).toBe(500);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -361,6 +401,28 @@ describe("POST /api/organizations/[orgId]/join", () => {
     });
     expect(res.status).toBe(503);
   });
+
+  it("should return 500 on unexpected error", async () => {
+    resolveUser.mockResolvedValueOnce(USER);
+    mockDbRead.firstOrNull.mockRejectedValueOnce(new Error("DB connection failed"));
+
+    const res = await JOIN(makeOrgRequest("POST", "org-1/join"), {
+      params: Promise.resolve({ orgId: "org-1" }),
+    });
+    expect(res.status).toBe(500);
+    const json = await res.json();
+    expect(json.error).toBe("Failed to join organization");
+  });
+
+  it("should return 500 when error is not Error instance", async () => {
+    resolveUser.mockResolvedValueOnce(USER);
+    mockDbRead.firstOrNull.mockRejectedValueOnce("string error");
+
+    const res = await JOIN(makeOrgRequest("POST", "org-1/join"), {
+      params: Promise.resolve({ orgId: "org-1" }),
+    });
+    expect(res.status).toBe(500);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -436,5 +498,27 @@ describe("DELETE /api/organizations/[orgId]/leave", () => {
       params: Promise.resolve({ orgId: "org-1" }),
     });
     expect(res.status).toBe(503);
+  });
+
+  it("should return 500 on unexpected error", async () => {
+    resolveUser.mockResolvedValueOnce(USER);
+    mockDbRead.firstOrNull.mockRejectedValueOnce(new Error("DB connection failed"));
+
+    const res = await LEAVE(makeOrgRequest("DELETE", "org-1/leave"), {
+      params: Promise.resolve({ orgId: "org-1" }),
+    });
+    expect(res.status).toBe(500);
+    const json = await res.json();
+    expect(json.error).toBe("Failed to leave organization");
+  });
+
+  it("should return 500 when error is not Error instance", async () => {
+    resolveUser.mockResolvedValueOnce(USER);
+    mockDbRead.firstOrNull.mockRejectedValueOnce("string error");
+
+    const res = await LEAVE(makeOrgRequest("DELETE", "org-1/leave"), {
+      params: Promise.resolve({ orgId: "org-1" }),
+    });
+    expect(res.status).toBe(500);
   });
 });
