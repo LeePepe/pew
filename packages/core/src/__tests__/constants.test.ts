@@ -12,8 +12,8 @@ import {
 } from "../constants.js";
 
 describe("SOURCES", () => {
-  it("should contain exactly 7 supported AI tools", () => {
-    expect(SOURCES).toHaveLength(7);
+  it("should contain exactly 8 supported AI tools", () => {
+    expect(SOURCES).toHaveLength(8);
     expect(SOURCES).toContain("claude-code");
     expect(SOURCES).toContain("codex");
     expect(SOURCES).toContain("gemini-cli");
@@ -21,6 +21,7 @@ describe("SOURCES", () => {
     expect(SOURCES).toContain("openclaw");
     expect(SOURCES).toContain("vscode-copilot");
     expect(SOURCES).toContain("copilot-cli");
+    expect(SOURCES).toContain("hermes");
   });
 
   it("should be readonly at type level", () => {
@@ -34,6 +35,7 @@ describe("SOURCES", () => {
       "openclaw",
       "vscode-copilot",
       "copilot-cli",
+      "hermes",
     ]);
   });
 });

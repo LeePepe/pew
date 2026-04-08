@@ -48,6 +48,7 @@ function isSource(value: string): value is Source {
     "openclaw",
     "vscode-copilot",
     "copilot-cli",
+    "hermes",
   ].includes(value);
 }
 

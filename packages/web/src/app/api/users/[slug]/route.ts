@@ -33,6 +33,7 @@ const VALID_SOURCES = new Set([
   "openclaw",
   "vscode-copilot",
   "copilot-cli",
+  "hermes",
 ]);
 
 const MAX_DAYS = 365;
