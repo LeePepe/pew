@@ -8,19 +8,16 @@ import {
   Plus,
   LogIn,
   LogOut,
-  Copy,
-  Check,
   Trash2,
   ChevronRight,
   Camera,
   X,
-  ChevronDown,
-  ChevronUp,
   Pencil,
-  UserMinus,
+  UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog, useConfirm } from "@/components/ui/confirm-dialog";
+import { InviteDialog, useInviteDialog } from "@/components/teams/invite-dialog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -34,42 +31,6 @@ interface Team {
   created_by: string;
   member_count: number;
   logo_url: string | null;
-}
-
-interface TeamMember {
-  userId: string;
-  name: string | null;
-  image: string | null;
-  role: string;
-  joinedAt: string;
-}
-
-// ---------------------------------------------------------------------------
-// CopyButton
-// ---------------------------------------------------------------------------
-
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <button
-      onClick={handleCopy}
-      className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-      title="Copy to clipboard"
-    >
-      {copied ? (
-        <Check className="h-3.5 w-3.5 text-success" strokeWidth={1.5} />
-      ) : (
-        <Copy className="h-3.5 w-3.5" strokeWidth={1.5} />
-      )}
-    </button>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -214,10 +175,8 @@ function TeamLogo({
 }
 
 // ---------------------------------------------------------------------------
-// TeamCard — single team with expandable members, rename, kick
+// TeamCard — simplified team card with invite dialog
 // ---------------------------------------------------------------------------
-
-const MAX_VISIBLE_MEMBERS = 5;
 
 function TeamCard({
   team,
@@ -233,45 +192,13 @@ function TeamCard({
   const isOwner = currentUserId === team.created_by;
   const hasOtherMembers = team.member_count > 1;
 
-  // Expandable member list (owner only)
-  const [expanded, setExpanded] = useState(false);
-  const [members, setMembers] = useState<TeamMember[]>([]);
-  const [loadingMembers, setLoadingMembers] = useState(false);
-
   // Inline rename (owner only)
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(team.name);
   const [saving, setSaving] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
   const { confirm, dialogProps } = useConfirm();
-
-  // -------------------------------------------------------------------------
-  // Fetch members on expand
-  // -------------------------------------------------------------------------
-
-  const fetchMembers = useCallback(async () => {
-    setLoadingMembers(true);
-    try {
-      const res = await fetch(`/api/teams/${team.id}`);
-      if (res.ok) {
-        const data = await res.json();
-        setMembers(data.members ?? []);
-      }
-    } catch {
-      // Silently fail
-    } finally {
-      setLoadingMembers(false);
-    }
-  }, [team.id]);
-
-  const toggleExpand = () => {
-    if (!isOwner) return;
-    const next = !expanded;
-    setExpanded(next);
-    if (next && members.length === 0) {
-      fetchMembers();
-    }
-  };
+  const { openInviteDialog, dialogProps: inviteDialogProps } = useInviteDialog();
 
   // -------------------------------------------------------------------------
   // Rename
@@ -323,42 +250,6 @@ function TeamCard({
   };
 
   // -------------------------------------------------------------------------
-  // Kick member
-  // -------------------------------------------------------------------------
-
-  const handleKick = async (userId: string, memberName: string | null) => {
-    const displayName = memberName ?? "this member";
-    const confirmed = await confirm({
-      title: `Remove ${displayName}?`,
-      description: `${displayName} will be removed from the team and will need a new invite to rejoin.`,
-      confirmText: "Remove",
-      variant: "destructive",
-    });
-    if (!confirmed) return;
-
-    try {
-      const res = await fetch(`/api/teams/${team.id}/members/${userId}`, {
-        method: "DELETE",
-      });
-
-      if (res.ok) {
-        onMessage({ type: "success", text: `${displayName} removed.` });
-        // Refresh members and team list (member_count changed)
-        fetchMembers();
-        onRefresh();
-      } else {
-        const data = await res.json().catch(() => ({}));
-        onMessage({
-          type: "error",
-          text: (data as { error?: string }).error ?? "Failed to remove member.",
-        });
-      }
-    } catch {
-      onMessage({ type: "error", text: "Network error." });
-    }
-  };
-
-  // -------------------------------------------------------------------------
   // Leave team
   // -------------------------------------------------------------------------
 
@@ -393,8 +284,6 @@ function TeamCard({
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
-
-  const visibleMembers = members.slice(0, MAX_VISIBLE_MEMBERS);
 
   return (
     <div className="rounded-xl bg-secondary p-4">
@@ -444,35 +333,23 @@ function TeamCard({
               )}
             </div>
           )}
-          {/* Member count — clickable for owner to expand */}
-          {isOwner ? (
-            <button
-              onClick={toggleExpand}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <span>
-                {team.member_count} member{team.member_count !== 1 ? "s" : ""}
-              </span>
-              {expanded ? (
-                <ChevronUp className="h-3 w-3" strokeWidth={1.5} />
-              ) : (
-                <ChevronDown className="h-3 w-3" strokeWidth={1.5} />
-              )}
-            </button>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              {team.member_count} member{team.member_count !== 1 ? "s" : ""}
-            </p>
-          )}
+          {/* Member count */}
+          <p className="text-xs text-muted-foreground">
+            {team.member_count} member{team.member_count !== 1 ? "s" : ""}
+          </p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          {/* Invite code */}
-          <div className="hidden sm:flex items-center gap-1 rounded-md bg-accent px-2 py-1">
-            <code className="text-[10px] font-mono text-muted-foreground">
-              {team.invite_code}
-            </code>
-            <CopyButton text={team.invite_code} />
-          </div>
+          {/* Invite button (owner only) */}
+          {isOwner && (
+            <button
+              onClick={() => openInviteDialog(team.name, team.invite_code)}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              title="Invite members"
+            >
+              <UserPlus className="h-3.5 w-3.5" strokeWidth={1.5} />
+              <span className="hidden sm:inline">Invite</span>
+            </button>
+          )}
           {/* Leave/delete button — hidden for owner when other members exist */}
           {!(isOwner && hasOtherMembers) && (
             <button
@@ -488,12 +365,12 @@ function TeamCard({
               {isOwner ? (
                 <>
                   <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-                  <span>Delete</span>
+                  <span className="hidden sm:inline">Delete</span>
                 </>
               ) : (
                 <>
                   <LogOut className="h-3.5 w-3.5" strokeWidth={1.5} />
-                  <span>Leave</span>
+                  <span className="hidden sm:inline">Leave</span>
                 </>
               )}
             </button>
@@ -510,62 +387,9 @@ function TeamCard({
         </div>
       </div>
 
-      {/* Expanded member list */}
-      {isOwner && expanded && (
-        <div className="mt-3 border-t border-border/50 pt-3">
-          {loadingMembers ? (
-            <p className="text-xs text-muted-foreground">Loading members...</p>
-          ) : visibleMembers.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No members found.</p>
-          ) : (
-            <ul className="space-y-2">
-              {visibleMembers.map((m) => (
-                <li key={m.userId} className="flex items-center gap-2.5">
-                  {/* Avatar */}
-                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent text-muted-foreground overflow-hidden">
-                    {m.image ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- external user avatars
-                      <img src={m.image} alt="" className="h-6 w-6 object-cover" />
-                    ) : (
-                      <span className="text-[10px] font-medium">
-                        {(m.name ?? "?")[0]?.toUpperCase()}
-                      </span>
-                    )}
-                  </div>
-                  {/* Name + role */}
-                  <div className="flex-1 min-w-0">
-                    <span className="text-xs text-foreground truncate block">
-                      {m.name ?? "Unknown"}
-                    </span>
-                  </div>
-                  {m.role === "owner" ? (
-                    <span className="text-[10px] font-medium text-muted-foreground px-1.5 py-0.5 rounded bg-accent">
-                      Owner
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => handleKick(m.userId, m.name)}
-                      className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                      title={`Remove ${m.name ?? "member"}`}
-                    >
-                      <UserMinus className="h-3 w-3" strokeWidth={1.5} />
-                      <span>Remove</span>
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-          {members.length > MAX_VISIBLE_MEMBERS && (
-            <p className="mt-2 text-[10px] text-muted-foreground">
-              +{members.length - MAX_VISIBLE_MEMBERS} more member{members.length - MAX_VISIBLE_MEMBERS !== 1 ? "s" : ""}
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Confirm dialog */}
+      {/* Dialogs */}
       <ConfirmDialog {...dialogProps} />
+      <InviteDialog {...inviteDialogProps} />
     </div>
   );
 }
