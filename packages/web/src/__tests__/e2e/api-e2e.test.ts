@@ -418,6 +418,13 @@ async function createTestShowcase(
   return body.id;
 }
 
+/** Helper to assert showcase tests should run - throws if rate limited */
+function requireShowcase(id: string | null, skipFlag: boolean): asserts id is string {
+  if (skipFlag || !id) {
+    throw new Error("SKIPPED: GitHub API rate limited — showcase not created");
+  }
+}
+
 describe("Showcase API", () => {
   // Shared showcase ID — created once, used by multiple tests
   let sharedShowcaseId: string | null = null;
@@ -427,7 +434,7 @@ describe("Showcase API", () => {
   beforeAll(async () => {
     await cleanupShowcases(d1);
     // Try to create a single showcase (1 GitHub API call)
-    // If rate limited, skip all showcase tests
+    // If rate limited, mark tests to skip
     try {
       sharedShowcaseId = await createTestShowcase(
         "https://github.com/nocoo/pew",
@@ -436,7 +443,7 @@ describe("Showcase API", () => {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "";
       if (msg.includes("rate limit")) {
-        console.warn("⚠️  GitHub API rate limited — skipping showcase tests");
+        console.warn("⚠️  GitHub API rate limited — showcase-dependent tests will fail with SKIPPED");
         skipShowcaseTests = true;
       } else {
         throw err;
@@ -472,7 +479,7 @@ describe("Showcase API", () => {
 
   describe("POST /api/showcases", () => {
     it("should return 409 for duplicate repo (using shared showcase)", async () => {
-      if (skipShowcaseTests) return; // Skip if rate limited
+      requireShowcase(sharedShowcaseId, skipShowcaseTests);
       // The shared showcase already uses nocoo/pew, so this should 409
       const res = await fetch(`${BASE_URL}/api/showcases`, {
         method: "POST",
@@ -507,7 +514,7 @@ describe("Showcase API", () => {
 
   describe("GET /api/showcases", () => {
     it("should list public showcases", async () => {
-      if (skipShowcaseTests) return;
+      requireShowcase(sharedShowcaseId, skipShowcaseTests);
       const res = await fetch(`${BASE_URL}/api/showcases`);
       expect(res.status).toBe(200);
       const body = await res.json();
@@ -526,7 +533,7 @@ describe("Showcase API", () => {
     });
 
     it("should return mine=1 showcases for authenticated user", async () => {
-      if (skipShowcaseTests) return;
+      requireShowcase(sharedShowcaseId, skipShowcaseTests);
       const res = await fetch(`${BASE_URL}/api/showcases?mine=1`);
       expect(res.status).toBe(200);
       const body = await res.json();
@@ -555,7 +562,7 @@ describe("Showcase API", () => {
 
   describe("GET /api/showcases/[id]", () => {
     it("should return single showcase", async () => {
-      if (skipShowcaseTests || !sharedShowcaseId) return;
+      requireShowcase(sharedShowcaseId, skipShowcaseTests);
       const res = await fetch(`${BASE_URL}/api/showcases/${sharedShowcaseId}`);
       expect(res.status).toBe(200);
       const body = await res.json();
@@ -577,7 +584,7 @@ describe("Showcase API", () => {
 
   describe("PATCH /api/showcases/[id]", () => {
     it("should update tagline", async () => {
-      if (skipShowcaseTests || !sharedShowcaseId) return;
+      requireShowcase(sharedShowcaseId, skipShowcaseTests);
       const res = await fetch(`${BASE_URL}/api/showcases/${sharedShowcaseId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -592,7 +599,7 @@ describe("Showcase API", () => {
     });
 
     it("should update visibility", async () => {
-      if (skipShowcaseTests || !sharedShowcaseId) return;
+      requireShowcase(sharedShowcaseId, skipShowcaseTests);
       const res = await fetch(`${BASE_URL}/api/showcases/${sharedShowcaseId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -622,7 +629,7 @@ describe("Showcase API", () => {
 
   describe("POST /api/showcases/[id]/upvote", () => {
     it("should add upvote", async () => {
-      if (skipShowcaseTests || !sharedShowcaseId) return;
+      requireShowcase(sharedShowcaseId, skipShowcaseTests);
       const res = await fetch(`${BASE_URL}/api/showcases/${sharedShowcaseId}/upvote`, {
         method: "POST",
       });
@@ -641,7 +648,7 @@ describe("Showcase API", () => {
     });
 
     it("should remove upvote on second call (toggle)", async () => {
-      if (skipShowcaseTests || !sharedShowcaseId) return;
+      requireShowcase(sharedShowcaseId, skipShowcaseTests);
       const res = await fetch(`${BASE_URL}/api/showcases/${sharedShowcaseId}/upvote`, {
         method: "POST",
       });
@@ -679,7 +686,7 @@ describe("Showcase API", () => {
 
   describe("DELETE /api/showcases/[id]", () => {
     it("should delete the shared showcase", async () => {
-      if (skipShowcaseTests || !sharedShowcaseId) return;
+      requireShowcase(sharedShowcaseId, skipShowcaseTests);
       // Delete the shared showcase (last test, so it's safe)
       const deleteRes = await fetch(`${BASE_URL}/api/showcases/${sharedShowcaseId}`, {
         method: "DELETE",
