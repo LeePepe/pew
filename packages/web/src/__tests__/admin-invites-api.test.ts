@@ -273,4 +273,26 @@ describe("DELETE /api/admin/invites", () => {
     const json = await res.json();
     expect(json.error).toBe("Code not found");
   });
+
+  it("should return 500 on unexpected error in GET", async () => {
+    resolveAdmin.mockResolvedValueOnce({
+      userId: "admin-1",
+      email: "admin@test.com",
+    });
+    mockDbRead.query.mockRejectedValueOnce(new Error("DB connection failed"));
+
+    const res = await GET(makeJsonRequest("GET", "/api/admin/invites"));
+    expect(res.status).toBe(500);
+  });
+
+  it("should return 500 when GET error is not Error instance", async () => {
+    resolveAdmin.mockResolvedValueOnce({
+      userId: "admin-1",
+      email: "admin@test.com",
+    });
+    mockDbRead.query.mockRejectedValueOnce("string error");
+
+    const res = await GET(makeJsonRequest("GET", "/api/admin/invites"));
+    expect(res.status).toBe(500);
+  });
 });

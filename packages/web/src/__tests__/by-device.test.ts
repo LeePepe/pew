@@ -462,4 +462,20 @@ describe("GET /api/usage/by-device", () => {
       expect(body.devices[0].estimated_cost).toBe(18);
     });
   });
+
+  it("should return 500 on unexpected error", async () => {
+    resolveUser.mockResolvedValueOnce({ userId: "u1", email: "test@test.com" });
+    mockClient.query.mockRejectedValueOnce(new Error("DB connection failed"));
+
+    const res = await GET(new Request("http://localhost:7020/api/usage/by-device"));
+    expect(res.status).toBe(500);
+  });
+
+  it("should return 500 when error is not Error instance", async () => {
+    resolveUser.mockResolvedValueOnce({ userId: "u1", email: "test@test.com" });
+    mockClient.query.mockRejectedValueOnce("string error");
+
+    const res = await GET(new Request("http://localhost:7020/api/usage/by-device"));
+    expect(res.status).toBe(500);
+  });
 });

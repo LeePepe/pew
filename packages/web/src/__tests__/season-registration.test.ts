@@ -394,4 +394,44 @@ describe("DELETE /api/seasons/[seasonId]/register", () => {
     const json = await res.json();
     expect(json.error).toContain("not registered");
   });
+
+  it("should return 500 on unexpected error in POST", async () => {
+    resolveUser.mockResolvedValueOnce(USER);
+    mockDbRead.firstOrNull.mockRejectedValueOnce(new Error("DB connection failed"));
+
+    const res = await POST(makeJsonRequest("POST", "/api/seasons/season-1/register", { team_id: "team-1" }), {
+      params: regParams,
+    });
+    expect(res.status).toBe(500);
+  });
+
+  it("should return 500 when POST error is not Error instance", async () => {
+    resolveUser.mockResolvedValueOnce(USER);
+    mockDbRead.firstOrNull.mockRejectedValueOnce("string error");
+
+    const res = await POST(makeJsonRequest("POST", "/api/seasons/season-1/register", { team_id: "team-1" }), {
+      params: regParams,
+    });
+    expect(res.status).toBe(500);
+  });
+
+  it("should return 500 on unexpected error in DELETE", async () => {
+    resolveUser.mockResolvedValueOnce(USER);
+    mockDbRead.firstOrNull.mockRejectedValueOnce(new Error("DB connection failed"));
+
+    const res = await DELETE(makeJsonRequest("DELETE", "/api/seasons/season-1/register", { team_id: "team-1" }), {
+      params: regParams,
+    });
+    expect(res.status).toBe(500);
+  });
+
+  it("should return 500 when DELETE error is not Error instance", async () => {
+    resolveUser.mockResolvedValueOnce(USER);
+    mockDbRead.firstOrNull.mockRejectedValueOnce("string error");
+
+    const res = await DELETE(makeJsonRequest("DELETE", "/api/seasons/season-1/register", { team_id: "team-1" }), {
+      params: regParams,
+    });
+    expect(res.status).toBe(500);
+  });
 });

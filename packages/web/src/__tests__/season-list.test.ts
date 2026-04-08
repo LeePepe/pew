@@ -231,4 +231,20 @@ describe("GET /api/seasons", () => {
     expect(upcoming.allow_late_registration).toBe(false);
     expect(upcoming.allow_late_withdrawal).toBe(false);
   });
+
+  it("should return 500 on unexpected error", async () => {
+    mockClient.query.mockRejectedValueOnce(new Error("DB connection failed"));
+
+    const res = await GET(makeRequest());
+    expect(res.status).toBe(500);
+    const data = await res.json();
+    expect(data.error).toBe("Failed to list seasons");
+  });
+
+  it("should return 500 when error is not Error instance", async () => {
+    mockClient.query.mockRejectedValueOnce("string error");
+
+    const res = await GET(makeRequest());
+    expect(res.status).toBe(500);
+  });
 });
