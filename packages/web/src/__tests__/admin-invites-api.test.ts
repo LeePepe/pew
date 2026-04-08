@@ -325,4 +325,33 @@ describe("DELETE /api/admin/invites", () => {
     const json = await res.json();
     expect(json.error).toContain("Failed to delete");
   });
+
+  it("should return 400 for invalid JSON body in POST", async () => {
+    resolveAdmin.mockResolvedValueOnce({
+      userId: "admin-1",
+      email: "admin@test.com",
+    });
+
+    const req = new Request("http://localhost:7020/api/admin/invites", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "not valid json",
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain("Invalid JSON");
+  });
+
+  it("should return 400 for non-positive count in POST", async () => {
+    resolveAdmin.mockResolvedValueOnce({
+      userId: "admin-1",
+      email: "admin@test.com",
+    });
+
+    const res = await POST(
+      makeJsonRequest("POST", "/api/admin/invites", { count: 0 }),
+    );
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain("positive integer");
+  });
 });
