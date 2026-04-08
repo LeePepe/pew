@@ -37,10 +37,151 @@ export interface Env {
 }
 
 // ---------------------------------------------------------------------------
-// Write-statement guard
+// Write-statement guard (enhanced)
 // ---------------------------------------------------------------------------
 
-const WRITE_RE = /^(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|PRAGMA)\b/i;
+/**
+ * Dangerous SQL keywords that indicate write operations.
+ * Checked after normalization (comments stripped, trimmed).
+ */
+const WRITE_KEYWORDS = /^(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|PRAGMA|REPLACE|TRUNCATE)\b/i;
+
+/**
+ * CTE pattern: WITH ... followed by a write keyword.
+ * Matches: WITH x AS (...) DELETE/UPDATE/INSERT
+ */
+const CTE_WRITE_RE = /^WITH\b.*\b(DELETE|UPDATE|INSERT)\b/is;
+
+/**
+ * Remove SQL comments from a query string.
+ * Handles:
+ * - Line comments: -- comment
+ * - Block comments: /* comment * /
+ *
+ * Preserves content inside string literals to avoid false positives.
+ */
+function stripComments(sql: string): string {
+  let result = "";
+  let i = 0;
+  const len = sql.length;
+
+  while (i < len) {
+    // Check for string literal (single quote)
+    if (sql[i] === "'") {
+      const start = i;
+      i++;
+      while (i < len) {
+        if (sql[i] === "'" && sql[i + 1] === "'") {
+          // Escaped quote
+          i += 2;
+        } else if (sql[i] === "'") {
+          i++;
+          break;
+        } else {
+          i++;
+        }
+      }
+      result += sql.slice(start, i);
+      continue;
+    }
+
+    // Check for line comment: --
+    if (sql[i] === "-" && sql[i + 1] === "-") {
+      // Skip until end of line
+      while (i < len && sql[i] !== "\n") {
+        i++;
+      }
+      // Keep the newline to preserve structure
+      if (i < len) {
+        result += " ";
+        i++;
+      }
+      continue;
+    }
+
+    // Check for block comment: /* */
+    if (sql[i] === "/" && sql[i + 1] === "*") {
+      i += 2;
+      // Skip until */
+      while (i < len - 1 && !(sql[i] === "*" && sql[i + 1] === "/")) {
+        i++;
+      }
+      i += 2; // Skip */
+      result += " "; // Replace comment with space
+      continue;
+    }
+
+    result += sql[i];
+    i++;
+  }
+
+  return result;
+}
+
+/**
+ * Check if SQL contains a semicolon outside of string literals.
+ * Multiple statements are not allowed.
+ */
+function containsMultiStatement(sql: string): boolean {
+  let inString = false;
+  for (let i = 0; i < sql.length; i++) {
+    if (sql[i] === "'") {
+      if (inString && sql[i + 1] === "'") {
+        // Escaped quote, skip
+        i++;
+        continue;
+      }
+      inString = !inString;
+      continue;
+    }
+    if (!inString && sql[i] === ";") {
+      // Check if there's any non-whitespace after the semicolon
+      const rest = sql.slice(i + 1).trim();
+      if (rest.length > 0) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Validate that a SQL query is read-only.
+ * Returns an error message if the query is rejected, null if allowed.
+ */
+export function validateReadOnlySQL(sql: string): string | null {
+  // Step 1: Strip comments
+  const noComments = stripComments(sql);
+
+  // Step 2: Normalize whitespace and trim
+  const normalized = noComments.trim();
+
+  if (normalized.length === 0) {
+    return "Empty SQL after normalization";
+  }
+
+  // Step 3: Check for multi-statement (semicolon outside string literals)
+  if (containsMultiStatement(normalized)) {
+    return "Multi-statement SQL not allowed";
+  }
+
+  // Step 4: Check for direct write keywords at start
+  if (WRITE_KEYWORDS.test(normalized)) {
+    return "Write queries not allowed";
+  }
+
+  // Step 5: Check for CTE with write (WITH ... DELETE/UPDATE/INSERT)
+  if (CTE_WRITE_RE.test(normalized)) {
+    return "CTE with write operation not allowed";
+  }
+
+  // Step 6: Must start with SELECT or WITH (for CTE SELECT)
+  if (!/^(SELECT|WITH)\b/i.test(normalized)) {
+    return "Only SELECT queries are allowed";
+  }
+
+  return null;
+}
 
 // ---------------------------------------------------------------------------
 // Route: GET /api/live
@@ -97,11 +238,11 @@ async function handleQuery(body: unknown, env: Env): Promise<Response> {
     return Response.json({ error: "Missing or empty sql" }, { status: 400 });
   }
 
-  // Safety: reject write statements
-  const normalized = sql.trim();
-  if (WRITE_RE.test(normalized)) {
+  // Safety: validate read-only SQL (enhanced validation)
+  const validationError = validateReadOnlySQL(sql);
+  if (validationError) {
     return Response.json(
-      { error: "Write queries not allowed" },
+      { error: validationError },
       { status: 403 },
     );
   }

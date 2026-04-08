@@ -352,6 +352,117 @@ describe("pew read Worker", () => {
       expect(res.status).toBe(403);
     });
 
+    // -----------------------------------------------------------------------
+    // SQL injection bypass attempts (security hardening)
+    // -----------------------------------------------------------------------
+
+    describe("SQL injection bypass attempts", () => {
+      it("should reject SQL with leading line comment: -- DELETE", async () => {
+        const res = await callWorker(
+          makeRequest("POST", "/api/query", { sql: "-- comment\nDELETE FROM users" }, SECRET),
+          env,
+        );
+        expect(res.status).toBe(403);
+      });
+
+      it("should reject SQL with block comment: /* */ DELETE", async () => {
+        const res = await callWorker(
+          makeRequest("POST", "/api/query", { sql: "/* comment */ DELETE FROM users" }, SECRET),
+          env,
+        );
+        expect(res.status).toBe(403);
+      });
+
+      it("should reject SQL with nested block comments", async () => {
+        const res = await callWorker(
+          makeRequest("POST", "/api/query", { sql: "/* outer /* inner */ */ DELETE FROM users" }, SECRET),
+          env,
+        );
+        expect(res.status).toBe(403);
+      });
+
+      it("should reject CTE with DELETE: WITH x AS (...) DELETE", async () => {
+        const res = await callWorker(
+          makeRequest("POST", "/api/query", { sql: "WITH x AS (SELECT 1) DELETE FROM users" }, SECRET),
+          env,
+        );
+        expect(res.status).toBe(403);
+      });
+
+      it("should reject CTE with UPDATE: WITH x AS (...) UPDATE", async () => {
+        const res = await callWorker(
+          makeRequest("POST", "/api/query", { sql: "WITH x AS (SELECT 1) UPDATE users SET name = 'x'" }, SECRET),
+          env,
+        );
+        expect(res.status).toBe(403);
+      });
+
+      it("should reject CTE with INSERT: WITH x AS (...) INSERT", async () => {
+        const res = await callWorker(
+          makeRequest("POST", "/api/query", { sql: "WITH x AS (SELECT 1) INSERT INTO users (id) VALUES ('x')" }, SECRET),
+          env,
+        );
+        expect(res.status).toBe(403);
+      });
+
+      it("should reject multi-statement SQL with semicolon", async () => {
+        const res = await callWorker(
+          makeRequest("POST", "/api/query", { sql: "SELECT 1; DELETE FROM users" }, SECRET),
+          env,
+        );
+        expect(res.status).toBe(403);
+      });
+
+      it("should reject SQL with leading whitespace hiding write keyword", async () => {
+        const res = await callWorker(
+          makeRequest("POST", "/api/query", { sql: "   \n\t  DELETE FROM users" }, SECRET),
+          env,
+        );
+        expect(res.status).toBe(403);
+      });
+
+      it("should reject REPLACE statement", async () => {
+        const res = await callWorker(
+          makeRequest("POST", "/api/query", { sql: "REPLACE INTO users (id) VALUES ('x')" }, SECRET),
+          env,
+        );
+        expect(res.status).toBe(403);
+      });
+
+      it("should reject TRUNCATE statement", async () => {
+        const res = await callWorker(
+          makeRequest("POST", "/api/query", { sql: "TRUNCATE TABLE users" }, SECRET),
+          env,
+        );
+        expect(res.status).toBe(403);
+      });
+
+      it("should allow legitimate CTE SELECT", async () => {
+        const res = await callWorker(
+          makeRequest("POST", "/api/query", { sql: "WITH cte AS (SELECT id FROM users) SELECT * FROM cte" }, SECRET),
+          env,
+        );
+        expect(res.status).toBe(200);
+      });
+
+      it("should allow SELECT with comment inside string literal", async () => {
+        // The string "-- not a comment" should not be treated as a comment
+        const res = await callWorker(
+          makeRequest("POST", "/api/query", { sql: "SELECT '-- not a comment' AS val" }, SECRET),
+          env,
+        );
+        expect(res.status).toBe(200);
+      });
+
+      it("should allow SELECT with semicolon inside string literal", async () => {
+        const res = await callWorker(
+          makeRequest("POST", "/api/query", { sql: "SELECT 'value; with semicolon' AS val" }, SECRET),
+          env,
+        );
+        expect(res.status).toBe(200);
+      });
+    });
+
     it("should return 500 on D1 error", async () => {
       const db = {
         prepare: vi.fn().mockReturnValue({
