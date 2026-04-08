@@ -60,6 +60,7 @@ interface MemberRow {
   name: string | null;
   nickname: string | null;
   image: string | null;
+  is_public: number | null;
   total_tokens: number;
   input_tokens: number;
   output_tokens: number;
@@ -73,6 +74,7 @@ interface MemberSnapshotRow {
   name: string | null;
   nickname: string | null;
   image: string | null;
+  is_public: number | null;
   total_tokens: number;
   input_tokens: number;
   output_tokens: number;
@@ -186,6 +188,8 @@ export async function GET(
 
       const membersByTeam = new Map<string, MemberSnapshotRow[]>();
       if (expandMembers) {
+        // Only include members who have opted in (is_public = 1)
+        // Their token contributions are still counted in team totals
         const memberSnapshots = await db.query<MemberSnapshotRow>(
           `SELECT
             sms.team_id,
@@ -194,6 +198,7 @@ export async function GET(
             u.name,
             u.nickname,
             u.image,
+            u.is_public,
             sms.total_tokens,
             sms.input_tokens,
             sms.output_tokens,
@@ -201,6 +206,7 @@ export async function GET(
           FROM season_member_snapshots sms
           JOIN users u ON u.id = sms.user_id
           WHERE sms.season_id = ?
+            AND u.is_public = 1
           ORDER BY sms.total_tokens DESC`,
           [season.id]
         );
@@ -329,6 +335,8 @@ export async function GET(
       if (expandMembers && teamRows.results.length > 0) {
         const teamIds = teamRows.results.map((r) => r.team_id);
         const placeholders = teamIds.map(() => "?").join(",");
+        // Only include members who have opted in (is_public = 1)
+        // Their token contributions are still counted in team totals
         const memberRows = await db.query<MemberRow>(
           `SELECT
             tm.team_id,
@@ -337,6 +345,7 @@ export async function GET(
             u.name,
             u.nickname,
             u.image,
+            u.is_public,
             COALESCE(SUM(ur.total_tokens), 0) AS total_tokens,
             COALESCE(SUM(ur.input_tokens), 0) AS input_tokens,
             COALESCE(SUM(ur.output_tokens), 0) AS output_tokens,
@@ -348,6 +357,7 @@ export async function GET(
             AND ur.hour_start < ?
           WHERE tm.season_id = ?
             AND tm.team_id IN (${placeholders})
+            AND u.is_public = 1
           GROUP BY tm.team_id, tm.user_id
           ORDER BY total_tokens DESC`,
           [fromDate, toDate, season.id, ...teamIds]

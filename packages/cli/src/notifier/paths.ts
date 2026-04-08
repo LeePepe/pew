@@ -18,6 +18,8 @@ export interface NotifierPaths {
   codexHome: string;
   codexConfigPath: string;
   codexNotifyOriginalPath: string;
+  hermesHome: string;
+  hermesPluginDir: string;
   piExtensionPath: string;
 }
 
@@ -44,6 +46,8 @@ export function resolveNotifierPaths(
 
   const codexHome = normalizeEnvPath(env.CODEX_HOME) ?? join(home, ".codex");
 
+  const hermesHome = normalizeEnvPath(env.HERMES_HOME) ?? join(home, ".hermes");
+
   return {
     stateDir,
     binDir,
@@ -64,6 +68,8 @@ export function resolveNotifierPaths(
     codexHome,
     codexConfigPath: join(codexHome, "config.toml"),
     codexNotifyOriginalPath: join(stateDir, "codex_notify_original.json"),
+    hermesHome,
+    hermesPluginDir: join(hermesHome, "plugins"),
     piExtensionPath: join(home, ".pi", "agent", "extensions", "pew-sync.ts"),
   };
 }

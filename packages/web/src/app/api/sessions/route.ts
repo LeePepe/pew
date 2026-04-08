@@ -27,6 +27,7 @@ const VALID_SOURCES = new Set([
   "pi",
   "vscode-copilot",
   "copilot-cli",
+  "hermes",
 ]);
 
 const VALID_KINDS = new Set(["human", "automated"]);

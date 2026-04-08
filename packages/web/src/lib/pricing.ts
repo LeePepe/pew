@@ -103,6 +103,7 @@ export const DEFAULT_SOURCE_DEFAULTS: Record<string, ModelPricing> = {
   pi: { input: 3, output: 15, cached: 0.3 },
   "vscode-copilot": { input: 3, output: 15, cached: 0.3 },
   "copilot-cli": { input: 3, output: 15, cached: 0.3 },
+  hermes: { input: 3, output: 15, cached: 0.3 },
 };
 
 export const DEFAULT_FALLBACK: ModelPricing = { input: 3, output: 15, cached: 0.3 };

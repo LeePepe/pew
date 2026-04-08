@@ -5,8 +5,6 @@ import Link from "next/link";
 import {
   Globe,
   Users,
-  ShieldCheck,
-  EyeOff,
   ChevronDown,
 } from "lucide-react";
 import { cn, formatTokensFull } from "@/lib/utils";
@@ -17,7 +15,6 @@ import {
   type LeaderboardPeriod,
   type LeaderboardEntry,
 } from "@/hooks/use-leaderboard";
-import { useAdmin } from "@/hooks/use-admin";
 import { CheckRuling } from "@/components/leaderboard/check-ruling";
 import { RankBadge } from "@/components/leaderboard/rank-badge";
 import { TableHeader } from "@/components/leaderboard/table-header";
@@ -37,8 +34,8 @@ interface Team {
   logo_url: string | null;
 }
 
-/** Scope dropdown value: "global" | "all" (admin) | team id */
-type ScopeValue = "global" | "all" | string;
+/** Scope dropdown value: "global" | team id */
+type ScopeValue = "global" | string;
 
 // ---------------------------------------------------------------------------
 // Period tabs
@@ -108,19 +105,17 @@ function TeamLogoBadge({ logoUrl, name }: { logoUrl: string | null; name: string
 }
 
 // ---------------------------------------------------------------------------
-// Scope dropdown (replaces team buttons + admin checkbox)
+// Scope dropdown (team filter)
 // ---------------------------------------------------------------------------
 
 function ScopeDropdown({
   value,
   onChange,
   teams,
-  isAdmin,
 }: {
   value: ScopeValue;
   onChange: (v: ScopeValue) => void;
   teams: Team[];
-  isAdmin: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -138,27 +133,19 @@ function ScopeDropdown({
 
   const iconClass = "h-3.5 w-3.5 shrink-0 text-muted-foreground";
 
-  const label =
-    value === "global"
-      ? "Global"
-      : value === "all"
-        ? "All Users"
-        : teams.find((t) => t.id === value)?.name ?? "Global";
-
   const selectedTeam = teams.find((t) => t.id === value);
+  const label = value === "global" ? "Global" : selectedTeam?.name ?? "Global";
 
   const labelIcon =
     value === "global" ? (
       <Globe className={iconClass} strokeWidth={1.5} />
-    ) : value === "all" ? (
-      <ShieldCheck className={iconClass} strokeWidth={1.5} />
     ) : selectedTeam ? (
       <TeamLogoIcon logoUrl={selectedTeam.logo_url} name={selectedTeam.name} />
     ) : (
       <Users className={iconClass} strokeWidth={1.5} />
     );
 
-  if (teams.length === 0 && !isAdmin) return null;
+  if (teams.length === 0) return null;
 
   return (
     <div ref={ref} className="relative shrink-0">
@@ -204,24 +191,6 @@ function ScopeDropdown({
               {team.name}
             </DropdownItem>
           ))}
-          {isAdmin && (
-            <>
-              <div className="mx-2 my-1 border-t border-border" />
-              <DropdownItem
-                active={value === "all"}
-                onClick={() => {
-                  onChange("all");
-                  setOpen(false);
-                }}
-              >
-                <ShieldCheck className={iconClass} strokeWidth={1.5} />
-                All Users
-                <span className="ml-auto text-[10px] text-muted-foreground">
-                  admin
-                </span>
-              </DropdownItem>
-            </>
-          )}
         </div>
       )}
     </div>
@@ -258,11 +227,9 @@ function DropdownItem({
 
 function LeaderboardRow({
   entry,
-  showHiddenBadge,
   index,
 }: {
   entry: LeaderboardEntry;
-  showHiddenBadge?: boolean;
   index: number;
 }) {
   const { rank, user, teams, total_tokens, session_count, total_duration_seconds } =
@@ -299,11 +266,6 @@ function LeaderboardRow({
               {displayName}
             </span>
             <TokenTierBadge totalTokens={total_tokens} />
-            {showHiddenBadge && user.is_public === false && (
-              <span className="inline-flex items-center justify-center rounded-full bg-muted p-1 text-muted-foreground" title="Hidden profile">
-                <EyeOff className="h-3 w-3" strokeWidth={1.5} />
-              </span>
-            )}
           </div>
           {teams.length > 0 && (
             <div className="flex gap-1 flex-wrap">
@@ -336,7 +298,7 @@ function LeaderboardRow({
       </div>
 
       {/* Total — check-style handwriting font, full number */}
-      <div className="relative z-10 w-[140px] sm:w-[220px] shrink-0 text-right flex items-center justify-end">
+      <div className="relative z-10 w-[160px] sm:w-[280px] shrink-0 text-right flex items-center justify-end">
         <span className="font-handwriting text-[32px] sm:text-[39px] leading-none tracking-tight text-foreground whitespace-nowrap">
           {formatTokensFull(total_tokens)}
         </span>
@@ -354,6 +316,13 @@ function LeaderboardRow({
 }
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const PAGE_SIZE = 20;
+const MAX_ENTRIES = 100;
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -361,16 +330,22 @@ export default function LeaderboardPage() {
   const [period, setPeriod] = useState<LeaderboardPeriod>("week");
   const [scope, setScope] = useState<ScopeValue>("global");
   const [teams, setTeams] = useState<Team[]>([]);
-  const { isAdmin } = useAdmin();
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  const teamId = scope !== "global" && scope !== "all" ? scope : null;
-  const admin = scope === "all";
+  const teamId = scope !== "global" ? scope : null;
 
   const { data, loading, refreshing, error } = useLeaderboard({
     period,
     teamId,
-    admin,
+    limit: MAX_ENTRIES,
   });
+
+  // Reset visible count when period or scope changes
+  /* eslint-disable react-hooks/set-state-in-effect -- reset pagination on filter change is intentional */
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [period, scope]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const fetchTeams = useCallback(async () => {
     try {
@@ -389,8 +364,6 @@ export default function LeaderboardPage() {
     fetchTeams();
   }, [fetchTeams]);
   /* eslint-enable react-hooks/set-state-in-effect */
-
-  const showHiddenBadge = scope === "all";
 
   return (
     <>
@@ -435,12 +408,11 @@ export default function LeaderboardPage() {
             ))}
           </div>
 
-          {/* Scope dropdown (teams + admin show-all) */}
+          {/* Scope dropdown (team filter) */}
           <ScopeDropdown
             value={scope}
             onChange={setScope}
             teams={teams}
-            isAdmin={isAdmin}
           />
         </div>
 
@@ -470,14 +442,24 @@ export default function LeaderboardPage() {
                 No usage data for this period yet.
               </div>
             ) : (
-              data.entries.map((entry, i) => (
-                <LeaderboardRow
-                  key={entry.rank}
-                  entry={entry}
-                  showHiddenBadge={showHiddenBadge}
-                  index={i}
-                />
-              ))
+              <>
+                {data.entries.slice(0, visibleCount).map((entry, i) => (
+                  <LeaderboardRow
+                    key={entry.rank}
+                    entry={entry}
+                    index={i}
+                  />
+                ))}
+                {/* Load more button */}
+                {visibleCount < data.entries.length && visibleCount < MAX_ENTRIES && (
+                  <button
+                    onClick={() => setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, MAX_ENTRIES))}
+                    className="w-full rounded-[var(--radius-card)] bg-secondary py-3 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                  >
+                    Show more
+                  </button>
+                )}
+              </>
             )}
           </div>
         )}

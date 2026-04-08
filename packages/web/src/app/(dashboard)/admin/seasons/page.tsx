@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAdmin } from "@/hooks/use-admin";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ConfirmDialog, useConfirm } from "@/components/ui/confirm-dialog";
 import { formatSeasonDate } from "@/lib/seasons";
 import { utcToLocalDatetimeValue, localDatetimeValueToUtc } from "@/lib/date-helpers";
 import type { SeasonStatus } from "@pew/core";
@@ -619,6 +620,7 @@ export default function AdminSeasonsPage() {
 
   // Roster syncing
   const [syncing, setSyncing] = useState<string | null>(null);
+  const { confirm, dialogProps } = useConfirm();
 
   // ---------------------------------------------------------------------------
   // Redirect non-admins
@@ -704,12 +706,12 @@ export default function AdminSeasonsPage() {
   // ---------------------------------------------------------------------------
 
   const handleSnapshot = async (season: SeasonRow) => {
-    if (
-      !confirm(
-        `Generate final snapshot for "${season.name}"? This freezes rankings.`,
-      )
-    )
-      return;
+    const confirmed = await confirm({
+      title: "Generate final snapshot?",
+      description: `This will freeze rankings for "${season.name}". Once generated, rankings cannot be changed.`,
+      confirmText: "Generate Snapshot",
+    });
+    if (!confirmed) return;
 
     setSnapshotting(season.id);
     setMessage(null);
@@ -804,7 +806,7 @@ export default function AdminSeasonsPage() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold font-display">Seasons</h1>
+          <h1 className="text-2xl md:text-3xl font-semibold font-display tracking-tight">Seasons</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Manage competition seasons. Teams register and compete on token
             usage.
@@ -928,6 +930,9 @@ export default function AdminSeasonsPage() {
           )}
         </>
       )}
+
+      {/* Confirm dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 }

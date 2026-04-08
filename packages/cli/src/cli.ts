@@ -1,4 +1,4 @@
-import { defineCommand, showUsage, pc, readVersion } from "@nocoo/cli-base";
+import { defineCommand, showUsage, pc, readVersion, openBrowser } from "@nocoo/cli-base";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { log } from "./log.js";
@@ -48,6 +48,7 @@ function isSource(value: string): value is Source {
     "openclaw",
     "vscode-copilot",
     "copilot-cli",
+    "hermes",
   ].includes(value);
 }
 
@@ -162,12 +163,19 @@ const syncCommand = defineCommand({
     // (bun:sqlite or node:sqlite) which may not be available on older Node.js.
     let openMessageDb: typeof import("./parsers/opencode-sqlite-db.js").openMessageDb | undefined;
     let openSessionDb: typeof import("./parsers/opencode-sqlite-db.js").openSessionDb | undefined;
+    let openHermesDb: typeof import("./parsers/hermes-sqlite-db.js").openHermesDb | undefined;
     try {
       const mod = await import("./parsers/opencode-sqlite-db.js");
       openMessageDb = mod.openMessageDb;
       openSessionDb = mod.openSessionDb;
     } catch {
       // Native SQLite module not available — SQLite sync will be skipped
+    }
+    try {
+      const hermesModule = await import("./parsers/hermes-sqlite-db.js");
+      openHermesDb = hermesModule.openHermesDb;
+    } catch {
+      // Native SQLite module not available — Hermes SQLite sync will be skipped
     }
 
     // Ensure a stable device ID exists for multi-device dedup
@@ -183,6 +191,8 @@ const syncCommand = defineCommand({
       openCodeMessageDir: paths.openCodeMessageDir,
       openCodeDbPath: paths.openCodeDbPath,
       openMessageDb,
+      hermesDbPath: paths.hermesDbPath,
+      openHermesDb,
       openclawDir: paths.openclawDir,
       piSessionsDir: paths.piSessionsDir,
       vscodeCopilotDirs: paths.vscodeCopilotDirs,
@@ -211,6 +221,7 @@ const syncCommand = defineCommand({
       if (result.sources.pi > 0) deltaParts.push(`Pi: ${result.sources.pi}`);
       if (result.sources.vscodeCopilot > 0) deltaParts.push(`VSCode Copilot: ${result.sources.vscodeCopilot}`);
       if (result.sources.copilotCli > 0) deltaParts.push(`Copilot CLI: ${result.sources.copilotCli}`);
+      if (result.sources.hermes > 0) deltaParts.push(`Hermes: ${result.sources.hermes}`);
       if (deltaParts.length > 0) {
         log.text(pc.dim(deltaParts.join("  |  ")));
       }
@@ -227,6 +238,7 @@ const syncCommand = defineCommand({
     if (fs.pi > 0) scanParts.push(`Pi: ${fs.pi}`);
     if (fs.vscodeCopilot > 0) scanParts.push(`VSCode Copilot: ${fs.vscodeCopilot}`);
     if (fs.copilotCli > 0) scanParts.push(`Copilot CLI: ${fs.copilotCli}`);
+    if (fs.hermes > 0) scanParts.push(`Hermes: ${fs.hermes}`);
     if (scanParts.length > 0) {
       log.text(`Files scanned: ${pc.dim(scanParts.join("  |  "))}`);
     }
@@ -361,7 +373,7 @@ const statusCommand = defineCommand({
 const loginCommand = defineCommand({
   meta: {
     name: "login",
-    description: "Connect your CLI to the pew dashboard via browser OAuth",
+    description: "Connect your CLI to the pew dashboard via browser OAuth or one-time code",
   },
   args: {
     force: {
@@ -374,29 +386,30 @@ const loginCommand = defineCommand({
       description: "Use the dev host (pew.dev.hexly.ai)",
       default: false,
     },
+    code: {
+      type: "string",
+      description: "One-time code from web UI (for headless login)",
+      required: false,
+    },
   },
   async run({ args }) {
     const paths = resolveDefaultPaths();
     const dev = isDevMode();
     const host = resolveHost(dev);
-    const { exec } = await import("node:child_process");
 
-    log.start("Opening browser for authentication...");
+    if (args.code) {
+      log.start("Verifying authentication code...");
+    } else {
+      log.start("Opening browser for authentication...");
+    }
 
     const result = await executeLogin({
       configDir: paths.stateDir,
       apiUrl: host,
       dev,
       force: args.force,
-      openBrowser: async (url) => {
-        const cmd =
-          process.platform === "darwin"
-            ? "open"
-            : process.platform === "win32"
-              ? "start"
-              : "xdg-open";
-        exec(`${cmd} "${url}"`);
-      },
+      openBrowser,
+      code: args.code,
     });
 
     if (result.alreadyLoggedIn) {
@@ -450,12 +463,19 @@ const notifyCommand = defineCommand({
     // (bun:sqlite or node:sqlite) which may not be available on older Node.js.
     let openMessageDb2: typeof import("./parsers/opencode-sqlite-db.js").openMessageDb | undefined;
     let openSessionDb2: typeof import("./parsers/opencode-sqlite-db.js").openSessionDb | undefined;
+    let openHermesDb2: typeof import("./parsers/hermes-sqlite-db.js").openHermesDb | undefined;
     try {
       const mod = await import("./parsers/opencode-sqlite-db.js");
       openMessageDb2 = mod.openMessageDb;
       openSessionDb2 = mod.openSessionDb;
     } catch {
       // Native SQLite module not available — SQLite sync will be skipped
+    }
+    try {
+      const hermesModule = await import("./parsers/hermes-sqlite-db.js");
+      openHermesDb2 = hermesModule.openHermesDb;
+    } catch {
+      // Native SQLite module not available — Hermes SQLite sync will be skipped
     }
 
     // Ensure a stable device ID exists for multi-device dedup
@@ -473,6 +493,8 @@ const notifyCommand = defineCommand({
       openCodeMessageDir: paths.openCodeMessageDir,
       openCodeDbPath: paths.openCodeDbPath,
       openMessageDb: openMessageDb2,
+      hermesDbPath: paths.hermesDbPath,
+      openHermesDb: openHermesDb2,
       openSessionDb: openSessionDb2,
       openclawDir: paths.openclawDir,
       piSessionsDir: paths.piSessionsDir,

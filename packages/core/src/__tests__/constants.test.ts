@@ -22,6 +22,7 @@ describe("SOURCES", () => {
     expect(SOURCES).toContain("pi");
     expect(SOURCES).toContain("vscode-copilot");
     expect(SOURCES).toContain("copilot-cli");
+    expect(SOURCES).toContain("hermes");
   });
 
   it("should be readonly at type level", () => {
@@ -36,6 +37,7 @@ describe("SOURCES", () => {
       "pi",
       "vscode-copilot",
       "copilot-cli",
+      "hermes",
     ]);
   });
 });

@@ -3,7 +3,6 @@ import type {
   CursorState,
   FileCursor,
   FileCursorBase,
-  OpenCodeSqliteCursor,
   QueueRecord,
   Source,
   TokenDelta,
@@ -12,6 +11,7 @@ import { CursorStore } from "../storage/cursor-store.js";
 import { LocalQueue } from "../storage/local-queue.js";
 import type { OnCorruptLine } from "../storage/base-queue.js";
 import type { QueryMessagesFn } from "../parsers/opencode-sqlite.js";
+import type { QuerySessionsFn } from "../parsers/hermes-sqlite.js";
 import type { ParsedDelta } from "../parsers/claude.js";
 import { toUtcHalfHourStart, bucketKey, addTokens, emptyTokenDelta } from "../utils/buckets.js";
 import { createTokenDrivers } from "../drivers/registry.js";
@@ -44,6 +44,10 @@ export interface SyncOptions {
   vscodeCopilotDirs?: string[];
   /** Override: GitHub Copilot CLI logs directory (~/.copilot/logs) */
   copilotCliLogsDir?: string;
+  /** Override: Hermes Agent database path (~/.hermes/state.db) */
+  hermesDbPath?: string;
+  /** Factory for opening the Hermes SQLite DB (DI for testability) */
+  openHermesDb?: (dbPath: string) => { querySessions: QuerySessionsFn; close: () => void } | null;
   /** Progress callback */
   onProgress?: (event: ProgressEvent) => void;
   /** Callback invoked when a corrupted JSONL line is found in the queue */
@@ -72,6 +76,7 @@ export interface SyncResult {
     pi: number;
     vscodeCopilot: number;
     copilotCli: number;
+    hermes: number;
   };
   /** Total files scanned per source */
   filesScanned: {
@@ -83,6 +88,7 @@ export interface SyncResult {
     pi: number;
     vscodeCopilot: number;
     copilotCli: number;
+    hermes: number;
   };
 }
 
@@ -105,6 +111,7 @@ function sourceKey(source: Source): keyof SyncResult["sources"] {
     case "codex": return "codex";
     case "vscode-copilot": return "vscodeCopilot";
     case "copilot-cli": return "copilotCli";
+    case "hermes": return "hermes";
   }
 }
 
@@ -124,7 +131,9 @@ export async function executeSync(opts: SyncOptions): Promise<SyncResult> {
   // Full-scan detection: if cursors were completely empty at start (first run
   // or after `pew reset`), all records represent the complete picture.
   const initialCursorEmpty =
-    Object.keys(cursors.files).length === 0 && !cursors.openCodeSqlite;
+    Object.keys(cursors.files).length === 0 &&
+    !cursors.openCodeSqlite &&
+    !cursors.hermesSqlite;
 
   // Upgrade detection: cursors.json created before knownFilePaths was added
   // (pre-v1.6.0). We can't distinguish "cursor lost" from "new file" without
@@ -146,18 +155,21 @@ export async function executeSync(opts: SyncOptions): Promise<SyncResult> {
   // Backfill knownDbSources for cursors created between v1.6.0 (added
   // knownFilePaths) and this fix (added knownDbSources).
   //
-  // If the openCodeSqlite cursor still exists, we can safely seed
-  // knownDbSources from it. If the cursor is already gone AND other
-  // cursors exist (!initialCursorEmpty), we can't distinguish "never
+  // If any DB cursor (openCodeSqlite / hermesSqlite) still exists, we can
+  // safely seed knownDbSources from it. If all cursors are already gone AND
+  // other cursors exist (!initialCursorEmpty), we can't distinguish "never
   // used SQLite" from "cursor lost" — trigger full rescan to be safe.
-  // If the cursor is gone AND cursors are empty (first run / post-reset),
-  // {} is safe because there's nothing to double-count.
+  // If cursors are empty (first run / post-reset), {} is safe because
+  // there's nothing to double-count.
   if (!cursors.knownDbSources) {
-    if (cursors.openCodeSqlite) {
-      cursors.knownDbSources = { openCodeSqlite: true };
+    const dbCursorsExist = cursors.openCodeSqlite || cursors.hermesSqlite;
+    if (dbCursorsExist) {
+      cursors.knownDbSources = {};
+      if (cursors.openCodeSqlite) cursors.knownDbSources.openCodeSqlite = true;
+      if (cursors.hermesSqlite) cursors.knownDbSources.hermesSqlite = true;
     } else if (!initialCursorEmpty) {
       onProgress?.({
-        source: "opencode-sqlite",
+        source: "all",
         phase: "warn",
         message: "Upgrading cursor format (DB) — one-time full rescan",
       });
@@ -186,8 +198,8 @@ export async function executeSync(opts: SyncOptions): Promise<SyncResult> {
   let replayDetected = false;
 
   const allDeltas: ParsedDelta[] = [];
-  const sourceCounts = { claude: 0, codex: 0, gemini: 0, opencode: 0, openclaw: 0, pi: 0, vscodeCopilot: 0, copilotCli: 0 };
-  const filesScanned = { claude: 0, codex: 0, gemini: 0, opencode: 0, openclaw: 0, pi: 0, vscodeCopilot: 0, copilotCli: 0 };
+  const sourceCounts = { claude: 0, codex: 0, copilotCli: 0, gemini: 0, hermes: 0, opencode: 0, openclaw: 0, pi: 0, vscodeCopilot: 0 };
+  const filesScanned = { claude: 0, codex: 0, copilotCli: 0, gemini: 0, hermes: 0, opencode: 0, openclaw: 0, pi: 0, vscodeCopilot: 0 };
 
   // Collect all discovered file paths (across all drivers) for knownFilePaths
   const discoveredFiles = new Set<string>();
@@ -353,11 +365,13 @@ export async function executeSync(opts: SyncOptions): Promise<SyncResult> {
 
   // ---------- Phase 2: DB-based drivers ----------
   // SQLite warning paths are handled at the orchestrator level because:
-  // - "SQLite not available": registry doesn't create a driver (no openMessageDb)
+  // - "SQLite not available": registry doesn't create a driver (no openMessageDb/openHermesDb)
   // - "Failed to open": factory returns null, driver would silently return empty
   // We pre-probe the factory here to emit warnings BEFORE running the driver,
   // avoiding the need for double-open detection after the fact.
   let activeDbDrivers = dbDrivers;
+
+  // OpenCode pre-check
   if (opts.openCodeDbPath) {
     const dbStat = await stat(opts.openCodeDbPath).catch(() => null);
     if (dbStat) {
@@ -373,6 +387,8 @@ export async function executeSync(opts: SyncOptions): Promise<SyncResult> {
           phase: "warn",
           message: `OpenCode SQLite database found at ${opts.openCodeDbPath} but SQLite is not available — SQLite token data will NOT be synced`,
         });
+        // Skip only OpenCode driver, keep other DB drivers (e.g. Hermes)
+        activeDbDrivers = activeDbDrivers.filter((d) => d.source !== "opencode");
       } else {
         // Case 2: Both provided — pre-probe if factory returns null
         const handle = opts.openMessageDb(opts.openCodeDbPath);
@@ -387,8 +403,49 @@ export async function executeSync(opts: SyncOptions): Promise<SyncResult> {
             phase: "warn",
             message: `Failed to open OpenCode SQLite database at ${opts.openCodeDbPath} — SQLite token data will NOT be synced`,
           });
-          // Skip DB drivers — factory returns null, driver would return empty anyway
-          activeDbDrivers = [];
+          // Skip only OpenCode driver, keep other DB drivers (e.g. Hermes)
+          activeDbDrivers = activeDbDrivers.filter((d) => d.source !== "opencode");
+        } else {
+          handle.close();
+        }
+      }
+    }
+  }
+
+  // Hermes pre-check (parallel to OpenCode)
+  if (opts.hermesDbPath) {
+    const dbStat = await stat(opts.hermesDbPath).catch(() => null);
+    if (dbStat) {
+      if (!opts.openHermesDb) {
+        // Case 1: DB file exists but SQLite adapter is missing (native module not available)
+        onProgress?.({
+          source: "hermes",
+          phase: "discover",
+          message: "Checking Hermes SQLite database...",
+        });
+        onProgress?.({
+          source: "hermes",
+          phase: "warn",
+          message: `Hermes SQLite database found at ${opts.hermesDbPath} but SQLite is not available — Hermes token data will NOT be synced`,
+        });
+        // Skip only Hermes driver, keep other DB drivers (e.g. OpenCode)
+        activeDbDrivers = activeDbDrivers.filter((d) => d.source !== "hermes");
+      } else {
+        // Case 2: Both provided — pre-probe if factory returns null
+        const handle = opts.openHermesDb(opts.hermesDbPath);
+        if (!handle) {
+          onProgress?.({
+            source: "hermes",
+            phase: "discover",
+            message: "Checking Hermes SQLite database...",
+          });
+          onProgress?.({
+            source: "hermes",
+            phase: "warn",
+            message: `Failed to open Hermes SQLite database at ${opts.hermesDbPath} — Hermes token data will NOT be synced`,
+          });
+          // Skip only Hermes driver, keep other DB drivers (e.g. OpenCode)
+          activeDbDrivers = activeDbDrivers.filter((d) => d.source !== "hermes");
         } else {
           handle.close();
         }
@@ -398,22 +455,26 @@ export async function executeSync(opts: SyncOptions): Promise<SyncResult> {
 
   for (const driver of activeDbDrivers) {
     const key = sourceKey(driver.source);
+    // Map driver.source to cursor field name
+    const dbCursorKey = driver.source === "opencode" ? "openCodeSqlite" : "hermesSqlite";
+    const dbSourceKey = driver.source === "opencode" ? "openCodeSqlite" : "hermesSqlite";
+    const displayName = driver.source === "opencode" ? "OpenCode SQLite" : "Hermes SQLite";
 
     onProgress?.({
-      source: "opencode-sqlite",
+      source: driver.source,
       phase: "discover",
-      message: "Checking OpenCode SQLite database...",
+      message: `Checking ${displayName} database...`,
     });
 
-    const prevCursor = cursors.openCodeSqlite as OpenCodeSqliteCursor | undefined;
+    const prevCursor = cursors[dbCursorKey] as typeof result.cursor | undefined;
 
     // Detect DB cursor loss (parallel to file-based knownFilePaths logic):
     // If the DB was previously synced (tracked in knownDbSources) but the
     // cursor entry is missing, the driver will replay from rowId 0 — SUM'ing
     // that with the existing queue would double-count. Trigger full rescan.
-    if (!initialCursorEmpty && !prevCursor && cursors.knownDbSources?.["openCodeSqlite"]) {
+    if (!initialCursorEmpty && !prevCursor && cursors.knownDbSources?.[dbSourceKey]) {
       onProgress?.({
-        source: "opencode-sqlite",
+        source: driver.source,
         phase: "warn",
         message: "SQLite cursor entry lost — restarting as full scan",
       });
@@ -428,14 +489,16 @@ export async function executeSync(opts: SyncOptions): Promise<SyncResult> {
     const result = await driver.run(prevCursor, ctx);
 
     // Detect DB inode change (same logic as file drivers)
-    const dbCursor = result.cursor as OpenCodeSqliteCursor;
+    const dbCursor = result.cursor as { inode?: number };
     if (
       !initialCursorEmpty &&
       prevCursor &&
-      dbCursor.inode !== prevCursor.inode
+      dbCursor.inode !== undefined &&
+      (prevCursor as { inode?: number }).inode !== undefined &&
+      dbCursor.inode !== (prevCursor as { inode?: number }).inode
     ) {
       onProgress?.({
-        source: "opencode-sqlite",
+        source: driver.source,
         phase: "warn",
         message: "SQLite database inode changed — restarting full scan",
       });
@@ -447,11 +510,16 @@ export async function executeSync(opts: SyncOptions): Promise<SyncResult> {
       return executeSync(opts);
     }
 
-    cursors.openCodeSqlite = result.cursor as CursorState["openCodeSqlite"];
+    // Write cursor back to the correct field (type-safe cast via index signature)
+    if (dbCursorKey === "openCodeSqlite") {
+      cursors.openCodeSqlite = result.cursor as CursorState["openCodeSqlite"];
+    } else {
+      cursors.hermesSqlite = result.cursor as CursorState["hermesSqlite"];
+    }
 
     // Track this DB source as "previously synced" for cursor-loss detection
     const knownDb: Record<string, true> = cursors.knownDbSources ?? {};
-    knownDb["openCodeSqlite"] = true;
+    knownDb[dbSourceKey] = true;
     cursors.knownDbSources = knownDb;
 
     allDeltas.push(...result.deltas);
@@ -459,7 +527,7 @@ export async function executeSync(opts: SyncOptions): Promise<SyncResult> {
 
     const dedupSkipped = result.rowCount - (result.deltas.length > 0 ? result.deltas.length : 0);
     onProgress?.({
-      source: "opencode-sqlite",
+      source: driver.source,
       phase: "parse",
       message: `Parsed ${result.deltas.length} deltas from ${result.rowCount} SQLite rows${dedupSkipped > 0 ? ` (${dedupSkipped} deduped)` : ""}`,
     });

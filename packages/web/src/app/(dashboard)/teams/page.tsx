@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import {
@@ -8,18 +8,13 @@ import {
   Plus,
   LogIn,
   LogOut,
-  Copy,
-  Check,
   Trash2,
   ChevronRight,
-  Camera,
-  X,
-  ChevronDown,
-  ChevronUp,
-  Pencil,
-  UserMinus,
+  UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog, useConfirm } from "@/components/ui/confirm-dialog";
+import { InviteDialog, useInviteDialog } from "@/components/teams/invite-dialog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -35,178 +30,32 @@ interface Team {
   logo_url: string | null;
 }
 
-interface TeamMember {
-  userId: string;
-  name: string | null;
-  image: string | null;
-  role: string;
-  joinedAt: string;
-}
-
 // ---------------------------------------------------------------------------
-// CopyButton
+// TeamLogo — displays logo (display-only, no editing on list page)
 // ---------------------------------------------------------------------------
 
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <button
-      onClick={handleCopy}
-      className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-      title="Copy to clipboard"
-    >
-      {copied ? (
-        <Check className="h-3.5 w-3.5 text-success" strokeWidth={1.5} />
-      ) : (
-        <Copy className="h-3.5 w-3.5" strokeWidth={1.5} />
-      )}
-    </button>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// TeamLogo — displays logo with upload overlay for owners
-// ---------------------------------------------------------------------------
-
-function TeamLogo({
-  team,
-  isOwner,
-  onUploaded,
-  onMessage,
-}: {
-  team: Team;
-  isOwner: boolean;
-  onUploaded: () => void;
-  onMessage: (msg: { type: "success" | "error"; text: string }) => void;
-}) {
-  const [uploading, setUploading] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Always reset the input so the same file can be re-selected
-    if (inputRef.current) inputRef.current.value = "";
-
-    // Client-side validation
-    if (!file.type.startsWith("image/png") && !file.type.startsWith("image/jpeg")) {
-      onMessage({ type: "error", text: "Only PNG and JPEG images are accepted." });
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      onMessage({ type: "error", text: "File too large (max 2 MB)." });
-      return;
-    }
-
-    setUploading(true);
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const res = await fetch(`/api/teams/${team.id}/logo`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (res.ok) {
-        onMessage({ type: "success", text: "Logo updated!" });
-        onUploaded();
-      } else {
-        const data = await res.json().catch(() => ({}));
-        onMessage({
-          type: "error",
-          text: (data as { error?: string }).error ?? "Failed to upload logo.",
-        });
-      }
-    } catch {
-      onMessage({ type: "error", text: "Network error." });
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleRemoveLogo = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!confirm("Remove team logo?")) return;
-
-    try {
-      const res = await fetch(`/api/teams/${team.id}/logo`, { method: "DELETE" });
-      if (res.ok) {
-        onMessage({ type: "success", text: "Logo removed." });
-        onUploaded();
-      } else {
-        const data = await res.json().catch(() => ({}));
-        onMessage({
-          type: "error",
-          text: (data as { error?: string }).error ?? "Failed to remove logo.",
-        });
-      }
-    } catch {
-      onMessage({ type: "error", text: "Network error." });
-    }
-  };
-
+function TeamLogo({ team }: { team: Team }) {
   const hasLogo = !!team.logo_url;
 
   return (
-    <div className="relative group shrink-0">
-      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-muted-foreground overflow-hidden">
-        {hasLogo ? (
-          // eslint-disable-next-line @next/next/no-img-element -- external team logos
-          <img
-            src={team.logo_url as string}
-            alt={`${team.name} logo`}
-            className="h-9 w-9 object-cover"
-          />
-        ) : (
-          <Users className="h-4 w-4" strokeWidth={1.5} />
-        )}
-      </div>
-      {isOwner && (
-        <>
-          <button
-            onClick={() => inputRef.current?.click()}
-            disabled={uploading}
-            className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity"
-            title="Change logo"
-          >
-            <Camera className="h-3.5 w-3.5 text-white" strokeWidth={1.5} />
-          </button>
-          {hasLogo && (
-            <button
-              onClick={handleRemoveLogo}
-              className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-white opacity-0 group-hover:opacity-100 transition-opacity"
-              title="Remove logo"
-            >
-              <X className="h-2.5 w-2.5" strokeWidth={2} />
-            </button>
-          )}
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/png,image/jpeg"
-            onChange={handleFileChange}
-            className="hidden"
-          />
-        </>
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-muted-foreground overflow-hidden">
+      {hasLogo ? (
+        // eslint-disable-next-line @next/next/no-img-element -- external team logos
+        <img
+          src={team.logo_url as string}
+          alt={`${team.name} logo`}
+          className="h-9 w-9 object-cover"
+        />
+      ) : (
+        <Users className="h-4 w-4" strokeWidth={1.5} />
       )}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// TeamCard — single team with expandable members, rename, kick
+// TeamCard — simplified team card (display only, editing on detail page)
 // ---------------------------------------------------------------------------
-
-const MAX_VISIBLE_MEMBERS = 5;
 
 function TeamCard({
   team,
@@ -222,133 +71,23 @@ function TeamCard({
   const isOwner = currentUserId === team.created_by;
   const hasOtherMembers = team.member_count > 1;
 
-  // Expandable member list (owner only)
-  const [expanded, setExpanded] = useState(false);
-  const [members, setMembers] = useState<TeamMember[]>([]);
-  const [loadingMembers, setLoadingMembers] = useState(false);
-
-  // Inline rename (owner only)
-  const [editing, setEditing] = useState(false);
-  const [editName, setEditName] = useState(team.name);
-  const [saving, setSaving] = useState(false);
-  const editInputRef = useRef<HTMLInputElement>(null);
-
-  // -------------------------------------------------------------------------
-  // Fetch members on expand
-  // -------------------------------------------------------------------------
-
-  const fetchMembers = useCallback(async () => {
-    setLoadingMembers(true);
-    try {
-      const res = await fetch(`/api/teams/${team.id}`);
-      if (res.ok) {
-        const data = await res.json();
-        setMembers(data.members ?? []);
-      }
-    } catch {
-      // Silently fail
-    } finally {
-      setLoadingMembers(false);
-    }
-  }, [team.id]);
-
-  const toggleExpand = () => {
-    if (!isOwner) return;
-    const next = !expanded;
-    setExpanded(next);
-    if (next && members.length === 0) {
-      fetchMembers();
-    }
-  };
-
-  // -------------------------------------------------------------------------
-  // Rename
-  // -------------------------------------------------------------------------
-
-  const startEditing = () => {
-    setEditName(team.name);
-    setEditing(true);
-    // Focus after render
-    setTimeout(() => editInputRef.current?.focus(), 0);
-  };
-
-  const cancelEditing = () => {
-    setEditing(false);
-    setEditName(team.name);
-  };
-
-  const handleRename = async () => {
-    const trimmed = editName.trim();
-    if (!trimmed || trimmed === team.name) {
-      cancelEditing();
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/teams/${team.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed }),
-      });
-
-      if (res.ok) {
-        onMessage({ type: "success", text: "Team renamed." });
-        setEditing(false);
-        onRefresh();
-      } else {
-        const data = await res.json().catch(() => ({}));
-        onMessage({
-          type: "error",
-          text: (data as { error?: string }).error ?? "Failed to rename.",
-        });
-      }
-    } catch {
-      onMessage({ type: "error", text: "Network error." });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // -------------------------------------------------------------------------
-  // Kick member
-  // -------------------------------------------------------------------------
-
-  const handleKick = async (userId: string, memberName: string | null) => {
-    const displayName = memberName ?? "this member";
-    if (!confirm(`Remove ${displayName} from the team?`)) return;
-
-    try {
-      const res = await fetch(`/api/teams/${team.id}/members/${userId}`, {
-        method: "DELETE",
-      });
-
-      if (res.ok) {
-        onMessage({ type: "success", text: `${displayName} removed.` });
-        // Refresh members and team list (member_count changed)
-        fetchMembers();
-        onRefresh();
-      } else {
-        const data = await res.json().catch(() => ({}));
-        onMessage({
-          type: "error",
-          text: (data as { error?: string }).error ?? "Failed to remove member.",
-        });
-      }
-    } catch {
-      onMessage({ type: "error", text: "Network error." });
-    }
-  };
+  const { confirm, dialogProps } = useConfirm();
+  const { openInviteDialog, dialogProps: inviteDialogProps } = useInviteDialog();
 
   // -------------------------------------------------------------------------
   // Leave team
   // -------------------------------------------------------------------------
 
   const handleLeave = async () => {
-    const msg = isOwner
-      ? "Delete this team? This cannot be undone."
-      : "Are you sure you want to leave this team?";
-    if (!confirm(msg)) return;
+    const confirmed = await confirm({
+      title: isOwner ? "Delete team?" : "Leave team?",
+      description: isOwner
+        ? "This will permanently delete the team and all its data. This action cannot be undone."
+        : "You will be removed from this team. You can rejoin if you have a valid invite code.",
+      confirmText: isOwner ? "Delete" : "Leave",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
 
     try {
       const res = await fetch(`/api/teams/${team.id}`, { method: "DELETE" });
@@ -371,85 +110,36 @@ function TeamCard({
   // Render
   // -------------------------------------------------------------------------
 
-  const visibleMembers = members.slice(0, MAX_VISIBLE_MEMBERS);
-
   return (
     <div className="rounded-xl bg-secondary p-4">
       {/* Header row */}
       <div className="flex items-center gap-3">
-        <TeamLogo
-          team={team}
-          isOwner={isOwner}
-          onUploaded={onRefresh}
-          onMessage={onMessage}
-        />
+        <TeamLogo team={team} />
         <div className="flex-1 min-w-0">
-          {/* Team name — inline editable for owner */}
-          {editing ? (
-            <div className="flex items-center gap-1.5">
-              <input
-                ref={editInputRef}
-                type="text"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                maxLength={64}
-                className="rounded-md border border-border bg-background px-2 py-0.5 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring/20 transition-shadow min-w-0 w-full"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleRename();
-                  if (e.key === "Escape") cancelEditing();
-                }}
-                onBlur={handleRename}
-                disabled={saving}
-              />
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 group/name">
-              <Link
-                href={`/teams/${team.id}`}
-                className="text-sm font-medium text-foreground truncate hover:text-primary transition-colors"
-              >
-                {team.name}
-              </Link>
-              {isOwner && (
-                <button
-                  onClick={startEditing}
-                  className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/0 group-hover/name:text-muted-foreground hover:!text-foreground transition-colors"
-                  title="Rename team"
-                >
-                  <Pencil className="h-3 w-3" strokeWidth={1.5} />
-                </button>
-              )}
-            </div>
-          )}
-          {/* Member count — clickable for owner to expand */}
-          {isOwner ? (
-            <button
-              onClick={toggleExpand}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <span>
-                {team.member_count} member{team.member_count !== 1 ? "s" : ""}
-              </span>
-              {expanded ? (
-                <ChevronUp className="h-3 w-3" strokeWidth={1.5} />
-              ) : (
-                <ChevronDown className="h-3 w-3" strokeWidth={1.5} />
-              )}
-            </button>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              {team.member_count} member{team.member_count !== 1 ? "s" : ""}
-            </p>
-          )}
+          {/* Team name — link to detail page */}
+          <Link
+            href={`/teams/${team.id}`}
+            className="text-sm font-medium text-foreground truncate block hover:text-primary transition-colors"
+          >
+            {team.name}
+          </Link>
+          {/* Member count */}
+          <p className="text-xs text-muted-foreground">
+            {team.member_count} member{team.member_count !== 1 ? "s" : ""}
+          </p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          {/* Invite code */}
-          <div className="hidden sm:flex items-center gap-1 rounded-md bg-accent px-2 py-1">
-            <code className="text-[10px] font-mono text-muted-foreground">
-              {team.invite_code}
-            </code>
-            <CopyButton text={team.invite_code} />
-          </div>
+          {/* Invite button (owner only) */}
+          {isOwner && (
+            <button
+              onClick={() => openInviteDialog(team.name, team.invite_code)}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              title="Invite members"
+            >
+              <UserPlus className="h-3.5 w-3.5" strokeWidth={1.5} />
+              <span className="hidden sm:inline">Invite</span>
+            </button>
+          )}
           {/* Leave/delete button — hidden for owner when other members exist */}
           {!(isOwner && hasOtherMembers) && (
             <button
@@ -465,12 +155,12 @@ function TeamCard({
               {isOwner ? (
                 <>
                   <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-                  <span>Delete</span>
+                  <span className="hidden sm:inline">Delete</span>
                 </>
               ) : (
                 <>
                   <LogOut className="h-3.5 w-3.5" strokeWidth={1.5} />
-                  <span>Leave</span>
+                  <span className="hidden sm:inline">Leave</span>
                 </>
               )}
             </button>
@@ -487,59 +177,9 @@ function TeamCard({
         </div>
       </div>
 
-      {/* Expanded member list */}
-      {isOwner && expanded && (
-        <div className="mt-3 border-t border-border/50 pt-3">
-          {loadingMembers ? (
-            <p className="text-xs text-muted-foreground">Loading members...</p>
-          ) : visibleMembers.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No members found.</p>
-          ) : (
-            <ul className="space-y-2">
-              {visibleMembers.map((m) => (
-                <li key={m.userId} className="flex items-center gap-2.5">
-                  {/* Avatar */}
-                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent text-muted-foreground overflow-hidden">
-                    {m.image ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- external user avatars
-                      <img src={m.image} alt="" className="h-6 w-6 object-cover" />
-                    ) : (
-                      <span className="text-[10px] font-medium">
-                        {(m.name ?? "?")[0]?.toUpperCase()}
-                      </span>
-                    )}
-                  </div>
-                  {/* Name + role */}
-                  <div className="flex-1 min-w-0">
-                    <span className="text-xs text-foreground truncate block">
-                      {m.name ?? "Unknown"}
-                    </span>
-                  </div>
-                  {m.role === "owner" ? (
-                    <span className="text-[10px] font-medium text-muted-foreground px-1.5 py-0.5 rounded bg-accent">
-                      Owner
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => handleKick(m.userId, m.name)}
-                      className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                      title={`Remove ${m.name ?? "member"}`}
-                    >
-                      <UserMinus className="h-3 w-3" strokeWidth={1.5} />
-                      <span>Remove</span>
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-          {members.length > MAX_VISIBLE_MEMBERS && (
-            <p className="mt-2 text-[10px] text-muted-foreground">
-              +{members.length - MAX_VISIBLE_MEMBERS} more member{members.length - MAX_VISIBLE_MEMBERS !== 1 ? "s" : ""}
-            </p>
-          )}
-        </div>
-      )}
+      {/* Dialogs */}
+      <ConfirmDialog {...dialogProps} />
+      <InviteDialog {...inviteDialogProps} />
     </div>
   );
 }

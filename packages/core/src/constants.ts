@@ -22,6 +22,7 @@ export const SOURCES: readonly Source[] = Object.freeze([
   "pi",
   "vscode-copilot",
   "copilot-cli",
+  "hermes",
 ] as const);
 
 /** Set form for O(1) membership checks */

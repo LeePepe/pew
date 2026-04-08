@@ -141,6 +141,7 @@ function sourceKey(source: Source): keyof SessionSyncResult["sources"] | null {
     case "pi": return "pi";
     case "vscode-copilot": return null;
     case "copilot-cli": return null;
+    case "hermes": return null;
   }
 }
 

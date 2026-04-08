@@ -10,15 +10,6 @@ vi.mock("@/lib/db", () => ({
   resetDb: vi.fn(),
 }));
 
-// Mock admin
-vi.mock("@/lib/admin", () => ({
-  resolveAdmin: vi.fn(),
-}));
-
-const { resolveAdmin } = (await import("@/lib/admin")) as unknown as {
-  resolveAdmin: ReturnType<typeof vi.fn>;
-};
-
 describe("GET /api/leaderboard", () => {
   let mockClient: ReturnType<typeof createMockClient>;
 
@@ -216,13 +207,14 @@ describe("GET /api/leaderboard", () => {
       expect(sqlCall[1]).toContain("team-abc");
     });
 
-    it("should not include is_public when team is set", async () => {
+    it("should include is_public filter even when team is set (opt-out respected)", async () => {
       mockClient.query.mockResolvedValueOnce({ results: [] });
 
       await GET(makeGetRequest("/api/leaderboard", { team: "team-abc" }));
 
       const sqlCall = mockClient.query.mock.calls[0]!;
-      expect(sqlCall[0]).not.toContain("u.is_public");
+      // Team filter still respects user opt-out
+      expect(sqlCall[0]).toContain("u.is_public = 1");
     });
   });
 
@@ -242,30 +234,27 @@ describe("GET /api/leaderboard", () => {
       expect(fallbackSql).toContain("u.is_public = 1");
     });
 
-    it("should reach bare fallback when is_public column is missing", async () => {
-      // Full query fails, level 1 also fails (is_public missing), level 2 bare succeeds
+    it("should fail closed when is_public column is missing (no bare fallback)", async () => {
+      // Both queries fail because is_public column is missing — fail closed, don't bypass opt-out
       mockClient.query
         .mockRejectedValueOnce(new Error("no such column: u.is_public"))
-        .mockRejectedValueOnce(new Error("no such column: u.is_public"))
-        .mockResolvedValueOnce({ results: [] });
+        .mockRejectedValueOnce(new Error("no such column: u.is_public"));
 
       const res = await GET(makeGetRequest("/api/leaderboard"));
 
-      expect(res.status).toBe(200);
-      expect(mockClient.query).toHaveBeenCalledTimes(3);
-      const bareSql = mockClient.query.mock.calls[2]![0] as string;
-      expect(bareSql).not.toContain("u.is_public");
-      expect(bareSql).not.toContain("u.nickname");
+      expect(res.status).toBe(500);
+      expect(mockClient.query).toHaveBeenCalledTimes(2);
     });
 
-    it("should retry when first query throws 'no such table'", async () => {
+    it("should fail closed when team_members table is missing", async () => {
+      // Both queries fail because team_members table is missing — fail closed
       mockClient.query
         .mockRejectedValueOnce(new Error("no such table: team_members"))
-        .mockResolvedValueOnce({ results: [] });
+        .mockRejectedValueOnce(new Error("no such table: team_members"));
 
       const res = await GET(makeGetRequest("/api/leaderboard", { team: "t1" }));
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(500);
       expect(mockClient.query).toHaveBeenCalledTimes(2);
     });
 
@@ -339,39 +328,6 @@ describe("GET /api/leaderboard", () => {
       expect(fallbackSql).toContain("ur.hour_start >= ?");
     });
 
-    it("should preserve admin mode in level 1 fallback (no nickname)", async () => {
-      resolveAdmin.mockResolvedValueOnce({ userId: "admin-1", email: "a@b.com" });
-      mockClient.query
-        .mockRejectedValueOnce(new Error("no such column: u.nickname"))
-        .mockResolvedValueOnce({
-          results: [
-            {
-              user_id: "u1",
-              name: "Alice",
-              nickname: null,
-              image: null,
-              slug: "alice",
-              is_public: 1,
-              total_tokens: 5000,
-              input_tokens: 3000,
-              output_tokens: 1500,
-              cached_input_tokens: 500,
-            },
-          ],
-        });
-
-      const res = await GET(makeGetRequest("/api/leaderboard", { admin: "true" }));
-      const body = await res.json();
-
-      expect(res.status).toBe(200);
-      // Level 1 preserves admin semantics: no is_public filter, includes is_public in SELECT
-      const fallbackSql = mockClient.query.mock.calls[1]![0] as string;
-      expect(fallbackSql).not.toContain("u.is_public = 1");
-      expect(fallbackSql).toContain("u.is_public");
-      // Response should still expose is_public for admin
-      expect(body.entries[0].user.is_public).toBe(true);
-    });
-
     it("should preserve team join in level 1 fallback", async () => {
       mockClient.query
         .mockRejectedValueOnce(new Error("no such column: u.nickname"))
@@ -384,171 +340,6 @@ describe("GET /api/leaderboard", () => {
       expect(fallbackSql).toContain("JOIN team_members tm");
       expect(fallbackSql).toContain("tm.team_id = ?");
     });
-
-    it("should drop team join in level 2 bare fallback when team_members table missing", async () => {
-      // Both level 0 and level 1 fail because team_members doesn't exist
-      mockClient.query
-        .mockRejectedValueOnce(new Error("no such table: team_members"))
-        .mockRejectedValueOnce(new Error("no such table: team_members"))
-        .mockResolvedValueOnce({ results: [] });
-
-      const res = await GET(makeGetRequest("/api/leaderboard", { team: "t1" }));
-
-      expect(res.status).toBe(200);
-      expect(mockClient.query).toHaveBeenCalledTimes(3);
-      const bareSql = mockClient.query.mock.calls[2]![0] as string;
-      expect(bareSql).not.toContain("team_members");
-    });
-  });
-
-  describe("admin mode", () => {
-    it("should show all users when admin=true and caller is admin", async () => {
-      resolveAdmin.mockResolvedValueOnce({ userId: "admin-1", email: "a@b.com" });
-      mockClient.query.mockResolvedValueOnce({ results: [] });
-
-      const res = await GET(makeGetRequest("/api/leaderboard", { admin: "true" }));
-
-      expect(res.status).toBe(200);
-      const sqlCall = mockClient.query.mock.calls[0]!;
-      // Admin mode skips the is_public filter in WHERE
-      expect(sqlCall[0]).not.toContain("u.is_public = 1");
-    });
-
-    it("should NOT include is_public filter in admin SQL", async () => {
-      resolveAdmin.mockResolvedValueOnce({ userId: "admin-1", email: "a@b.com" });
-      mockClient.query.mockResolvedValueOnce({ results: [] });
-
-      await GET(makeGetRequest("/api/leaderboard", { admin: "true" }));
-
-      const sqlCall = mockClient.query.mock.calls[0]!;
-      const sql = sqlCall[0] as string;
-      expect(sql).not.toContain("u.is_public = 1");
-      // Should still have basic conditions
-      expect(sql).toContain("1=1");
-    });
-
-    it("should include is_public in response entries when admin", async () => {
-      resolveAdmin.mockResolvedValueOnce({ userId: "admin-1", email: "a@b.com" });
-      mockClient.query.mockResolvedValueOnce({
-        results: [
-          {
-            user_id: "u1",
-            name: "Alice",
-            nickname: null,
-            image: null,
-            slug: "alice",
-            is_public: 1,
-            total_tokens: 5000,
-            input_tokens: 3000,
-            output_tokens: 1500,
-            cached_input_tokens: 500,
-          },
-          {
-            user_id: "u2",
-            name: "Bob",
-            nickname: null,
-            image: null,
-            slug: null,
-            is_public: 0,
-            total_tokens: 3000,
-            input_tokens: 2000,
-            output_tokens: 800,
-            cached_input_tokens: 200,
-          },
-        ],
-      });
-
-      const res = await GET(makeGetRequest("/api/leaderboard", { admin: "true" }));
-      const body = await res.json();
-
-      expect(body.entries[0].user.is_public).toBe(true);
-      expect(body.entries[1].user.is_public).toBe(false);
-    });
-
-    it("should NOT include is_public in response entries when not admin", async () => {
-      mockClient.query.mockResolvedValueOnce({
-        results: [
-          {
-            user_id: "u1",
-            name: "Alice",
-            nickname: null,
-            image: null,
-            slug: "alice",
-            total_tokens: 5000,
-            input_tokens: 3000,
-            output_tokens: 1500,
-            cached_input_tokens: 500,
-          },
-        ],
-      });
-
-      const res = await GET(makeGetRequest("/api/leaderboard"));
-      const body = await res.json();
-
-      expect(body.entries[0].user).not.toHaveProperty("is_public");
-    });
-
-    it("should apply normal filters when admin=true but caller is not admin", async () => {
-      resolveAdmin.mockResolvedValueOnce(null);
-      mockClient.query.mockResolvedValueOnce({ results: [] });
-
-      const res = await GET(makeGetRequest("/api/leaderboard", { admin: "true" }));
-
-      expect(res.status).toBe(200);
-      const sqlCall = mockClient.query.mock.calls[0]!;
-      expect(sqlCall[0]).toContain("u.is_public = 1");
-    });
-
-    it("should apply normal filters when admin param is not 'true'", async () => {
-      mockClient.query.mockResolvedValueOnce({ results: [] });
-
-      const res = await GET(makeGetRequest("/api/leaderboard", { admin: "false" }));
-
-      expect(res.status).toBe(200);
-      const sqlCall = mockClient.query.mock.calls[0]!;
-      expect(sqlCall[0]).toContain("u.is_public = 1");
-      // Should not even call resolveAdmin
-      expect(resolveAdmin).not.toHaveBeenCalled();
-    });
-
-    it("should include u.is_public in SQL SELECT when admin", async () => {
-      resolveAdmin.mockResolvedValueOnce({ userId: "admin-1", email: "a@b.com" });
-      mockClient.query.mockResolvedValueOnce({ results: [] });
-
-      await GET(makeGetRequest("/api/leaderboard", { admin: "true" }));
-
-      const sqlCall = mockClient.query.mock.calls[0]!;
-      expect(sqlCall[0]).toContain("u.is_public");
-    });
-
-    it("should return is_public: null in admin bare fallback when column is unavailable", async () => {
-      resolveAdmin.mockResolvedValueOnce({ userId: "admin-1", email: "a@b.com" });
-      // Level 0 fails, level 1 fails, bare fallback succeeds (no is_public column)
-      mockClient.query
-        .mockRejectedValueOnce(new Error("no such column: u.is_public"))
-        .mockRejectedValueOnce(new Error("no such column: u.is_public"))
-        .mockResolvedValueOnce({
-          results: [
-            {
-              user_id: "u1",
-              name: "Alice",
-              image: null,
-              slug: "alice",
-              total_tokens: 5000,
-              input_tokens: 3000,
-              output_tokens: 1500,
-              cached_input_tokens: 500,
-            },
-          ],
-        });
-
-      const res = await GET(makeGetRequest("/api/leaderboard", { admin: "true" }));
-      const body = await res.json();
-
-      expect(res.status).toBe(200);
-      // is_public should be null (unknown), not false (mislabeled as hidden)
-      expect(body.entries[0].user.is_public).toBeNull();
-    });
   });
 
   describe("cache headers", () => {
@@ -560,18 +351,6 @@ describe("GET /api/leaderboard", () => {
       expect(res.status).toBe(200);
       expect(res.headers.get("Cache-Control")).toBe(
         "public, s-maxage=60, stale-while-revalidate=120",
-      );
-    });
-
-    it("should NOT set cache headers for admin mode", async () => {
-      resolveAdmin.mockResolvedValueOnce({ userId: "admin-1", email: "a@b.com" });
-      mockClient.query.mockResolvedValueOnce({ results: [] });
-
-      const res = await GET(makeGetRequest("/api/leaderboard", { admin: "true" }));
-
-      expect(res.status).toBe(200);
-      expect(res.headers.get("Cache-Control")).toBe(
-        "private, no-store",
       );
     });
 

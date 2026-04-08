@@ -383,3 +383,329 @@ describe("GET /api/auth/cli", () => {
     );
   });
 });
+
+// ===========================================================================
+// Showcase API E2E Tests
+// ===========================================================================
+
+async function cleanupShowcases(d1: D1Client): Promise<void> {
+  // Delete upvotes first (FK constraint)
+  await d1.execute("DELETE FROM showcase_upvotes WHERE user_id = ?", [
+    TEST_USER_ID,
+  ]);
+  // Delete showcases
+  await d1.execute("DELETE FROM showcases WHERE user_id = ?", [TEST_USER_ID]);
+}
+
+/** Helper to create a showcase and return its ID */
+async function createTestShowcase(
+  repoUrl: string,
+  tagline?: string,
+): Promise<string> {
+  const res = await fetch(`${BASE_URL}/api/showcases`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      github_url: repoUrl,
+      tagline,
+    }),
+  });
+  if (res.status !== 201) {
+    const body = await res.json();
+    throw new Error(`Failed to create showcase: ${body.error}`);
+  }
+  const body = await res.json();
+  return body.id;
+}
+
+/** Helper to assert showcase tests should run - throws if rate limited */
+function requireShowcase(id: string | null, skipFlag: boolean): asserts id is string {
+  if (skipFlag || !id) {
+    throw new Error("SKIPPED: GitHub API rate limited — showcase not created");
+  }
+}
+
+describe("Showcase API", () => {
+  // Shared showcase ID — created once, used by multiple tests
+  let sharedShowcaseId: string | null = null;
+  let skipShowcaseTests = false;
+
+  // Clean up any leftover showcase data and create ONE shared showcase
+  beforeAll(async () => {
+    await cleanupShowcases(d1);
+    // Try to create a single showcase (1 GitHub API call)
+    // If rate limited, mark tests to skip
+    try {
+      sharedShowcaseId = await createTestShowcase(
+        "https://github.com/nocoo/pew",
+        "E2E test showcase",
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("rate limit")) {
+        console.warn("⚠️  GitHub API rate limited — showcase-dependent tests will fail with SKIPPED");
+        skipShowcaseTests = true;
+      } else {
+        throw err;
+      }
+    }
+  });
+
+  // Clean up showcases after all showcase tests
+  afterAll(async () => {
+    await cleanupShowcases(d1);
+  });
+
+  // -------------------------------------------------------------------------
+  // POST /api/showcases/preview — validation only (no GitHub API needed)
+  // -------------------------------------------------------------------------
+
+  describe("POST /api/showcases/preview", () => {
+    it("should return 400 for invalid URL format", async () => {
+      const res = await fetch(`${BASE_URL}/api/showcases/preview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ github_url: "https://github.com/nocoo" }),
+      });
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toContain("Invalid");
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // POST /api/showcases (create) — validation tests only
+  // -------------------------------------------------------------------------
+
+  describe("POST /api/showcases", () => {
+    it("should return 409 for duplicate repo (using shared showcase)", async () => {
+      requireShowcase(sharedShowcaseId, skipShowcaseTests);
+      // The shared showcase already uses nocoo/pew, so this should 409
+      const res = await fetch(`${BASE_URL}/api/showcases`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          github_url: "https://github.com/nocoo/pew",
+        }),
+      });
+      expect(res.status).toBe(409);
+      const body = await res.json();
+      expect(body.error).toContain("already");
+    });
+
+    it("should return 400 for tagline over 280 chars", async () => {
+      const res = await fetch(`${BASE_URL}/api/showcases`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          github_url: "https://github.com/vercel/next.js",
+          tagline: "x".repeat(281),
+        }),
+      });
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toContain("280");
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // GET /api/showcases (list) — uses shared showcase
+  // -------------------------------------------------------------------------
+
+  describe("GET /api/showcases", () => {
+    it("should list public showcases", async () => {
+      requireShowcase(sharedShowcaseId, skipShowcaseTests);
+      const res = await fetch(`${BASE_URL}/api/showcases`);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+
+      expect(Array.isArray(body.showcases)).toBe(true);
+      expect(typeof body.total).toBe("number");
+      expect(body.total).toBeGreaterThanOrEqual(1);
+
+      // Find our shared showcase
+      const ourShowcase = body.showcases.find(
+        (s: { id: string }) => s.id === sharedShowcaseId,
+      );
+      expect(ourShowcase).toBeTruthy();
+      expect(ourShowcase.user).toBeTruthy();
+      expect(ourShowcase.user.id).toBe(TEST_USER_ID);
+    });
+
+    it("should return mine=1 showcases for authenticated user", async () => {
+      requireShowcase(sharedShowcaseId, skipShowcaseTests);
+      const res = await fetch(`${BASE_URL}/api/showcases?mine=1`);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+
+      expect(body.showcases.length).toBeGreaterThanOrEqual(1);
+      // All should belong to test user
+      for (const s of body.showcases) {
+        expect(s.user.id).toBe(TEST_USER_ID);
+      }
+    });
+
+    it("should respect limit and offset", async () => {
+      const res = await fetch(`${BASE_URL}/api/showcases?limit=1&offset=0`);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+
+      expect(body.showcases.length).toBeLessThanOrEqual(1);
+      expect(body.limit).toBe(1);
+      expect(body.offset).toBe(0);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // GET /api/showcases/[id] (single) — uses shared showcase
+  // -------------------------------------------------------------------------
+
+  describe("GET /api/showcases/[id]", () => {
+    it("should return single showcase", async () => {
+      requireShowcase(sharedShowcaseId, skipShowcaseTests);
+      const res = await fetch(`${BASE_URL}/api/showcases/${sharedShowcaseId}`);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+
+      expect(body.id).toBe(sharedShowcaseId);
+      expect(body.repo_key).toBe("nocoo/pew");
+      expect(body.user.id).toBe(TEST_USER_ID);
+    });
+
+    it("should return 404 for non-existent showcase", async () => {
+      const res = await fetch(`${BASE_URL}/api/showcases/non-existent-id`);
+      expect(res.status).toBe(404);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // PATCH /api/showcases/[id] (update) — uses shared showcase
+  // -------------------------------------------------------------------------
+
+  describe("PATCH /api/showcases/[id]", () => {
+    it("should update tagline", async () => {
+      requireShowcase(sharedShowcaseId, skipShowcaseTests);
+      const res = await fetch(`${BASE_URL}/api/showcases/${sharedShowcaseId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tagline: "Updated tagline for testing" }),
+      });
+      expect(res.status).toBe(200);
+
+      // Verify update
+      const getRes = await fetch(`${BASE_URL}/api/showcases/${sharedShowcaseId}`);
+      const body = await getRes.json();
+      expect(body.tagline).toBe("Updated tagline for testing");
+    });
+
+    it("should update visibility", async () => {
+      requireShowcase(sharedShowcaseId, skipShowcaseTests);
+      const res = await fetch(`${BASE_URL}/api/showcases/${sharedShowcaseId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_public: false }),
+      });
+      expect(res.status).toBe(200);
+
+      // Verify in DB (hidden showcase still visible to owner)
+      const row = await d1.firstOrNull<{ is_public: number }>(
+        "SELECT is_public FROM showcases WHERE id = ?",
+        [sharedShowcaseId],
+      );
+      expect(row!.is_public).toBe(0);
+
+      // Restore visibility for other tests
+      await fetch(`${BASE_URL}/api/showcases/${sharedShowcaseId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_public: true }),
+      });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // POST /api/showcases/[id]/upvote (toggle) — uses shared showcase
+  // -------------------------------------------------------------------------
+
+  describe("POST /api/showcases/[id]/upvote", () => {
+    it("should add upvote", async () => {
+      requireShowcase(sharedShowcaseId, skipShowcaseTests);
+      const res = await fetch(`${BASE_URL}/api/showcases/${sharedShowcaseId}/upvote`, {
+        method: "POST",
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+
+      expect(body.upvoted).toBe(true);
+      expect(body.upvote_count).toBe(1);
+
+      // Verify in D1
+      const row = await d1.firstOrNull<{ id: number }>(
+        "SELECT id FROM showcase_upvotes WHERE showcase_id = ? AND user_id = ?",
+        [sharedShowcaseId, TEST_USER_ID],
+      );
+      expect(row).not.toBeNull();
+    });
+
+    it("should remove upvote on second call (toggle)", async () => {
+      requireShowcase(sharedShowcaseId, skipShowcaseTests);
+      const res = await fetch(`${BASE_URL}/api/showcases/${sharedShowcaseId}/upvote`, {
+        method: "POST",
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+
+      expect(body.upvoted).toBe(false);
+      expect(body.upvote_count).toBe(0);
+    });
+
+    it("should return 404 for non-existent showcase", async () => {
+      const res = await fetch(`${BASE_URL}/api/showcases/non-existent/upvote`, {
+        method: "POST",
+      });
+      expect(res.status).toBe(404);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // POST /api/showcases/[id]/refresh — skipped (hits GitHub API)
+  // -------------------------------------------------------------------------
+
+  describe("POST /api/showcases/[id]/refresh", () => {
+    it("should return 404 for non-existent showcase", async () => {
+      const res = await fetch(`${BASE_URL}/api/showcases/non-existent/refresh`, {
+        method: "POST",
+      });
+      expect(res.status).toBe(404);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // DELETE /api/showcases/[id] — uses shared showcase (last test)
+  // -------------------------------------------------------------------------
+
+  describe("DELETE /api/showcases/[id]", () => {
+    it("should delete the shared showcase", async () => {
+      requireShowcase(sharedShowcaseId, skipShowcaseTests);
+      // Delete the shared showcase (last test, so it's safe)
+      const deleteRes = await fetch(`${BASE_URL}/api/showcases/${sharedShowcaseId}`, {
+        method: "DELETE",
+      });
+      expect(deleteRes.status).toBe(200);
+
+      // Verify deleted
+      const row = await d1.firstOrNull<{ id: string }>(
+        "SELECT id FROM showcases WHERE id = ?",
+        [sharedShowcaseId],
+      );
+      expect(row).toBeNull();
+    });
+
+    it("should return 404 for non-existent showcase", async () => {
+      const res = await fetch(`${BASE_URL}/api/showcases/non-existent`, {
+        method: "DELETE",
+      });
+      expect(res.status).toBe(404);
+    });
+  });
+});

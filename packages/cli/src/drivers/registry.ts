@@ -30,6 +30,10 @@ import {
   createOpenCodeSqliteTokenDriver,
   type OpenCodeSqliteTokenDriverOpts,
 } from "./token/opencode-sqlite-token-driver.js";
+import {
+  createHermesSqliteTokenDriver,
+  type HermesSqliteTokenDriverOpts,
+} from "./token/hermes-token-driver.js";
 
 // -- Session driver singletons --
 import { claudeSessionDriver } from "./session/claude-session-driver.js";
@@ -64,6 +68,8 @@ export interface TokenDriverRegistryOpts {
   copilotCliLogsDir?: string;
   openCodeDbPath?: string;
   openMessageDb?: OpenCodeSqliteTokenDriverOpts["openMessageDb"];
+  hermesDbPath?: string;
+  openHermesDb?: HermesSqliteTokenDriverOpts["openHermesDb"];
 }
 
 export interface TokenDriverSet {
@@ -110,6 +116,14 @@ export function createTokenDrivers(opts: TokenDriverRegistryOpts): TokenDriverSe
       createOpenCodeSqliteTokenDriver({
         dbPath: opts.openCodeDbPath,
         openMessageDb: opts.openMessageDb,
+      }),
+    );
+  }
+  if (opts.hermesDbPath && opts.openHermesDb) {
+    dbDrivers.push(
+      createHermesSqliteTokenDriver({
+        dbPath: opts.hermesDbPath,
+        openHermesDb: opts.openHermesDb,
       }),
     );
   }

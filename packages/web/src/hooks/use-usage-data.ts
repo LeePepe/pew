@@ -158,6 +158,7 @@ const SOURCE_LABELS: Record<string, string> = {
   pi: "Pi",
   "vscode-copilot": "VS Code Copilot",
   "copilot-cli": "GitHub Copilot CLI",
+  hermes: "Hermes Agent",
 };
 
 export function sourceLabel(source: string): string {

@@ -3,16 +3,15 @@
  *
  * Query params:
  *   period — "week" | "month" | "all" (default: "week")
- *   limit  — max entries to return (default: 10 public / 50 admin, max: 100)
+ *   limit  — max entries to return (default: 100, max: 100)
  *   team   — team ID for team-scoped leaderboard (optional)
- *   admin  — "true" to bypass public filter (requires admin auth)
  *
  * Returns { period, entries[] } where each entry has user info + total tokens.
+ * Only users with is_public = 1 are included.
  */
 
 import { NextResponse } from "next/server";
 import { getDbRead } from "@/lib/db";
-import { resolveAdmin } from "@/lib/admin";
 
 // ---------------------------------------------------------------------------
 // Validation
@@ -21,7 +20,6 @@ import { resolveAdmin } from "@/lib/admin";
 const VALID_PERIODS = new Set(["week", "month", "all"]);
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 100;
-const ADMIN_DEFAULT_LIMIT = 100;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -33,7 +31,6 @@ interface LeaderboardRow {
   nickname: string | null;
   image: string | null;
   slug: string | null;
-  is_public: number | null;
   total_tokens: number;
   input_tokens: number;
   output_tokens: number;
@@ -79,7 +76,6 @@ export async function GET(request: Request) {
   const period = url.searchParams.get("period") ?? "week";
   const limitParam = url.searchParams.get("limit");
   const teamId = url.searchParams.get("team");
-  const adminParam = url.searchParams.get("admin");
 
   // Validate period
   if (!VALID_PERIODS.has(period)) {
@@ -102,17 +98,6 @@ export async function GET(request: Request) {
     limit = parsed;
   }
 
-  // Admin mode: bypass public filters if caller is a verified admin
-  let isAdminMode = false;
-  if (adminParam === "true") {
-    const admin = await resolveAdmin(request);
-    isAdminMode = admin !== null;
-    // Admin defaults to higher limit when no explicit limit is set
-    if (isAdminMode && !limitParam) {
-      limit = ADMIN_DEFAULT_LIMIT;
-    }
-  }
-
   const db = await getDbRead();
   const fromDate = periodStartDate(period);
 
@@ -130,10 +115,10 @@ export async function GET(request: Request) {
     teamJoin = "JOIN team_members tm ON tm.user_id = ur.user_id";
     conditions.push("tm.team_id = ?");
     params.push(teamId);
-  } else if (!isAdminMode) {
-    // Public leaderboard only shows users who opted in
-    conditions.push("u.is_public = 1");
   }
+
+  // Always filter by is_public = 1 (opt-out respected)
+  conditions.push("u.is_public = 1");
 
   params.push(limit);
 
@@ -145,7 +130,6 @@ export async function GET(request: Request) {
       ${withNickname ? "u.nickname," : ""}
       u.image,
       u.slug,
-      ${isAdminMode ? "u.is_public," : ""}
       SUM(ur.total_tokens) AS total_tokens,
       SUM(ur.input_tokens) AS input_tokens,
       SUM(ur.output_tokens) AS output_tokens,
@@ -170,45 +154,9 @@ export async function GET(request: Request) {
         throw firstErr;
       }
 
-      // Level 1: retry without nickname (keeps is_public, admin, team semantics)
-      try {
-        result = await db.query<LeaderboardRow>(buildSql(false), params);
-      } catch (secondErr) {
-        const msg2 = secondErr instanceof Error ? secondErr.message : "";
-        if (!msg2.includes("no such column") && !msg2.includes("no such table")) {
-          throw secondErr;
-        }
-
-        // Level 2: strip everything new — no nickname, no is_public, no team join.
-        // This is the pre-migration baseline: slug IS NOT NULL only.
-        const bareConditions = ["1=1"];
-        const bareParams: unknown[] = [];
-        if (fromDate) {
-          bareConditions.push("ur.hour_start >= ?");
-          bareParams.push(fromDate);
-        }
-        bareParams.push(limit);
-
-        const bareSql = `
-          SELECT
-            ur.user_id,
-            u.name,
-            u.image,
-            u.slug,
-            SUM(ur.total_tokens) AS total_tokens,
-            SUM(ur.input_tokens) AS input_tokens,
-            SUM(ur.output_tokens) AS output_tokens,
-            SUM(ur.cached_input_tokens) AS cached_input_tokens
-          FROM usage_records ur
-          JOIN users u ON u.id = ur.user_id
-          WHERE ${bareConditions.join(" AND ")}
-          GROUP BY ur.user_id
-          HAVING total_tokens > 0
-          ORDER BY total_tokens DESC
-          LIMIT ?
-        `;
-        result = await db.query<LeaderboardRow>(bareSql, bareParams);
-      }
+      // Level 1: retry without nickname (keeps is_public and team semantics)
+      // If this also fails, fail closed — do not bypass opt-out filters
+      result = await db.query<LeaderboardRow>(buildSql(false), params);
     }
 
     // Fetch teams for all users in the leaderboard
@@ -236,13 +184,18 @@ export async function GET(request: Request) {
     }
 
     // Fetch session stats for all users in the leaderboard
+    // Batch to avoid D1's 999 parameter limit (100 UUIDs × ~1 param each + date = safe)
     const sessionStatsByUser = new Map<string, { session_count: number; total_duration_seconds: number }>();
+    const BATCH_SIZE = 50;
 
-    if (userIds.length > 0) {
+    for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
+      const batch = userIds.slice(i, i + BATCH_SIZE);
+      if (batch.length === 0) continue;
+
       try {
-        const placeholders = userIds.map(() => "?").join(",");
+        const placeholders = batch.map(() => "?").join(",");
         const sessionConditions = [`sr.user_id IN (${placeholders})`];
-        const sessionParams: unknown[] = [...userIds];
+        const sessionParams: unknown[] = [...batch];
 
         if (fromDate) {
           sessionConditions.push("sr.started_at >= ?");
@@ -264,8 +217,12 @@ export async function GET(request: Request) {
             total_duration_seconds: row.total_duration_seconds,
           });
         }
-      } catch {
+      } catch (err) {
         // Silently skip if session_records table doesn't exist yet
+        const msg = err instanceof Error ? err.message : "";
+        if (!msg.includes("no such table")) {
+          console.error("Failed to fetch session stats batch:", err);
+        }
       }
     }
 
@@ -278,9 +235,6 @@ export async function GET(request: Request) {
           name: row.nickname ?? row.name,
           image: row.image,
           slug: row.slug,
-          ...(isAdminMode && {
-            is_public: row.is_public == null ? null : row.is_public === 1,
-          }),
         },
         teams: teamsByUser.get(row.user_id) ?? [],
         total_tokens: row.total_tokens,
@@ -292,7 +246,7 @@ export async function GET(request: Request) {
       };
     });
 
-    const headers: HeadersInit = isAdminMode || teamId
+    const headers: HeadersInit = teamId
       ? { "Cache-Control": "private, no-store" }
       : { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" };
 

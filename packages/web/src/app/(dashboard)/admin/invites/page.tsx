@@ -6,6 +6,7 @@ import { Plus, Trash2, Copy, Check, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAdmin } from "@/hooks/use-admin";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ConfirmDialog, useConfirm } from "@/components/ui/confirm-dialog";
 import type { InviteCodeRow } from "@/app/api/admin/invites/route";
 
 // ---------------------------------------------------------------------------
@@ -120,6 +121,7 @@ export default function AdminInvitesPage() {
 
   // Copy all available
   const [copiedAll, setCopiedAll] = useState(false);
+  const { confirm, dialogProps } = useConfirm();
 
   // Derived: available codes + filtered rows
   const availableCodes = useMemo(
@@ -281,8 +283,15 @@ export default function AdminInvitesPage() {
   // ---------------------------------------------------------------------------
 
   const handleDelete = async (id: number, isPending: boolean) => {
-    const action = isPending ? "Reclaim this burned invite code?" : "Delete this invite code?";
-    if (!confirm(action)) return;
+    const confirmed = await confirm({
+      title: isPending ? "Reclaim burned invite?" : "Delete invite code?",
+      description: isPending
+        ? "This will reclaim the burned invite code, making it available for use again."
+        : "This invite code will be permanently deleted.",
+      confirmText: isPending ? "Reclaim" : "Delete",
+      variant: isPending ? "default" : "destructive",
+    });
+    if (!confirmed) return;
     setMessage(null);
 
     try {
@@ -353,7 +362,7 @@ export default function AdminInvitesPage() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold font-display">Invite Codes</h1>
+          <h1 className="text-2xl md:text-3xl font-semibold font-display tracking-tight">Invite Codes</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Manage single-use invite codes for new user registration.
           </p>
@@ -618,6 +627,9 @@ export default function AdminInvitesPage() {
           )}
         </>
       )}
+
+      {/* Confirm dialog */}
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 }

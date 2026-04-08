@@ -70,6 +70,7 @@ const AGENT_COLOR_MAP: Record<string, ChartColor> = {
   "pi":            { color: chart.acid,    token: "chart-8" },
   "vscode-copilot":{ color: chart.gold,    token: "chart-6" },
   "copilot-cli":   { color: chart.lime,    token: "chart-7" },
+  "hermes":        { color: chart.acid,    token: "chart-8" },
 };
 
 /** Default color for unknown agents. */

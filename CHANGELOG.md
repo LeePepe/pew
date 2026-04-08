@@ -1,5 +1,383 @@
 # Changelog
 
+## v2.9.0
+
+🎉 **Community Release** — This release includes contributions from multiple community members. Thank you!
+
+### Contributors
+
+- [@LeePepe](https://github.com/LeePepe) — Auto season registration toggle, same-period comparison stats, GitHub Copilot CLI support (#31, #23, #22)
+- [@huangjy](https://github.com/huangjy) — Tool call tokens & reasoning tokens for VS Code Copilot (#26)
+- [@cangelzz](https://github.com/cangelzz) — OpenClaw plugin install fix for WSL/headless environments (#32)
+
+### Added
+- **Auto season registration** — Team owners can enable automatic registration for all new seasons (#31)
+- **Same-period month comparison** — Dashboard stats now show "vs same period" alongside "vs last month" (#23)
+- **GitHub Copilot CLI** — Added as 7th supported source for token tracking (#22)
+- **Tool call & reasoning tokens** — VS Code Copilot now tracks tool call and reasoning tokens (#26)
+- **Teams UI improvements** — InviteDialog, AvatarStack, member management on detail page
+- **Leaderboard pagination** — Show 20 entries per page with "Show more" button (max 100)
+- Hide season list when auto-register enabled
+
+### Changed
+- Simplify team list cards, move editing to detail page
+- Use hover overlay for logo editing
+- Improve E2E test reliability
+
+### Fixed
+- **OpenClaw WSL/headless fix** — Plugin install now works on WSL with `--dangerously-force-unsafe-install` (#32)
+- **Login URL fallback** — Print auth URL when browser fails to open (WSL/headless support) (#32)
+- **Leaderboard session stats** — Fix silent failure when querying 100+ users by batching requests
+- Clean up season_teams before deleting team (FK constraint fix)
+- Preserve partial success on read errors
+- Enforce season eligibility rules
+- Display "Hermes Agent" instead of raw "hermes" source slug
+
+## v2.8.1
+
+## v2.8.0
+
+### Added
+- Implement hermes notifier driver
+- Implement hermes token driver
+- Implement hermes SQLite parser with session-level diff
+- Add hermes path resolution and sync orchestration
+- Add hermes source to type system and validation
+- Sort public showcases by upvote count descending
+
+### Changed
+- Boost branch coverage to 90% threshold
+- Clarify Hermes requires manual plugin installation
+- Document manual plugin installation and post-implementation fixes
+- Update supported tools count from 7 to 8
+- Mark hermes support implementation complete
+
+### Fixed
+- Add Hermes SQLite pre-check warnings (parity with OpenCode)
+- Add Hermes to sync summary output
+- Remove model IS NOT NULL filter (prevents data loss)
+- OpenCode failure should not disable Hermes driver
+- Remove broken Hermes notifier (manual install only)
+- Correct Hermes SQL query to use sessions table
+- RowCount should reflect raw query rows, not deltas
+- Wire Hermes paths into CLI main entry points
+- Separate cursor slots for opencode/hermes SQLite
+- Reuse resolvePewBin() instead of new findPewBinary()
+- CLI runtime guard + notifier pewBin injection
+- Critical Web API validation + palette fixes
+- Correct interface inconsistencies in hermes design
+
+## v2.7.0
+
+### Added
+- Implement hermes notifier driver
+- Implement hermes token driver
+- Implement hermes SQLite parser with session-level diff
+- Add hermes path resolution and sync orchestration
+- Add hermes source to type system and validation
+- Sort public showcases by upvote count descending
+
+### Changed
+- Boost branch coverage to 90% threshold
+- Clarify Hermes requires manual plugin installation
+- Document manual plugin installation and post-implementation fixes
+- Update supported tools count from 7 to 8
+- Mark hermes support implementation complete
+
+### Fixed
+- Add Hermes SQLite pre-check warnings (parity with OpenCode)
+- Add Hermes to sync summary output
+- Remove model IS NOT NULL filter (prevents data loss)
+- OpenCode failure should not disable Hermes driver
+- Remove broken Hermes notifier (manual install only)
+- Correct Hermes SQL query to use sessions table
+- RowCount should reflect raw query rows, not deltas
+- Wire Hermes paths into CLI main entry points
+- Separate cursor slots for opencode/hermes SQLite
+- Reuse resolvePewBin() instead of new findPewBinary()
+- CLI runtime guard + notifier pewBin injection
+- Critical Web API validation + palette fixes
+- Correct interface inconsistencies in hermes design
+
+## v2.6.0
+
+### Added
+- Increase rate limit from 5 to 20/hour
+- Store and display GitHub stats in database
+- Fetch and display GitHub stats in preview
+- Add pagination to My Showcases page
+- Replace browser confirm() with custom ConfirmDialog component
+- Add statistics cards to showcase moderation page
+- Add rate limiting for showcase creation
+- Add admin showcases moderation page
+- Add user's my showcases settings page
+- Add public showcases leaderboard page
+- Add Showcases to navigation and leaderboard tabs
+- Add showcase UI components
+- Add useShowcases and useShowcasePreview hooks
+- Implement admin showcases list endpoint
+- Implement showcase upvote toggle endpoint
+- Implement showcase refresh endpoint
+- Implement showcase single CRUD endpoints
+- Implement showcases list and create endpoints
+- Implement showcase preview endpoint
+- Add GitHub URL normalization and metadata fetch helpers
+- Add showcases and upvotes tables (016-showcases.sql)
+
+### Changed
+- Update preview test for new GitHub stats fields
+- Update fetchGitHubMetadata test for new stats fields
+- Update tests for /settings/general route change
+- Use resolveAdmin/isAdminUser for consistent auth
+- Reorganize settings routes to /settings/general
+- Move showcases to leaderboard layout
+- Unify h1 styles across dashboard pages
+- Extract showcase types and constants to shared module
+- Add L2 API E2E tests for Showcase feature
+- Mark Phase 2 (Frontend) complete in showcase system design
+- Mark Phase 1 complete in showcase system design
+- Fix SQL query and admin response type
+- Address review feedback on pagination and consistency
+- Add showcase system design (34-showcase-system.md)
+
+### Fixed
+- Update showcase test mocks for admin and github stats
+- Sync UpvoteButton state when parent refetches data
+- Invalidate preview when URL changes after successful fetch
+- Fix useShowcases dependency issue
+
+### Removed
+- Remove upvote_count, add admin moderation, fix refresh conflict
+
+## v2.5.0
+
+### Added
+- Increase rate limit from 5 to 20/hour
+- Store and display GitHub stats in database
+- Fetch and display GitHub stats in preview
+- Add pagination to My Showcases page
+- Replace browser confirm() with custom ConfirmDialog component
+- Add statistics cards to showcase moderation page
+- Add rate limiting for showcase creation
+- Add admin showcases moderation page
+- Add user's my showcases settings page
+- Add public showcases leaderboard page
+- Add Showcases to navigation and leaderboard tabs
+- Add showcase UI components
+- Add useShowcases and useShowcasePreview hooks
+- Implement admin showcases list endpoint
+- Implement showcase upvote toggle endpoint
+- Implement showcase refresh endpoint
+- Implement showcase single CRUD endpoints
+- Implement showcases list and create endpoints
+- Implement showcase preview endpoint
+- Add GitHub URL normalization and metadata fetch helpers
+- Add showcases and upvotes tables (016-showcases.sql)
+
+### Changed
+- Update preview test for new GitHub stats fields
+- Update fetchGitHubMetadata test for new stats fields
+- Update tests for /settings/general route change
+- Use resolveAdmin/isAdminUser for consistent auth
+- Reorganize settings routes to /settings/general
+- Move showcases to leaderboard layout
+- Unify h1 styles across dashboard pages
+- Extract showcase types and constants to shared module
+- Add L2 API E2E tests for Showcase feature
+- Mark Phase 2 (Frontend) complete in showcase system design
+- Mark Phase 1 complete in showcase system design
+- Fix SQL query and admin response type
+- Address review feedback on pagination and consistency
+- Add showcase system design (34-showcase-system.md)
+
+### Fixed
+- Update showcase test mocks for admin and github stats
+- Sync UpvoteButton state when parent refetches data
+- Invalidate preview when URL changes after successful fetch
+- Fix useShowcases dependency issue
+
+### Removed
+- Remove upvote_count, add admin moderation, fix refresh conflict
+
+## v2.4.0
+
+### Added
+- Store and display GitHub stats in database
+- Fetch and display GitHub stats in preview
+- Add pagination to My Showcases page
+- Replace browser confirm() with custom ConfirmDialog component
+- Add statistics cards to showcase moderation page
+- Add rate limiting for showcase creation
+- Add admin showcases moderation page
+- Add user's my showcases settings page
+- Add public showcases leaderboard page
+- Add Showcases to navigation and leaderboard tabs
+- Add showcase UI components
+- Add useShowcases and useShowcasePreview hooks
+- Implement admin showcases list endpoint
+- Implement showcase upvote toggle endpoint
+- Implement showcase refresh endpoint
+- Implement showcase single CRUD endpoints
+- Implement showcases list and create endpoints
+- Implement showcase preview endpoint
+- Add GitHub URL normalization and metadata fetch helpers
+- Add showcases and upvotes tables (016-showcases.sql)
+
+### Changed
+- Update preview test for new GitHub stats fields
+- Update fetchGitHubMetadata test for new stats fields
+- Update tests for /settings/general route change
+- Use resolveAdmin/isAdminUser for consistent auth
+- Reorganize settings routes to /settings/general
+- Move showcases to leaderboard layout
+- Unify h1 styles across dashboard pages
+- Extract showcase types and constants to shared module
+- Add L2 API E2E tests for Showcase feature
+- Mark Phase 2 (Frontend) complete in showcase system design
+- Mark Phase 1 complete in showcase system design
+- Fix SQL query and admin response type
+- Address review feedback on pagination and consistency
+- Add showcase system design (34-showcase-system.md)
+
+### Fixed
+- Sync UpvoteButton state when parent refetches data
+- Invalidate preview when URL changes after successful fetch
+- Fix useShowcases dependency issue
+
+### Removed
+- Remove upvote_count, add admin moderation, fix refresh conflict
+
+## v2.3.0
+
+### Added
+- Store and display GitHub stats in database
+- Fetch and display GitHub stats in preview
+- Add pagination to My Showcases page
+- Replace browser confirm() with custom ConfirmDialog component
+- Add statistics cards to showcase moderation page
+- Add rate limiting for showcase creation
+- Add admin showcases moderation page
+- Add user's my showcases settings page
+- Add public showcases leaderboard page
+- Add Showcases to navigation and leaderboard tabs
+- Add showcase UI components
+- Add useShowcases and useShowcasePreview hooks
+- Implement admin showcases list endpoint
+- Implement showcase upvote toggle endpoint
+- Implement showcase refresh endpoint
+- Implement showcase single CRUD endpoints
+- Implement showcases list and create endpoints
+- Implement showcase preview endpoint
+- Add GitHub URL normalization and metadata fetch helpers
+- Add showcases and upvotes tables (016-showcases.sql)
+
+### Changed
+- Update fetchGitHubMetadata test for new stats fields
+- Update tests for /settings/general route change
+- Use resolveAdmin/isAdminUser for consistent auth
+- Reorganize settings routes to /settings/general
+- Move showcases to leaderboard layout
+- Unify h1 styles across dashboard pages
+- Extract showcase types and constants to shared module
+- Add L2 API E2E tests for Showcase feature
+- Mark Phase 2 (Frontend) complete in showcase system design
+- Mark Phase 1 complete in showcase system design
+- Fix SQL query and admin response type
+- Address review feedback on pagination and consistency
+- Add showcase system design (34-showcase-system.md)
+
+### Fixed
+- Sync UpvoteButton state when parent refetches data
+- Invalidate preview when URL changes after successful fetch
+- Fix useShowcases dependency issue
+
+### Removed
+- Remove upvote_count, add admin moderation, fix refresh conflict
+
+## v2.2.10
+
+### Added
+- Add one-time code authentication for headless CLI login
+
+### Changed
+- Improve CLI Login Code modal design
+
+### Fixed
+- Handle JSON null body in code verification
+- Remove code invalidation to prevent concurrent generation race
+- Atomic conditional api_key generation to prevent race
+- Consume code only after credentials are ready
+- Regenerate code on collision and insert-before-invalidate
+- Invalidate code on any failed verification attempt
+- Resolve button nesting hydration error and improve progress bar visibility
+
+## v2.2.9
+
+### Added
+- Add one-time code authentication for headless CLI login
+
+### Changed
+- Improve CLI Login Code modal design
+
+### Fixed
+- Handle JSON null body in code verification
+- Remove code invalidation to prevent concurrent generation race
+- Atomic conditional api_key generation to prevent race
+- Consume code only after credentials are ready
+- Regenerate code on collision and insert-before-invalidate
+- Invalidate code on any failed verification attempt
+- Resolve button nesting hydration error and improve progress bar visibility
+
+## v2.2.8
+
+### Added
+- Add danger zone with account deletion
+- Improve leaderboard token column and seasons timeline
+
+### Fixed
+- Remove bare fallback to enforce fail-closed on missing is_public
+- Enforce is_public opt-out across all public leaderboard APIs
+- Use fixed 280px token column width for alignment
+- Add gap between season timeline cards
+
+### Removed
+- Remove admin mode from public leaderboard API
+
+## v2.2.7
+
+### Added
+- Add danger zone with account deletion
+- Improve leaderboard token column and seasons timeline
+
+### Fixed
+- Remove bare fallback to enforce fail-closed on missing is_public
+- Enforce is_public opt-out across all public leaderboard APIs
+- Use fixed 280px token column width for alignment
+- Add gap between season timeline cards
+
+### Removed
+- Remove admin mode from public leaderboard API
+
+## v2.2.6
+
+### Fixed
+- Use cli-base openBrowser instead of inline implementation
+
+## v2.2.5
+
+### Fixed
+- Use cli-base openBrowser instead of inline implementation
+
+## v2.2.4
+
+### Changed
+- Update @nocoo/cli-base to 0.2.2
+
+## v2.2.3
+
+### Changed
+- Update @nocoo/cli-base to 0.2.2
+
 ## v2.2.2
 
 ### Added

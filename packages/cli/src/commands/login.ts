@@ -1,7 +1,10 @@
 /**
- * CLI login command — browser-based OAuth flow.
+ * CLI login command — browser-based OAuth flow or code-based authentication.
  *
- * Uses cli-base performLogin for the OAuth callback flow.
+ * Two modes:
+ * 1. Browser flow (default): Uses cli-base performLogin for the OAuth callback flow.
+ * 2. Code flow (--code): Uses a one-time code generated in the web UI.
+ *
  * Pew-specific: host resolution (dev vs prod) and accent color.
  */
 
@@ -41,6 +44,10 @@ export interface LoginOptions {
   openBrowser: (url: string) => Promise<void>;
   /** Injected nonce generator (for testing determinism) */
   generateNonce?: () => string;
+  /** One-time auth code from web UI (skips browser flow) */
+  code?: string;
+  /** Injected fetch function (for testing) */
+  fetch?: typeof globalThis.fetch;
 }
 
 export interface LoginResult {
@@ -63,6 +70,8 @@ export async function executeLogin(options: LoginOptions): Promise<LoginResult> 
     force = false,
     openBrowser: openBrowserFn,
     generateNonce,
+    code,
+    fetch: fetchFn = globalThis.fetch,
   } = options;
 
   const configManager = new ConfigManager(configDir, dev);
@@ -75,7 +84,12 @@ export async function executeLogin(options: LoginOptions): Promise<LoginResult> 
     }
   }
 
-  // 2. Perform OAuth login flow using cli-base
+  // 2. Code-based login flow (headless)
+  if (code) {
+    return executeCodeLogin(configManager, apiUrl, code, fetchFn);
+  }
+
+  // 3. Browser-based OAuth login flow
   const result = await performLogin({
     openBrowser: openBrowserFn,
     onSaveToken: (token) => {
@@ -85,6 +99,7 @@ export async function executeLogin(options: LoginOptions): Promise<LoginResult> 
     timeoutMs,
     generateNonce,
     accentColor: PEW_ACCENT_COLOR,
+    log: (msg: string) => console.log(msg),
   });
 
   return {
@@ -92,6 +107,60 @@ export async function executeLogin(options: LoginOptions): Promise<LoginResult> 
     email: result.email,
     error: result.error,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Code-based login (headless)
+// ---------------------------------------------------------------------------
+
+interface CodeVerifyResponse {
+  api_key?: string;
+  email?: string;
+  error?: string;
+}
+
+async function executeCodeLogin(
+  configManager: ConfigManager,
+  apiUrl: string,
+  code: string,
+  fetchFn: typeof globalThis.fetch,
+): Promise<LoginResult> {
+  try {
+    const response = await fetchFn(`${apiUrl}/api/auth/code/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+
+    const data = (await response.json()) as CodeVerifyResponse;
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: data.error ?? `Server returned ${response.status}`,
+      };
+    }
+
+    if (!data.api_key) {
+      return {
+        success: false,
+        error: "No API key returned",
+      };
+    }
+
+    // Save the token
+    configManager.write({ token: data.api_key });
+
+    return {
+      success: true,
+      email: data.email,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Network error",
+    };
+  }
 }
 
 // Re-export for CLI default browser opener
