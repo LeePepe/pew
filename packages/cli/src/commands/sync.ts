@@ -379,6 +379,8 @@ export async function executeSync(opts: SyncOptions): Promise<SyncResult> {
           phase: "warn",
           message: `OpenCode SQLite database found at ${opts.openCodeDbPath} but SQLite is not available — SQLite token data will NOT be synced`,
         });
+        // Skip only OpenCode driver, keep other DB drivers (e.g. Hermes)
+        activeDbDrivers = activeDbDrivers.filter((d) => d.source !== "opencode");
       } else {
         // Case 2: Both provided — pre-probe if factory returns null
         const handle = opts.openMessageDb(opts.openCodeDbPath);
@@ -393,8 +395,8 @@ export async function executeSync(opts: SyncOptions): Promise<SyncResult> {
             phase: "warn",
             message: `Failed to open OpenCode SQLite database at ${opts.openCodeDbPath} — SQLite token data will NOT be synced`,
           });
-          // Skip DB drivers — factory returns null, driver would return empty anyway
-          activeDbDrivers = [];
+          // Skip only OpenCode driver, keep other DB drivers (e.g. Hermes)
+          activeDbDrivers = activeDbDrivers.filter((d) => d.source !== "opencode");
         } else {
           handle.close();
         }
