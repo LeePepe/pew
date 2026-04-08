@@ -28,13 +28,13 @@ import { isAdmin } from "@/lib/admin";
 const VALID_SOURCES = new Set([
   "claude-code",
   "codex",
+  "copilot-cli",
   "gemini-cli",
+  "hermes",
   "opencode",
   "openclaw",
   "pi",
   "vscode-copilot",
-  "copilot-cli",
-  "hermes",
 ]);
 
 const MAX_DAYS = 365;

@@ -12,32 +12,32 @@ import {
 } from "../constants.js";
 
 describe("SOURCES", () => {
-  it("should contain exactly 8 supported AI tools", () => {
-    expect(SOURCES).toHaveLength(8);
+  it("should contain exactly 9 supported AI tools", () => {
+    expect(SOURCES).toHaveLength(9);
     expect(SOURCES).toContain("claude-code");
     expect(SOURCES).toContain("codex");
+    expect(SOURCES).toContain("copilot-cli");
     expect(SOURCES).toContain("gemini-cli");
+    expect(SOURCES).toContain("hermes");
     expect(SOURCES).toContain("opencode");
     expect(SOURCES).toContain("openclaw");
     expect(SOURCES).toContain("pi");
     expect(SOURCES).toContain("vscode-copilot");
-    expect(SOURCES).toContain("copilot-cli");
-    expect(SOURCES).toContain("hermes");
   });
 
-  it("should be readonly at type level", () => {
+  it("should be readonly and sorted alphabetically", () => {
     // `as const` is a compile-time-only constraint;
     // we verify the array has the correct contents instead.
     expect(SOURCES).toEqual([
       "claude-code",
       "codex",
+      "copilot-cli",
       "gemini-cli",
+      "hermes",
       "opencode",
       "openclaw",
       "pi",
       "vscode-copilot",
-      "copilot-cli",
-      "hermes",
     ]);
   });
 });

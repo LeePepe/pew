@@ -55,7 +55,7 @@
   --color-badge-red: hsl(var(--badge-red));
   --color-badge-red-foreground: hsl(var(--badge-red-foreground));
 
-  /* 8 sequential chart colors + utility tokens */
+  /* 9 sequential chart colors + utility tokens */
   --color-chart-1: hsl(var(--chart-1));
   --color-chart-2: hsl(var(--chart-2));
   --color-chart-3: hsl(var(--chart-3));
@@ -64,6 +64,7 @@
   --color-chart-6: hsl(var(--chart-6));
   --color-chart-7: hsl(var(--chart-7));
   --color-chart-8: hsl(var(--chart-8));
+  --color-chart-9: hsl(var(--chart-9));
   --color-chart-axis: hsl(var(--chart-axis));
   --color-chart-muted: hsl(var(--chart-muted));
 
@@ -167,7 +168,7 @@
   --badge-red: 340 82% 50%;
   --badge-red-foreground: 0 0% 100%;
 
-  /* 8 sequential chart colors — Violet to Lime energy spectrum (boosted saturation + contrast) */
+  /* 9 sequential chart colors — Violet to Lime energy spectrum (boosted saturation + contrast) */
   --chart-1: 270 85% 52%;
   --chart-2: 290 78% 48%;
   --chart-3: 320 72% 48%;
@@ -176,6 +177,7 @@
   --chart-6: 55 92% 42%;
   --chart-7: 75 88% 38%;
   --chart-8: 82 92% 42%;
+  --chart-9: 180 70% 40%;
 
   /* Chart utility tokens */
   --chart-axis: 260 8% 32%;
@@ -240,7 +242,7 @@
   --badge-red: 340 70% 52%;
   --badge-red-foreground: 340 70% 95%;
 
-  /* 8 sequential chart colors — Violet to Lime, boosted for dark bg */
+  /* 9 sequential chart colors — Violet to Lime, boosted for dark bg */
   --chart-1: 270 90% 65%;
   --chart-2: 290 80% 60%;
   --chart-3: 320 75% 58%;
@@ -249,6 +251,7 @@
   --chart-6: 55 95% 52%;
   --chart-7: 75 90% 48%;
   --chart-8: 82 95% 55%;
+  --chart-9: 180 75% 50%;
 
   /* Chart utility tokens */
   --chart-axis: 260 5% 55%;

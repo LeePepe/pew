@@ -93,17 +93,17 @@ export const DEFAULT_PREFIX_PRICES: Array<{ prefix: string; pricing: ModelPricin
   { prefix: "gpt-4o", pricing: { input: 2.5, output: 10, cached: 1.25 } },
 ];
 
-/** Fallback pricing per source (conservative estimates) */
+/** Fallback pricing per source (conservative estimates, alphabetical order) */
 export const DEFAULT_SOURCE_DEFAULTS: Record<string, ModelPricing> = {
   "claude-code": { input: 3, output: 15, cached: 0.3 },
   codex: { input: 2, output: 8, cached: 0.5 },
+  "copilot-cli": { input: 3, output: 15, cached: 0.3 },
   "gemini-cli": { input: 1.25, output: 10, cached: 0.31 },
+  hermes: { input: 3, output: 15, cached: 0.3 },
   opencode: { input: 2, output: 8, cached: 0.5 },
   openclaw: { input: 2, output: 8, cached: 0.5 },
   pi: { input: 3, output: 15, cached: 0.3 },
   "vscode-copilot": { input: 3, output: 15, cached: 0.3 },
-  "copilot-cli": { input: 3, output: 15, cached: 0.3 },
-  hermes: { input: 3, output: 15, cached: 0.3 },
 };
 
 export const DEFAULT_FALLBACK: ModelPricing = { input: 3, output: 15, cached: 0.3 };

@@ -83,7 +83,7 @@ describe("createTokenDrivers", () => {
     });
     expect(fileDrivers).toHaveLength(8);
     const sources = fileDrivers.map((d) => d.source);
-    expect(sources).toEqual(["claude-code", "codex", "gemini-cli", "opencode", "openclaw", "pi", "vscode-copilot", "copilot-cli"]);
+    expect(sources).toEqual(["claude-code", "codex", "copilot-cli", "gemini-cli", "opencode", "openclaw", "pi", "vscode-copilot"]);
     expect(dbDrivers).toHaveLength(0);
   });
 

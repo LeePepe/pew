@@ -82,16 +82,21 @@ export interface TokenDriverSet {
  *
  * A file driver is included when its corresponding directory option is truthy.
  * The SQLite DB driver is included when both `openCodeDbPath` and `openMessageDb` are provided.
+ * Drivers are registered in alphabetical order by source.
  */
 export function createTokenDrivers(opts: TokenDriverRegistryOpts): TokenDriverSet {
   const fileDrivers: FileTokenDriver<FileCursorBase>[] = [];
   const dbDrivers: DbTokenDriver[] = [];
 
+  // File drivers (alphabetical by source)
   if (opts.claudeDir) {
     fileDrivers.push(claudeTokenDriver);
   }
   if (opts.codexSessionsDir) {
     fileDrivers.push(codexTokenDriver);
+  }
+  if (opts.copilotCliLogsDir) {
+    fileDrivers.push(copilotCliTokenDriver);
   }
   if (opts.geminiDir) {
     fileDrivers.push(geminiTokenDriver);
@@ -108,22 +113,21 @@ export function createTokenDrivers(opts: TokenDriverRegistryOpts): TokenDriverSe
   if (opts.vscodeCopilotDirs && opts.vscodeCopilotDirs.length > 0) {
     fileDrivers.push(vscodeCopilotTokenDriver);
   }
-  if (opts.copilotCliLogsDir) {
-    fileDrivers.push(copilotCliTokenDriver);
+
+  // DB drivers (alphabetical by source)
+  if (opts.hermesDbPath && opts.openHermesDb) {
+    dbDrivers.push(
+      createHermesSqliteTokenDriver({
+        dbPath: opts.hermesDbPath,
+        openHermesDb: opts.openHermesDb,
+      }),
+    );
   }
   if (opts.openCodeDbPath && opts.openMessageDb) {
     dbDrivers.push(
       createOpenCodeSqliteTokenDriver({
         dbPath: opts.openCodeDbPath,
         openMessageDb: opts.openMessageDb,
-      }),
-    );
-  }
-  if (opts.hermesDbPath && opts.openHermesDb) {
-    dbDrivers.push(
-      createHermesSqliteTokenDriver({
-        dbPath: opts.hermesDbPath,
-        openHermesDb: opts.openHermesDb,
       }),
     );
   }

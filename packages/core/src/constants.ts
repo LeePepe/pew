@@ -16,13 +16,13 @@ import type { SessionKind, Source } from "./types.js";
 export const SOURCES: readonly Source[] = Object.freeze([
   "claude-code",
   "codex",
+  "copilot-cli",
   "gemini-cli",
+  "hermes",
   "opencode",
   "openclaw",
   "pi",
   "vscode-copilot",
-  "copilot-cli",
-  "hermes",
 ] as const);
 
 /** Set form for O(1) membership checks */

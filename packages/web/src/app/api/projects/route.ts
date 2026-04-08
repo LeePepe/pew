@@ -14,13 +14,13 @@ import { getDbRead, getDbWrite } from "@/lib/db";
 const VALID_SOURCES = new Set([
   "claude-code",
   "codex",
+  "copilot-cli",
   "gemini-cli",
+  "hermes",
   "opencode",
   "openclaw",
   "pi",
   "vscode-copilot",
-  "copilot-cli",
-  "hermes",
 ]);
 
 const MAX_NAME_LENGTH = 100;

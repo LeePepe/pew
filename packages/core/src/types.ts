@@ -10,17 +10,17 @@
 // Source: Supported AI coding tools
 // ---------------------------------------------------------------------------
 
-/** The 8 supported AI coding tools */
+/** The 9 supported AI coding tools */
 export type Source =
   | "claude-code"
   | "codex"
+  | "copilot-cli"
   | "gemini-cli"
+  | "hermes"
   | "opencode"
   | "openclaw"
   | "pi"
-  | "vscode-copilot"
-  | "copilot-cli"
-  | "hermes";
+  | "vscode-copilot";
 
 // ---------------------------------------------------------------------------
 // Token types
