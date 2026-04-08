@@ -15,7 +15,7 @@ import { useAchievements } from "@/hooks/use-achievements";
 import { formatTokens, cn } from "@/lib/utils";
 import { usePricingMap, formatCost } from "@/hooks/use-pricing";
 import { computeTotalCost, toDailyCostPoints, computeCacheSavings, forecastMonthlyCost, toDailyCacheRates } from "@/lib/cost-helpers";
-import { compareWeekdayWeekend, computeMoMGrowth, computeStreak, toLocalDailyBuckets, toHourlyWeekdayWeekend } from "@/lib/usage-helpers";
+import { compareWeekdayWeekend, computeMoMGrowth, computeWoWGrowth, computeStreak, toLocalDailyBuckets, toHourlyWeekdayWeekend } from "@/lib/usage-helpers";
 import { StatCard, StatGrid } from "@/components/dashboard/stat-card";
 import { UsageTrendChart } from "@/components/dashboard/usage-trend-chart";
 import { CostTrendChart } from "@/components/dashboard/cost-trend-chart";
@@ -123,6 +123,12 @@ export default function DashboardPage() {
     [halfHourData.data, pricingMap, tzOffset],
   );
 
+  // WoW growth (needs 2 weeks of data — use half-hour records)
+  const wow = useMemo(
+    () => (halfHourData.data ? computeWoWGrowth(halfHourData.data.records, pricingMap, undefined, tzOffset) : null),
+    [halfHourData.data, pricingMap, tzOffset],
+  );
+
   // Weekday vs weekend comparison
   const weekdayWeekend = useMemo(() => {
     if (!halfHourData.data) return null;
@@ -221,14 +227,20 @@ export default function DashboardPage() {
                 iconColor="text-primary"
                 variant="primary"
                 accentColor="bg-gradient-to-r from-primary to-chart-8"
-                trends={mom ? [
-                  ...(mom.previousMonthSameDate.tokens > 0 && mom.previousMonthSameDate.tokens !== mom.previousMonth.tokens
-                    ? [{ value: Math.round(mom.sameDateTokenGrowth), label: "vs same period" }]
+                trends={[
+                  ...(wow && wow.previousWeekSameDay.tokens > 0 && wow.previousWeekSameDay.tokens !== wow.previousWeek.tokens
+                    ? [{ value: Math.round(wow.sameDayTokenGrowth), label: "vs last week to-date" }]
                     : []),
-                  ...(mom.previousMonth.tokens > 0
+                  ...(wow && wow.previousWeek.tokens > 0
+                    ? [{ value: Math.round(wow.tokenGrowth), label: "vs last week" }]
+                    : []),
+                  ...(mom && mom.previousMonthSameDate.tokens > 0 && mom.previousMonthSameDate.tokens !== mom.previousMonth.tokens
+                    ? [{ value: Math.round(mom.sameDateTokenGrowth), label: "vs last month to-date" }]
+                    : []),
+                  ...(mom && mom.previousMonth.tokens > 0
                     ? [{ value: Math.round(mom.tokenGrowth), label: "vs last month" }]
                     : []),
-                ] : undefined}
+                ]}
               />
               <StatCard
                 title="Input Tokens"
@@ -252,14 +264,20 @@ export default function DashboardPage() {
                 iconColor="text-chart-6"
                 variant="primary"
                 accentColor="bg-chart-6"
-                trends={mom ? [
-                  ...(mom.previousMonthSameDate.cost > 0 && mom.previousMonthSameDate.cost !== mom.previousMonth.cost
-                    ? [{ value: -Math.round(mom.sameDateCostGrowth), label: "vs same period" }]
+                trends={[
+                  ...(wow && wow.previousWeekSameDay.cost > 0 && wow.previousWeekSameDay.cost !== wow.previousWeek.cost
+                    ? [{ value: -Math.round(wow.sameDayCostGrowth), label: "vs last week to-date" }]
                     : []),
-                  ...(mom.previousMonth.cost > 0
+                  ...(wow && wow.previousWeek.cost > 0
+                    ? [{ value: -Math.round(wow.costGrowth), label: "vs last week" }]
+                    : []),
+                  ...(mom && mom.previousMonthSameDate.cost > 0 && mom.previousMonthSameDate.cost !== mom.previousMonth.cost
+                    ? [{ value: -Math.round(mom.sameDateCostGrowth), label: "vs last month to-date" }]
+                    : []),
+                  ...(mom && mom.previousMonth.cost > 0
                     ? [{ value: -Math.round(mom.costGrowth), label: "vs last month" }]
                     : []),
-                ] : undefined}
+                ]}
               />
             </StatGrid>
 
