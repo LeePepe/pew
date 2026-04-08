@@ -135,6 +135,14 @@ describe("GET /api/admin/organizations", () => {
     const json = await res.json();
     expect(json.error).toBe("Failed to list organizations");
   });
+
+  it("should handle non-Error throw in GET", async () => {
+    resolveAdmin.mockResolvedValueOnce(ADMIN);
+    mockDbRead.query.mockRejectedValueOnce("string error");
+
+    const res = await GET(makeJsonRequest("GET", "/api/admin/organizations"));
+    expect(res.status).toBe(500);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -262,6 +270,19 @@ describe("POST /api/admin/organizations", () => {
     expect(res.status).toBe(500);
     const json = await res.json();
     expect(json.error).toContain("Failed to create");
+  });
+
+  it("should handle non-Error throw in POST", async () => {
+    resolveAdmin.mockResolvedValueOnce(ADMIN);
+    mockDbRead.firstOrNull.mockRejectedValueOnce(42);
+
+    const res = await POST(
+      makeJsonRequest("POST", "/api/admin/organizations", {
+        name: "Test",
+        slug: "test",
+      })
+    );
+    expect(res.status).toBe(500);
   });
 });
 // ---------------------------------------------------------------------------
