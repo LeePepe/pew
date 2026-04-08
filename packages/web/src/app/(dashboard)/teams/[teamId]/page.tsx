@@ -96,11 +96,13 @@ function SeasonRow({
   onRegister,
   onWithdraw,
   busy,
+  hideActions,
 }: {
   season: AvailableSeason;
   onRegister: (seasonId: string) => void;
   onWithdraw: (seasonId: string) => void;
   busy: string | null;
+  hideActions?: boolean;
 }) {
   const isBusy = busy === season.id;
 
@@ -125,15 +127,36 @@ function SeasonRow({
         </p>
       </div>
 
-      <div className="shrink-0">
-        {season.is_registered ? (
-          // Can withdraw from upcoming seasons, or active seasons with late withdrawal enabled
-          season.status === "upcoming" || (season.status === "active" && season.allow_late_withdrawal) ? (
+      {/* Hide action buttons when auto-register is enabled */}
+      {!hideActions && (
+        <div className="shrink-0">
+          {season.is_registered ? (
+            // Can withdraw from upcoming seasons, or active seasons with late withdrawal enabled
+            season.status === "upcoming" || (season.status === "active" && season.allow_late_withdrawal) ? (
+              <button
+                onClick={() => onWithdraw(season.id)}
+                disabled={isBusy}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-destructive hover:border-destructive/50 transition-colors",
+                  isBusy && "opacity-50 cursor-not-allowed",
+                )}
+              >
+                {isBusy ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
+                ) : (
+                  <>
+                    <LogOut className="h-3.5 w-3.5" strokeWidth={1.5} />
+                    <span>Withdraw</span>
+                  </>
+                )}
+              </button>
+            ) : null
+          ) : season.status === "upcoming" || (season.status === "active" && season.allow_late_registration) ? (
             <button
-              onClick={() => onWithdraw(season.id)}
+              onClick={() => onRegister(season.id)}
               disabled={isBusy}
               className={cn(
-                "flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-destructive hover:border-destructive/50 transition-colors",
+                "flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors",
                 isBusy && "opacity-50 cursor-not-allowed",
               )}
             >
@@ -141,32 +164,14 @@ function SeasonRow({
                 <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
               ) : (
                 <>
-                  <LogOut className="h-3.5 w-3.5" strokeWidth={1.5} />
-                  <span>Withdraw</span>
+                  <Trophy className="h-3.5 w-3.5" strokeWidth={1.5} />
+                  <span>Register</span>
                 </>
               )}
             </button>
-          ) : null
-        ) : season.status === "upcoming" || (season.status === "active" && season.allow_late_registration) ? (
-          <button
-            onClick={() => onRegister(season.id)}
-            disabled={isBusy}
-            className={cn(
-              "flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors",
-              isBusy && "opacity-50 cursor-not-allowed",
-            )}
-          >
-            {isBusy ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
-            ) : (
-              <>
-                <Trophy className="h-3.5 w-3.5" strokeWidth={1.5} />
-                <span>Register</span>
-              </>
-            )}
-          </button>
-        ) : null}
-      </div>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }
@@ -178,9 +183,11 @@ function SeasonRow({
 function AutoRegisterToggle({
   teamId,
   initialValue,
+  onToggle,
 }: {
   teamId: string;
   initialValue: boolean;
+  onToggle?: (newValue: boolean) => void;
 }) {
   const [enabled, setEnabled] = useState(initialValue);
   const [saving, setSaving] = useState(false);
@@ -188,6 +195,7 @@ function AutoRegisterToggle({
   const handleToggle = async () => {
     const newValue = !enabled;
     setEnabled(newValue);
+    onToggle?.(newValue);
     setSaving(true);
 
     try {
@@ -202,10 +210,12 @@ function AutoRegisterToggle({
         const errorText = await res.text();
         console.error("Auto-register toggle failed:", res.status, errorText);
         setEnabled(!newValue);
+        onToggle?.(!newValue);
       }
     } catch (err) {
       console.error("Auto-register toggle error:", err);
       setEnabled(!newValue);
+      onToggle?.(!newValue);
     } finally {
       setSaving(false);
     }
@@ -254,7 +264,13 @@ function AutoRegisterToggle({
 // Season Registration Section
 // ---------------------------------------------------------------------------
 
-function SeasonRegistration({ teamId }: { teamId: string }) {
+function SeasonRegistration({
+  teamId,
+  autoRegisterEnabled,
+}: {
+  teamId: string;
+  autoRegisterEnabled: boolean;
+}) {
   const { seasons, loading, error, register, withdraw } =
     useSeasonRegistration({ teamId });
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -294,6 +310,11 @@ function SeasonRegistration({ teamId }: { teamId: string }) {
         <Skeleton className="h-14 w-full rounded-lg" />
       </div>
     );
+  }
+
+  // When auto-register is enabled, don't show season list (team auto-joins all)
+  if (autoRegisterEnabled) {
+    return null;
   }
 
   return (
@@ -366,6 +387,9 @@ export default function TeamDetailPage() {
   const [savingName, setSavingName] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
 
+  // Auto-register state (for conditional rendering of season list)
+  const [autoRegisterEnabled, setAutoRegisterEnabled] = useState(false);
+
   const handleMemberClick = useCallback((member: TeamMember) => {
     setDialogMember(member);
     setDialogOpen(true);
@@ -385,6 +409,7 @@ export default function TeamDetailPage() {
       }
       const data = (await res.json()) as TeamDetail;
       setTeam(data);
+      setAutoRegisterEnabled(data.auto_register_season);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load team");
     } finally {
@@ -826,15 +851,20 @@ export default function TeamDetailPage() {
             Season Registration
           </h2>
           <p className="text-xs text-muted-foreground mb-3">
-            Register your team for upcoming seasons to compete on the
-            leaderboard. Rosters are frozen at registration time.
+            {autoRegisterEnabled
+              ? "Your team is automatically registered for all upcoming seasons."
+              : "Register your team for upcoming seasons to compete on the leaderboard. Rosters are frozen at registration time."}
           </p>
           <div className="space-y-3">
             <AutoRegisterToggle
               teamId={team.id}
               initialValue={team.auto_register_season}
+              onToggle={setAutoRegisterEnabled}
             />
-            <SeasonRegistration teamId={team.id} />
+            <SeasonRegistration
+              teamId={team.id}
+              autoRegisterEnabled={autoRegisterEnabled}
+            />
           </div>
         </section>
       )}
