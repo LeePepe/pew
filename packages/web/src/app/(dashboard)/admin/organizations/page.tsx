@@ -9,7 +9,6 @@ import {
   Users,
   X,
   Check,
-  ChevronUp,
   Upload,
   Building2,
 } from "lucide-react";
