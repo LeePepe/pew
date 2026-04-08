@@ -184,13 +184,18 @@ export async function GET(request: Request) {
     }
 
     // Fetch session stats for all users in the leaderboard
+    // Batch to avoid D1's 999 parameter limit (100 UUIDs × ~1 param each + date = safe)
     const sessionStatsByUser = new Map<string, { session_count: number; total_duration_seconds: number }>();
+    const BATCH_SIZE = 50;
 
-    if (userIds.length > 0) {
+    for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
+      const batch = userIds.slice(i, i + BATCH_SIZE);
+      if (batch.length === 0) continue;
+
       try {
-        const placeholders = userIds.map(() => "?").join(",");
+        const placeholders = batch.map(() => "?").join(",");
         const sessionConditions = [`sr.user_id IN (${placeholders})`];
-        const sessionParams: unknown[] = [...userIds];
+        const sessionParams: unknown[] = [...batch];
 
         if (fromDate) {
           sessionConditions.push("sr.started_at >= ?");
@@ -212,8 +217,12 @@ export async function GET(request: Request) {
             total_duration_seconds: row.total_duration_seconds,
           });
         }
-      } catch {
+      } catch (err) {
         // Silently skip if session_records table doesn't exist yet
+        const msg = err instanceof Error ? err.message : "";
+        if (!msg.includes("no such table")) {
+          console.error("Failed to fetch session stats batch:", err);
+        }
       }
     }
 
