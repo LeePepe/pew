@@ -177,6 +177,21 @@ describe("collectGeminiSessions", () => {
     expect(result[0].model).toBe("gemini-2.5-pro");
   });
 
+  it("should return empty when messages is not an array", async () => {
+    const f = join(tmpDir, "session.json");
+    await writeFile(
+      f,
+      JSON.stringify({
+        sessionId: "ses-no-arr",
+        projectHash: "hash",
+        messages: "not-an-array",
+      }),
+    );
+
+    const result = await collectGeminiSessions(f);
+    expect(result).toEqual([]);
+  });
+
   it("should count gemini type as assistant messages", async () => {
     const f = join(tmpDir, "session.json");
     await writeFile(
