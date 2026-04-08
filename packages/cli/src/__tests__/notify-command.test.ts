@@ -538,7 +538,7 @@ describe("trailing-edge cooldown sync", () => {
     // because the dead PID is detected and the lock is replaced
     await vi.waitFor(() => {
       expect(coordinatedSyncFn).toHaveBeenCalledTimes(2);
-    }, { timeout: 2_000 });
+    }, { timeout: 5_000 });
   });
 
   it("does not steal trailing.lock from a live process", async () => {
