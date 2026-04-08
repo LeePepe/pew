@@ -180,12 +180,13 @@ describe("D1AuthAdapter", () => {
   });
 
   describe("linkAccount()", () => {
-    it("should insert account record", async () => {
+    it("should insert account record with only essential fields (no OAuth tokens)", async () => {
       vi.mocked(mockDbWrite.execute).mockResolvedValueOnce({
         changes: 1,
         duration: 0.01,
       });
 
+      // Even if OAuth tokens are provided, they should NOT be stored
       await adapter.linkAccount!({
         userId: "u1",
         type: "oauth" as const,
@@ -202,11 +203,14 @@ describe("D1AuthAdapter", () => {
       expect(mockDbWrite.execute).toHaveBeenCalledOnce();
       const [sql, params] = vi.mocked(mockDbWrite.execute).mock.calls[0]!;
       expect(sql).toContain("INSERT INTO accounts");
+      // Only 5 params: id, user_id, type, provider, provider_account_id
+      // Token fields are hardcoded to NULL in the SQL, not passed as params
+      expect(params).toHaveLength(5);
       expect(params).toContain("google");
       expect(params).toContain("google-123");
     });
 
-    it("should pass null for missing optional fields", async () => {
+    it("should store NULL for all OAuth token fields (data minimization)", async () => {
       vi.mocked(mockDbWrite.execute).mockResolvedValueOnce({
         changes: 1,
         duration: 0.01,
@@ -219,14 +223,9 @@ describe("D1AuthAdapter", () => {
         providerAccountId: "gh-456",
       });
 
-      const [, params] = vi.mocked(mockDbWrite.execute).mock.calls[0]!;
-      // access_token, refresh_token, expires_at, token_type, scope, id_token → all null
-      expect(params![5]).toBeNull(); // access_token
-      expect(params![6]).toBeNull(); // refresh_token
-      expect(params![7]).toBeNull(); // expires_at
-      expect(params![8]).toBeNull(); // token_type
-      expect(params![9]).toBeNull(); // scope
-      expect(params![10]).toBeNull(); // id_token
+      const [sql] = vi.mocked(mockDbWrite.execute).mock.calls[0]!;
+      // SQL should have NULL literals for all token fields
+      expect(sql).toContain("NULL, NULL, NULL, NULL, NULL, NULL");
     });
   });
 

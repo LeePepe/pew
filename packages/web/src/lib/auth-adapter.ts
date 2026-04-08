@@ -81,22 +81,22 @@ export function D1AuthAdapter(dbRead: DbRead, dbWrite: DbWrite): Adapter {
     },
 
     async linkAccount(account: AdapterAccount) {
+      // Only store the minimal fields needed for account linking.
+      // OAuth tokens (access_token, refresh_token, id_token) are intentionally
+      // NOT stored because:
+      // 1. We use JWT session strategy, not database sessions
+      // 2. We never call Google APIs, so these tokens have no use
+      // 3. Storing unused sensitive credentials violates data minimization
       await dbWrite.execute(
         `INSERT INTO accounts (id, user_id, type, provider, provider_account_id,
          access_token, refresh_token, expires_at, token_type, scope, id_token)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL)`,
         [
           crypto.randomUUID(),
           account.userId,
           account.type,
           account.provider,
           account.providerAccountId,
-          account.access_token ?? null,
-          account.refresh_token ?? null,
-          account.expires_at ?? null,
-          account.token_type ?? null,
-          account.scope ?? null,
-          account.id_token ?? null,
         ]
       );
     },
