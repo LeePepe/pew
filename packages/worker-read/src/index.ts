@@ -23,6 +23,12 @@ import { handleSeasonsRpc, type SeasonsRpcRequest } from "./rpc/seasons";
 import { handleUsageRpc, type UsageRpcRequest } from "./rpc/usage";
 import { handleAchievementsRpc, type AchievementsRpcRequest } from "./rpc/achievements";
 import { handleDevicesRpc, type DevicesRpcRequest } from "./rpc/devices";
+import { handleOrganizationsRpc, type OrganizationsRpcRequest } from "./rpc/organizations";
+import { handleShowcasesRpc, type ShowcasesRpcRequest } from "./rpc/showcases";
+import { handleSettingsRpc, type SettingsRpcRequest } from "./rpc/settings";
+import { handleAuthRpc, type AuthRpcRequest } from "./rpc/auth";
+import { handleSessionsRpc, type SessionsRpcRequest } from "./rpc/sessions";
+import { handleLeaderboardRpc, type LeaderboardRpcRequest } from "./rpc/leaderboard";
 
 // ---------------------------------------------------------------------------
 // Version
@@ -290,7 +296,13 @@ export type RpcRequest =
   | SeasonsRpcRequest
   | UsageRpcRequest
   | AchievementsRpcRequest
-  | DevicesRpcRequest;
+  | DevicesRpcRequest
+  | OrganizationsRpcRequest
+  | ShowcasesRpcRequest
+  | SettingsRpcRequest
+  | AuthRpcRequest
+  | SessionsRpcRequest
+  | LeaderboardRpcRequest;
 
 async function handleRpc(body: unknown, env: Env): Promise<Response> {
   if (typeof body !== "object" || body === null) {
@@ -322,6 +334,18 @@ async function handleRpc(body: unknown, env: Env): Promise<Response> {
         return handleAchievementsRpc(body as AchievementsRpcRequest, env.DB);
       case "devices":
         return handleDevicesRpc(body as DevicesRpcRequest, env.DB);
+      case "organizations":
+        return handleOrganizationsRpc(body as OrganizationsRpcRequest, env.DB);
+      case "showcases":
+        return handleShowcasesRpc(body as ShowcasesRpcRequest, env.DB);
+      case "settings":
+        return handleSettingsRpc(body as SettingsRpcRequest, env.DB);
+      case "auth":
+        return handleAuthRpc(body as AuthRpcRequest, env.DB);
+      case "sessions":
+        return handleSessionsRpc(body as SessionsRpcRequest, env.DB);
+      case "leaderboard":
+        return handleLeaderboardRpc(body as LeaderboardRpcRequest, env.DB);
       default:
         return Response.json(
           { error: `Unknown RPC domain: ${domain}` },
