@@ -8,6 +8,7 @@ on:
 
 # Permissions required for osv-scanner SARIF upload
 permissions:
+  actions: read
   contents: read
   security-events: write
 
