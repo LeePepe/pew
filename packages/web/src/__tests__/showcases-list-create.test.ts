@@ -620,5 +620,58 @@ describe("POST /api/showcases", () => {
       expect(consoleSpy).toHaveBeenCalled();
       consoleSpy.mockRestore();
     });
+
+    it("continues past existence check when table missing (no such table)", async () => {
+      mockNormalizeGitHubUrl.mockReturnValue({
+        repoKey: "owner/repo3",
+        displayUrl: "https://github.com/owner/repo3",
+        owner: "owner",
+        repo: "repo3",
+      });
+      mockFetchGitHubMetadata.mockResolvedValue({
+        owner: "owner",
+        name: "repo3",
+        title: "repo3",
+        description: null,
+        fullName: "owner/repo3", stars: 0, forks: 0, language: null, license: null, topics: [], homepage: null,
+      });
+      mockBuildOgImageUrl.mockReturnValue("https://og.example.com/image");
+      // firstOrNull throws "no such table" → should skip existence check
+      const mockDbRead = { firstOrNull: vi.fn().mockRejectedValue(new Error("no such table: showcases")) };
+      const mockDbWrite = { execute: vi.fn().mockResolvedValue({}) };
+      mockGetDbRead.mockResolvedValue(mockDbRead as never);
+      mockGetDbWrite.mockResolvedValue(mockDbWrite as never);
+
+      const res = await POST(createPostRequest({ github_url: "https://github.com/owner/repo3" }));
+
+      expect(res.status).toBe(201);
+    });
+
+    it("returns 409 on UNIQUE constraint during insert", async () => {
+      mockNormalizeGitHubUrl.mockReturnValue({
+        repoKey: "owner/repo-dup",
+        displayUrl: "https://github.com/owner/repo-dup",
+        owner: "owner",
+        repo: "repo-dup",
+      });
+      mockFetchGitHubMetadata.mockResolvedValue({
+        owner: "owner",
+        name: "repo-dup",
+        title: "repo-dup",
+        description: null,
+        fullName: "owner/repo-dup", stars: 0, forks: 0, language: null, license: null, topics: [], homepage: null,
+      });
+      mockBuildOgImageUrl.mockReturnValue("https://og.example.com/image");
+      const mockDbRead = { firstOrNull: vi.fn().mockResolvedValue(null) };
+      const mockDbWrite = {
+        execute: vi.fn().mockRejectedValue(new Error("UNIQUE constraint failed: showcases.repo_key")),
+      };
+      mockGetDbRead.mockResolvedValue(mockDbRead as never);
+      mockGetDbWrite.mockResolvedValue(mockDbWrite as never);
+
+      const res = await POST(createPostRequest({ github_url: "https://github.com/owner/repo-dup" }));
+
+      expect(res.status).toBe(409);
+    });
   });
 });

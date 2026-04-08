@@ -604,4 +604,42 @@ describe("PATCH /api/teams/[teamId]", () => {
 
     expect(res.status).toBe(500);
   });
+
+  it("should return 400 when PATCH body is invalid JSON", async () => {
+    vi.mocked(resolveUser).mockResolvedValueOnce({ userId: "u1" });
+
+    const req = new Request("http://localhost:7020/api/teams/t1", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: "not json {{{",
+    });
+    const res = await PATCH(req, makeParams());
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain("Invalid JSON");
+  });
+
+  it("should return 400 when name is empty string", async () => {
+    vi.mocked(resolveUser).mockResolvedValueOnce({ userId: "u1" });
+
+    const res = await PATCH(
+      makeRequest("PATCH", { name: "" }),
+      makeParams(),
+    );
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain("Team name");
+  });
+
+  it("should return 400 when name exceeds 64 characters", async () => {
+    vi.mocked(resolveUser).mockResolvedValueOnce({ userId: "u1" });
+
+    const res = await PATCH(
+      makeRequest("PATCH", { name: "a".repeat(65) }),
+      makeParams(),
+    );
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain("Team name");
+  });
 });

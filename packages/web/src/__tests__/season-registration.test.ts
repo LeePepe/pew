@@ -458,4 +458,35 @@ describe("DELETE /api/seasons/[seasonId]/register", () => {
     const json = await res.json();
     expect(json.error).toContain("not yet migrated");
   });
+
+  it("should return 400 for invalid JSON body in POST", async () => {
+    resolveUser.mockResolvedValueOnce(USER);
+
+    const req = new Request("http://localhost:7020/api/seasons/season-1/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "not valid json {",
+    });
+    const res = await POST(req, { params: regParams });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain("Invalid JSON");
+  });
+
+  it("should return 400 when team_id is missing in POST", async () => {
+    resolveUser.mockResolvedValueOnce(USER);
+
+    const req = makeJsonRequest("POST", "/api/seasons/season-1/register", {});
+    const res = await POST(req, { params: regParams });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain("team_id is required");
+  });
+
+  it("should return 400 when team_id is not a string in POST", async () => {
+    resolveUser.mockResolvedValueOnce(USER);
+
+    const req = makeJsonRequest("POST", "/api/seasons/season-1/register", { team_id: 123 });
+    const res = await POST(req, { params: regParams });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain("team_id is required");
+  });
 });
