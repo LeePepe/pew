@@ -89,6 +89,14 @@ describe("GET /api/admin/settings", () => {
     const res = await GET(makeGet());
     expect(res.status).toBe(500);
   });
+
+  it("should return 500 when GET error is not Error instance", async () => {
+    resolveAdmin.mockResolvedValueOnce({ userId: "admin-1", email: "admin@test.com" });
+    mockDbRead.query.mockRejectedValueOnce("string error");
+
+    const res = await GET(makeGet());
+    expect(res.status).toBe(500);
+  });
 });
 
 describe("PUT /api/admin/settings", () => {
