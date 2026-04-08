@@ -163,12 +163,19 @@ const syncCommand = defineCommand({
     // (bun:sqlite or node:sqlite) which may not be available on older Node.js.
     let openMessageDb: typeof import("./parsers/opencode-sqlite-db.js").openMessageDb | undefined;
     let openSessionDb: typeof import("./parsers/opencode-sqlite-db.js").openSessionDb | undefined;
+    let openHermesDb: typeof import("./parsers/hermes-sqlite-db.js").openHermesDb | undefined;
     try {
       const mod = await import("./parsers/opencode-sqlite-db.js");
       openMessageDb = mod.openMessageDb;
       openSessionDb = mod.openSessionDb;
     } catch {
       // Native SQLite module not available — SQLite sync will be skipped
+    }
+    try {
+      const hermesModule = await import("./parsers/hermes-sqlite-db.js");
+      openHermesDb = hermesModule.openHermesDb;
+    } catch {
+      // Native SQLite module not available — Hermes SQLite sync will be skipped
     }
 
     // Ensure a stable device ID exists for multi-device dedup
@@ -184,6 +191,8 @@ const syncCommand = defineCommand({
       openCodeMessageDir: paths.openCodeMessageDir,
       openCodeDbPath: paths.openCodeDbPath,
       openMessageDb,
+      hermesDbPath: paths.hermesDbPath,
+      openHermesDb,
       openclawDir: paths.openclawDir,
       vscodeCopilotDirs: paths.vscodeCopilotDirs,
       copilotCliLogsDir: paths.copilotCliLogsDir,
@@ -445,12 +454,19 @@ const notifyCommand = defineCommand({
     // (bun:sqlite or node:sqlite) which may not be available on older Node.js.
     let openMessageDb2: typeof import("./parsers/opencode-sqlite-db.js").openMessageDb | undefined;
     let openSessionDb2: typeof import("./parsers/opencode-sqlite-db.js").openSessionDb | undefined;
+    let openHermesDb2: typeof import("./parsers/hermes-sqlite-db.js").openHermesDb | undefined;
     try {
       const mod = await import("./parsers/opencode-sqlite-db.js");
       openMessageDb2 = mod.openMessageDb;
       openSessionDb2 = mod.openSessionDb;
     } catch {
       // Native SQLite module not available — SQLite sync will be skipped
+    }
+    try {
+      const hermesModule = await import("./parsers/hermes-sqlite-db.js");
+      openHermesDb2 = hermesModule.openHermesDb;
+    } catch {
+      // Native SQLite module not available — Hermes SQLite sync will be skipped
     }
 
     // Ensure a stable device ID exists for multi-device dedup
@@ -468,6 +484,8 @@ const notifyCommand = defineCommand({
       openCodeMessageDir: paths.openCodeMessageDir,
       openCodeDbPath: paths.openCodeDbPath,
       openMessageDb: openMessageDb2,
+      hermesDbPath: paths.hermesDbPath,
+      openHermesDb: openHermesDb2,
       openSessionDb: openSessionDb2,
       openclawDir: paths.openclawDir,
       vscodeCopilotDirs: paths.vscodeCopilotDirs,
