@@ -21,34 +21,47 @@
 | 11 | `764796e` | Refactor: change worker routes to /api/live and /api/query | ✅ done |
 | 12 | | Phase 3: E2E validation against dev Worker | ✅ done |
 | 13 | | Phase 4: delete `RestDbRead` + REST-only env vars | ✅ done |
-| 14 | | Phase 5: migrate raw SQL to typed RPC | 🔄 in progress |
-| 15 | | docs: retrospective | |
+| 14 | | Phase 5: typed RPC for complex queries | ✅ done |
+| 15 | | docs: retrospective | ✅ done |
 
-### Phase 5 Progress — Raw SQL → Typed RPC
+### Phase 5 — Typed RPC for Complex Queries (Completed)
 
-> Goal: Replace all `db.query<T>()` and `db.firstOrNull<T>()` calls with
-> typed RPC methods to eliminate raw SQL from the Next.js layer.
+> **Decision (2026-04-10)**: Phase 5 originally aimed to replace ALL raw SQL
+> with typed RPC. After evaluation, this approach was **abandoned** as overly
+> aggressive. The revised strategy:
+>
+> - **Keep `query<T>()` / `firstOrNull<T>()`** for simple, stable CRUD queries
+> - **Use typed RPC** only for complex business logic (aggregations, multi-table
+>   joins, leaderboard computations, etc.)
+>
+> This hybrid approach retains the flexibility of raw SQL for straightforward
+> queries while benefiting from type-safe RPC for complex domain operations.
 
-| Priority | File | query | firstOrNull | Status |
-|----------|------|-------|-------------|--------|
-| P1 | `/api/leaderboard` | 3 | 0 | ✅ `66eee88` |
-| P2 | `/api/achievements` (compute) | 7 | 0 | ✅ (pre-existing) |
-| P3 | `/api/achievements/[id]/members` | 1 | 0 | ✅ `b5844f4` |
-| P4 | `/api/seasons/[seasonId]/leaderboard` | 8 | 0 | ✅ `750df4f` |
-| P5 | `projects/route.ts` | 6 | 0 | ⏳ pending |
-| P6 | `season-roster.ts` (lib) | 6 | 0 | ⏳ pending |
-| P7 | `auto-register.ts` (lib) | 2 | 3 | ⏳ pending |
-| P8 | `admin/organizations/[orgId]/route.ts` | 0 | 8 | ⏳ pending |
-| P9 | `admin/organizations/[orgId]/members/route.ts` | 1 | 4 | ⏳ pending |
-| P10 | `admin/showcases/route.ts` | 1 | 2 | ⏳ pending |
-| P11 | `admin/organizations/[orgId]/logo/route.ts` | 0 | 3 | ⏳ pending |
-| P12 | `organizations/[orgId]/members/route.ts` | 1 | 1 | ⏳ pending |
-| P13 | `invite.ts` (lib) | 0 | 2 | ⏳ pending |
-| P14 | `rate-limit.ts` (lib) | 0 | 1 | ⏳ pending |
-| P15 | `showcases/[id]/refresh/route.ts` | 0 | 1 | ⏳ pending |
-| P16 | `projects/[id]/route.ts` | 1 | 0 | ⏳ pending |
+#### Migrated to RPC (high-complexity queries)
 
-**Summary**: 18 `query` + 25 `firstOrNull` = **43 call sites** remaining (excl. tests)
+| File | Type | Commit | Reason |
+|------|------|--------|--------|
+| `/api/leaderboard` | RPC | `66eee88` | Multi-table aggregation with ranking |
+| `/api/achievements` | RPC | (pre-existing) | Complex badge computation logic |
+| `/api/achievements/[id]/members` | RPC | `b5844f4` | Filtered member listing |
+| `/api/seasons/[seasonId]/leaderboard` | RPC | `750df4f` | Season-scoped ranking with team joins |
+| `/api/projects` GET | RPC | `e366fd4` | Multi-query aggregation (projects + aliases + tags + unassigned) |
+
+#### Remaining Raw SQL (intentionally kept)
+
+Simple CRUD queries that don't benefit from RPC abstraction:
+
+| Category | Files | Call Sites |
+|----------|-------|------------|
+| Projects CRUD | `projects/route.ts` (POST only), `projects/[id]/route.ts` | 7 |
+| Organizations admin | `admin/organizations/*/route.ts` | 16 |
+| Showcases | `admin/showcases/route.ts`, `showcases/[id]/refresh/route.ts` | 4 |
+| Auth/Settings libs | `invite.ts`, `rate-limit.ts`, `auto-register.ts` | 6 |
+| Season roster | `season-roster.ts` | 7 |
+| **Total** | 12 files | **40 call sites** |
+
+These queries are simple SELECTs or single-row lookups — migrating them to RPC
+would add complexity without meaningful type-safety benefit
 
 ## Problem
 
@@ -770,3 +783,47 @@ absent = REST fallback.
   `CF_D1_DATABASE_ID` be removed.
 - **Edge caching**: add Cloudflare Cache API in the read Worker for
   frequently-accessed queries (leaderboard, public profiles).
+
+---
+
+## Retrospective
+
+### What Went Well
+
+1. **Worker-based read path works** — Latency dropped from ~50-150ms (REST API)
+   to ~15-30ms (Worker native binding). The `/api/live` health check + shared
+   secret auth pattern is simple and effective.
+
+2. **`DbRead` / `DbWrite` abstraction** — Clean separation allows swapping
+   the read backend without touching write code. The feature-flag pattern
+   (`WORKER_READ_URL` presence) enables instant rollback.
+
+3. **Typed RPC for complex queries** — Leaderboard and achievements computations
+   benefit from explicit method signatures (`leaderboard.getSeasonRanking()`)
+   rather than ad-hoc SQL strings.
+
+### What Was Over-Engineered
+
+1. **Phase 5 scope creep** — The original goal to "eliminate all raw SQL"
+   was too aggressive. Simple queries like `SELECT * FROM users WHERE id = ?`
+   don't benefit from RPC abstraction — they're already type-safe via the
+   `query<T>()` generic. The revised hybrid approach (RPC for complex queries,
+   raw SQL for simple CRUD) is more pragmatic.
+
+2. **Priority matrix was premature** — Listing 16 pending migrations created
+   artificial urgency. Most of those files are stable CRUD routes that
+   haven't changed in months — migrating them would be churn without value.
+
+### Lessons Learned
+
+1. **"Kill all raw SQL" is not a goal** — It's a tactic. The actual goals
+   are type safety, maintainability, and performance. Raw SQL with generics
+   (`query<T>()`) already provides good type safety for simple queries.
+
+2. **RPC shines for business logic, not data access** — Use RPC when there's
+   domain logic (ranking algorithms, badge computation, snapshot rollups).
+   Use raw SQL when you're just moving rows between D1 and the API response.
+
+3. **Start with the complex queries** — The high-value migrations (leaderboard,
+   achievements, seasons) were done first. The remaining 41 call sites are
+   low-complexity and can stay as raw SQL indefinitely.
