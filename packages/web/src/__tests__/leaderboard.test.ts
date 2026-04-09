@@ -166,11 +166,9 @@ describe("GET /api/leaderboard", () => {
 
       await GET(makeGetRequest("/api/leaderboard", { period: "all" }));
 
-      expect(mockDb.getGlobalLeaderboard).toHaveBeenCalledWith(
-        expect.objectContaining({
-          fromDate: undefined,
-        }),
-      );
+      // With conditional spread, fromDate is omitted (not present) for period=all
+      const callArg = mockDb.getGlobalLeaderboard.mock.calls[0]?.[0];
+      expect(callArg).not.toHaveProperty("fromDate");
     });
 
     it("should pass limit to RPC", async () => {
@@ -224,12 +222,9 @@ describe("GET /api/leaderboard", () => {
 
       expect(res.status).toBe(200);
       expect(body.scope).toBe("global");
-      // Should NOT have team filter
-      expect(mockDb.getGlobalLeaderboard).toHaveBeenCalledWith(
-        expect.objectContaining({
-          teamId: undefined,
-        }),
-      );
+      // Should NOT have team filter - with conditional spread, teamId is omitted entirely
+      const callArg = mockDb.getGlobalLeaderboard.mock.calls[0]?.[0];
+      expect(callArg).not.toHaveProperty("teamId");
     });
 
     it("should set Cache-Control: private, no-store for anonymous team-scoped request", async () => {
@@ -331,12 +326,9 @@ describe("GET /api/leaderboard", () => {
       expect(res.status).toBe(200);
       expect(body.scope).toBe("global");
       expect(body.scopeId).toBeUndefined();
-      // Should NOT have org filter
-      expect(mockDb.getGlobalLeaderboard).toHaveBeenCalledWith(
-        expect.objectContaining({
-          orgId: undefined,
-        }),
-      );
+      // Should NOT have org filter - with conditional spread, orgId is omitted entirely
+      const callArg = mockDb.getGlobalLeaderboard.mock.calls[0]?.[0];
+      expect(callArg).not.toHaveProperty("orgId");
     });
 
     it("should set Cache-Control: private, no-store for anonymous org-scoped request", async () => {

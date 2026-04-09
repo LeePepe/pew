@@ -214,4 +214,121 @@ describe("GET /api/users/[slug]/achievements", () => {
       expect(body.error).toBe("Failed to compute achievements");
     });
   });
+
+  describe("edge cases", () => {
+    beforeEach(() => {
+      // User lookup
+      mockClient.getPublicUserBySlugOrId.mockResolvedValue({
+        id: "u1",
+        name: "Test User",
+        nickname: null,
+        image: null,
+        slug: "test-user",
+        created_at: "2026-01-01T00:00:00Z",
+        is_public: 1,
+      });
+    });
+
+    it("should handle null usage aggregates gracefully", async () => {
+      mockClient.getAchievementUsageAggregates.mockResolvedValue(null);
+      mockClient.getAchievementDailyUsage.mockResolvedValue([]);
+      mockClient.getAchievementDailyCostBreakdown.mockResolvedValue([]);
+      mockClient.getAchievementDiversityCounts.mockResolvedValue(null);
+      mockClient.getAchievementSessionAggregates.mockResolvedValue(null);
+      mockClient.getAchievementCostByModelSource.mockResolvedValue([]);
+
+      const res = await GET(
+        makeGetRequest("/api/users/test-user/achievements"),
+        { params: Promise.resolve({ slug: "test-user" }) }
+      );
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.achievements).toBeDefined();
+      expect(body.summary.currentStreak).toBe(0);
+    });
+
+    it("should handle zero input tokens for cache ratio", async () => {
+      mockClient.getAchievementUsageAggregates.mockResolvedValue({
+        total_tokens: 0,
+        input_tokens: 0,
+        output_tokens: 0,
+        cached_input_tokens: 0,
+        reasoning_output_tokens: 0,
+      });
+      mockClient.getAchievementDailyUsage.mockResolvedValue([]);
+      mockClient.getAchievementDailyCostBreakdown.mockResolvedValue([]);
+      mockClient.getAchievementDiversityCounts.mockResolvedValue({
+        source_count: 0,
+        model_count: 0,
+        device_count: 0,
+      });
+      mockClient.getAchievementSessionAggregates.mockResolvedValue({
+        total_sessions: 0,
+        quick_sessions: 0,
+        marathon_sessions: 0,
+        max_messages: 0,
+        automated_sessions: 0,
+      });
+      mockClient.getAchievementCostByModelSource.mockResolvedValue([]);
+
+      const res = await GET(
+        makeGetRequest("/api/users/test-user/achievements"),
+        { params: Promise.resolve({ slug: "test-user" }) }
+      );
+
+      expect(res.status).toBe(200);
+    });
+
+    it("should compute cost without cached pricing when not available", async () => {
+      mockClient.getAchievementUsageAggregates.mockResolvedValue({
+        total_tokens: 1_000_000,
+        input_tokens: 500_000,
+        output_tokens: 500_000,
+        cached_input_tokens: 0, // No cached tokens
+        reasoning_output_tokens: 0,
+      });
+      mockClient.getAchievementDailyUsage.mockResolvedValue([
+        { day: "2026-04-01", total_tokens: 1_000_000 },
+      ]);
+      mockClient.getAchievementDailyCostBreakdown.mockResolvedValue([
+        {
+          day: "2026-04-01",
+          model: "unknown-model", // Unknown model to trigger fallback pricing
+          source: null,
+          input_tokens: 500_000,
+          output_tokens: 500_000,
+          cached_input_tokens: 0,
+        },
+      ]);
+      mockClient.getAchievementDiversityCounts.mockResolvedValue({
+        source_count: 1,
+        model_count: 1,
+        device_count: 1,
+      });
+      mockClient.getAchievementSessionAggregates.mockResolvedValue({
+        total_sessions: 1,
+        quick_sessions: 0,
+        marathon_sessions: 0,
+        max_messages: 10,
+        automated_sessions: 0,
+      });
+      mockClient.getAchievementCostByModelSource.mockResolvedValue([
+        {
+          model: "unknown-model",
+          source: null,
+          input_tokens: 500_000,
+          output_tokens: 500_000,
+          cached_input_tokens: 0,
+        },
+      ]);
+
+      const res = await GET(
+        makeGetRequest("/api/users/test-user/achievements"),
+        { params: Promise.resolve({ slug: "test-user" }) }
+      );
+
+      expect(res.status).toBe(200);
+    });
+  });
 });
