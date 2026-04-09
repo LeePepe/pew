@@ -43,6 +43,8 @@ interface UseLeaderboardOptions {
   limit?: number;
   teamId?: string | null;
   orgId?: string | null;
+  /** Delay initial fetch until true (for scope initialization) */
+  enabled?: boolean;
 }
 
 interface UseLeaderboardResult {
@@ -64,10 +66,15 @@ interface UseLeaderboardResult {
   animationStartIndex: number;
 }
 
+/** Generate a stable key for filter params */
+function makeFilterKey(period: string, teamId: string | null | undefined, orgId: string | null | undefined): string {
+  return `${period}|${teamId ?? ""}|${orgId ?? ""}`;
+}
+
 export function useLeaderboard(
   options: UseLeaderboardOptions = {},
 ): UseLeaderboardResult {
-  const { period = "week", limit = 20, teamId, orgId } = options;
+  const { period = "week", limit = 20, teamId, orgId, enabled = true } = options;
 
   // All accumulated entries
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
@@ -82,17 +89,19 @@ export function useLeaderboard(
   // Animation tracking
   const [animationStartIndex, setAnimationStartIndex] = useState(0);
 
-  // Track current filter params to detect changes
-  const filterKeyRef = useRef({ period, teamId, orgId });
+  // Request counter for stale response detection
+  // Each new request increments this; responses check if their ID matches current
+  const requestIdRef = useRef(0);
 
-  // Generate a stable key for current filters
-  const getFilterKey = useCallback(() => {
-    return `${period}|${teamId ?? ""}|${orgId ?? ""}`;
-  }, [period, teamId, orgId]);
+  // Track last fetched filter key to detect changes
+  const lastFilterKeyRef = useRef<string | null>(null);
+
+  // Current filter key
+  const filterKey = makeFilterKey(period, teamId, orgId);
 
   // Fetch a single page
   const fetchPage = useCallback(
-    async (pageOffset: number, isLoadMore: boolean) => {
+    async (pageOffset: number, isLoadMore: boolean, requestId: number) => {
       // Set appropriate loading state
       if (isLoadMore) {
         setLoadingMore(true);
@@ -118,6 +127,12 @@ export function useLeaderboard(
         }
 
         const res = await fetch(`/api/leaderboard?${params.toString()}`);
+
+        // Check if this request is stale (a newer request has been issued)
+        if (requestId !== requestIdRef.current) {
+          return; // Stale response, discard
+        }
+
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
           throw new Error(
@@ -127,11 +142,9 @@ export function useLeaderboard(
 
         const json = (await res.json()) as LeaderboardData;
 
-        // Check if filters changed during fetch - if so, discard results
-        const currentKey = getFilterKey();
-        const expectedKey = `${period}|${teamId ?? ""}|${orgId ?? ""}`;
-        if (currentKey !== expectedKey) {
-          return; // Stale response, ignore
+        // Double-check staleness after JSON parse (in case another request started)
+        if (requestId !== requestIdRef.current) {
+          return; // Stale response, discard
         }
 
         if (isLoadMore) {
@@ -147,46 +160,53 @@ export function useLeaderboard(
         }
         setHasMore(json.hasMore);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error");
+        // Only set error if this request is still current
+        if (requestId === requestIdRef.current) {
+          setError(err instanceof Error ? err.message : "Unknown error");
+        }
       } finally {
-        setLoading(false);
-        setLoadingMore(false);
+        // Only clear loading state if this request is still current
+        if (requestId === requestIdRef.current) {
+          setLoading(false);
+          setLoadingMore(false);
+        }
       }
     },
-    [period, limit, teamId, orgId, getFilterKey],
+    [period, limit, teamId, orgId],
   );
 
-  // Reset and fetch when filters change
+  // Fetch when filters change or on initial mount (when enabled)
   useEffect(() => {
-    const prevKey = `${filterKeyRef.current.period}|${filterKeyRef.current.teamId ?? ""}|${filterKeyRef.current.orgId ?? ""}`;
-    const currentKey = getFilterKey();
-
-    if (prevKey !== currentKey) {
-      // Filters changed - reset everything
-      filterKeyRef.current = { period, teamId, orgId };
-      setOffset(0);
-      fetchPage(0, false);
+    if (!enabled) {
+      // Not enabled yet - stay in loading state, don't fetch
+      return;
     }
-  }, [period, teamId, orgId, getFilterKey, fetchPage]);
 
-  // Initial fetch
-  useEffect(() => {
-    fetchPage(0, false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const shouldFetch = lastFilterKeyRef.current !== filterKey;
+    if (shouldFetch) {
+      lastFilterKeyRef.current = filterKey;
+      setOffset(0);
+      // Increment request ID to invalidate any in-flight requests
+      const requestId = ++requestIdRef.current;
+      fetchPage(0, false, requestId);
+    }
+  }, [enabled, filterKey, fetchPage]);
 
   // Load more handler
   const loadMore = useCallback(() => {
     if (loadingMore || loading || !hasMore) return;
     const newOffset = offset + limit;
     setOffset(newOffset);
-    fetchPage(newOffset, true);
+    // Increment request ID for this pagination request
+    const requestId = ++requestIdRef.current;
+    fetchPage(newOffset, true, requestId);
   }, [loadingMore, loading, hasMore, offset, limit, fetchPage]);
 
   // Refetch from beginning
   const refetch = useCallback(() => {
     setOffset(0);
-    fetchPage(0, false);
+    const requestId = ++requestIdRef.current;
+    fetchPage(0, false, requestId);
   }, [fetchPage]);
 
   return {

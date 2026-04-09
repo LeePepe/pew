@@ -461,6 +461,8 @@ export default function LeaderboardPage() {
   const teamId = scope.type === "team" ? scope.id ?? null : null;
   const orgId = scope.type === "org" ? scope.id ?? null : null;
 
+  // Delay fetch until scope is initialized (localStorage + orgs/teams loaded)
+  // For unauthenticated users, scopeInitialized is set immediately
   const {
     entries,
     loading,
@@ -474,6 +476,7 @@ export default function LeaderboardPage() {
     teamId,
     orgId,
     limit: PAGE_SIZE,
+    enabled: scopeInitialized,
   });
 
   // Fetch user's organizations and teams
