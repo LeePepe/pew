@@ -563,6 +563,7 @@ export interface AchievementEarnerRow {
   image: string | null;
   slug: string | null;
   value: number;
+  earned_at: string | null;
 }
 
 // ---------------------------------------------------------------------------

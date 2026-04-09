@@ -520,16 +520,14 @@ export interface DbRead {
   getAchievementEarners(
     achievementId: string,
     sql: string,
-    threshold: number,
-    limit: number,
-    offset: number,
+    params: unknown[],
   ): Promise<AchievementEarnerRow[]>;
 
   /** Get achievement earners count using a dynamic SQL query */
   getAchievementEarnersCount(
     achievementId: string,
     sql: string,
-    threshold: number,
+    params: unknown[],
   ): Promise<number>;
 
   // ---------------------------------------------------------------------------

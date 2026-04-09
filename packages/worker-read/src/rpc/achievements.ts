@@ -65,6 +65,7 @@ export interface AchievementEarnerRow {
   image: string | null;
   slug: string | null;
   value: number;
+  earned_at: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -110,16 +111,14 @@ export interface GetAchievementEarnersRequest {
   method: "achievements.getEarners";
   achievementId: string;
   sql: string;
-  threshold: number;
-  limit: number;
-  offset: number;
+  params: unknown[];
 }
 
 export interface GetAchievementEarnersCountRequest {
   method: "achievements.getEarnersCount";
   achievementId: string;
   sql: string;
-  threshold: number;
+  params: unknown[];
 }
 
 export type AchievementsRpcRequest =
@@ -305,16 +304,16 @@ async function handleGetAchievementEarners(
   req: GetAchievementEarnersRequest,
   db: D1Database
 ): Promise<Response> {
-  if (!req.achievementId || !req.sql) {
+  if (!req.achievementId || !req.sql || !req.params) {
     return Response.json(
-      { error: "achievementId and sql are required" },
+      { error: "achievementId, sql, and params are required" },
       { status: 400 }
     );
   }
 
   const results = await db
     .prepare(req.sql)
-    .bind(req.threshold, req.limit, req.offset)
+    .bind(...req.params)
     .all<AchievementEarnerRow>();
 
   return Response.json({ result: results.results });
@@ -324,16 +323,16 @@ async function handleGetAchievementEarnersCount(
   req: GetAchievementEarnersCountRequest,
   db: D1Database
 ): Promise<Response> {
-  if (!req.achievementId || !req.sql) {
+  if (!req.achievementId || !req.sql || !req.params) {
     return Response.json(
-      { error: "achievementId and sql are required" },
+      { error: "achievementId, sql, and params are required" },
       { status: 400 }
     );
   }
 
   const result = await db
     .prepare(req.sql)
-    .bind(req.threshold)
+    .bind(...req.params)
     .first<{ count: number }>();
 
   return Response.json({ result: result?.count ?? 0 });

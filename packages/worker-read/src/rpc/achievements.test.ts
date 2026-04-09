@@ -301,18 +301,16 @@ describe("achievements RPC handlers", () => {
   describe("achievements.getEarners", () => {
     it("should return achievement earners", async () => {
       const mockEarners = [
-        { id: "u1", name: "User 1", image: null, slug: "user-1", value: 1000000 },
-        { id: "u2", name: "User 2", image: null, slug: "user-2", value: 500000 },
+        { id: "u1", name: "User 1", image: null, slug: "user-1", value: 1000000, earned_at: "2026-01-01T00:00:00.000Z" },
+        { id: "u2", name: "User 2", image: null, slug: "user-2", value: 500000, earned_at: null },
       ];
       db.all.mockResolvedValue({ results: mockEarners });
 
       const request: GetAchievementEarnersRequest = {
         method: "achievements.getEarners",
         achievementId: "power-user",
-        sql: "SELECT id, name, image, slug, value FROM users WHERE value >= ? LIMIT ? OFFSET ?",
-        threshold: 100000,
-        limit: 5,
-        offset: 0,
+        sql: "SELECT id, name, image, slug, value, earned_at FROM users WHERE value >= ? LIMIT ? OFFSET ?",
+        params: [100000, 5, 0],
       };
       const response = await handleAchievementsRpc(request, db);
       const body = await response.json();
@@ -326,9 +324,7 @@ describe("achievements RPC handlers", () => {
         method: "achievements.getEarners",
         achievementId: "",
         sql: "SELECT ...",
-        threshold: 100000,
-        limit: 5,
-        offset: 0,
+        params: [100000, 5, 0],
       } as GetAchievementEarnersRequest;
       const response = await handleAchievementsRpc(request, db);
 
@@ -348,7 +344,7 @@ describe("achievements RPC handlers", () => {
         method: "achievements.getEarnersCount",
         achievementId: "power-user",
         sql: "SELECT COUNT(*) AS count FROM users WHERE value >= ?",
-        threshold: 100000,
+        params: [100000],
       };
       const response = await handleAchievementsRpc(request, db);
       const body = await response.json();
@@ -364,7 +360,7 @@ describe("achievements RPC handlers", () => {
         method: "achievements.getEarnersCount",
         achievementId: "power-user",
         sql: "SELECT COUNT(*) AS count FROM users WHERE value >= ?",
-        threshold: 100000,
+        params: [100000],
       };
       const response = await handleAchievementsRpc(request, db);
       const body = await response.json();
@@ -378,7 +374,7 @@ describe("achievements RPC handlers", () => {
         method: "achievements.getEarnersCount",
         achievementId: "power-user",
         sql: "",
-        threshold: 100000,
+        params: [100000],
       } as GetAchievementEarnersCountRequest;
       const response = await handleAchievementsRpc(request, db);
 

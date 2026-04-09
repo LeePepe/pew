@@ -935,30 +935,26 @@ export function createWorkerDbRead(): DbRead {
     async getAchievementEarners(
       achievementId: string,
       sql: string,
-      threshold: number,
-      limit: number,
-      offset: number,
+      params: unknown[],
     ): Promise<AchievementEarnerRow[]> {
       return rpc<AchievementEarnerRow[]>({
         method: "achievements.getEarners",
         achievementId,
         sql,
-        threshold,
-        limit,
-        offset,
+        params,
       });
     },
 
     async getAchievementEarnersCount(
       achievementId: string,
       sql: string,
-      threshold: number,
+      params: unknown[],
     ): Promise<number> {
       return rpc<number>({
         method: "achievements.getEarnersCount",
         achievementId,
         sql,
-        threshold,
+        params,
       });
     },
 
