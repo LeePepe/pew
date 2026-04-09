@@ -66,30 +66,28 @@ describe("GET /api/admin/organizations", () => {
   it("should return all organizations with member counts", async () => {
     resolveAdmin.mockResolvedValueOnce(ADMIN);
 
-    mockDbRead.query.mockResolvedValueOnce({
-      results: [
-        {
-          id: "org-1",
-          name: "Anthropic",
-          slug: "anthropic",
-          logo_url: "https://example.com/logo.png",
-          created_by: "admin-1",
-          created_at: "2026-01-01T00:00:00Z",
-          updated_at: "2026-01-01T00:00:00Z",
-          member_count: 5,
-        },
-        {
-          id: "org-2",
-          name: "OpenAI",
-          slug: "openai",
-          logo_url: null,
-          created_by: "admin-1",
-          created_at: "2026-01-02T00:00:00Z",
-          updated_at: "2026-01-02T00:00:00Z",
-          member_count: 0,
-        },
-      ],
-    });
+    mockDbRead.listOrganizationsWithCount.mockResolvedValueOnce([
+      {
+        id: "org-1",
+        name: "Anthropic",
+        slug: "anthropic",
+        logo_url: "https://example.com/logo.png",
+        created_by: "admin-1",
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+        member_count: 5,
+      },
+      {
+        id: "org-2",
+        name: "OpenAI",
+        slug: "openai",
+        logo_url: null,
+        created_by: "admin-1",
+        created_at: "2026-01-02T00:00:00Z",
+        updated_at: "2026-01-02T00:00:00Z",
+        member_count: 0,
+      },
+    ]);
 
     const res = await GET(makeJsonRequest("GET", "/api/admin/organizations"));
     expect(res.status).toBe(200);
@@ -118,7 +116,7 @@ describe("GET /api/admin/organizations", () => {
 
   it("should handle no-such-table gracefully", async () => {
     resolveAdmin.mockResolvedValueOnce(ADMIN);
-    mockDbRead.query.mockRejectedValueOnce(new Error("no such table: organizations"));
+    mockDbRead.listOrganizationsWithCount.mockRejectedValueOnce(new Error("no such table: organizations"));
 
     const res = await GET(makeJsonRequest("GET", "/api/admin/organizations"));
     expect(res.status).toBe(503);
@@ -128,7 +126,7 @@ describe("GET /api/admin/organizations", () => {
 
   it("should return 500 on unexpected error", async () => {
     resolveAdmin.mockResolvedValueOnce(ADMIN);
-    mockDbRead.query.mockRejectedValueOnce(new Error("DB connection failed"));
+    mockDbRead.listOrganizationsWithCount.mockRejectedValueOnce(new Error("DB connection failed"));
 
     const res = await GET(makeJsonRequest("GET", "/api/admin/organizations"));
     expect(res.status).toBe(500);
@@ -155,7 +153,7 @@ describe("POST /api/admin/organizations", () => {
 
   it("should create organization with valid data", async () => {
     resolveAdmin.mockResolvedValueOnce(ADMIN);
-    mockDbRead.firstOrNull.mockResolvedValueOnce(null); // no slug collision
+    mockDbRead.getOrganizationBySlug.mockResolvedValueOnce(null); // no slug collision
     mockDbWrite.execute.mockResolvedValueOnce({ changes: 1, duration: 0.01 });
 
     const res = await POST(
@@ -223,7 +221,7 @@ describe("POST /api/admin/organizations", () => {
 
   it("should reject duplicate slug", async () => {
     resolveAdmin.mockResolvedValueOnce(ADMIN);
-    mockDbRead.firstOrNull.mockResolvedValueOnce({ id: "existing" });
+    mockDbRead.getOrganizationBySlug.mockResolvedValueOnce({ id: "existing", name: "Existing Org", slug: "existing-slug", logo_url: null, created_by: "admin-1", created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" });
 
     const res = await POST(
       makeJsonRequest("POST", "/api/admin/organizations", {
@@ -238,7 +236,7 @@ describe("POST /api/admin/organizations", () => {
 
   it("should handle no-such-table on create", async () => {
     resolveAdmin.mockResolvedValueOnce(ADMIN);
-    mockDbRead.firstOrNull.mockRejectedValueOnce(new Error("no such table: organizations"));
+    mockDbRead.getOrganizationBySlug.mockRejectedValueOnce(new Error("no such table: organizations"));
 
     const res = await POST(
       makeJsonRequest("POST", "/api/admin/organizations", {
