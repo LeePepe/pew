@@ -87,6 +87,49 @@ export interface OrgMemberRow {
 }
 
 // ---------------------------------------------------------------------------
+// Projects domain types
+// ---------------------------------------------------------------------------
+
+/** Project record */
+export interface ProjectRow {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
+/** Project tag record */
+export interface ProjectTagRow {
+  project_id: string;
+  tag: string;
+}
+
+/** Alias stats row for projects list (from Worker RPC) */
+export interface ProjectAliasStatsRow {
+  source: string;
+  project_ref: string;
+  project_id: string | null;
+  session_count: number;
+  last_active: string | null;
+  total_duration_seconds: number;
+}
+
+/** Unassigned ref row */
+export interface ProjectUnassignedRow {
+  source: string;
+  project_ref: string;
+  session_count: number;
+  last_active: string | null;
+  total_duration_seconds: number;
+}
+
+/** Timeline row for project activity */
+export interface ProjectTimelineRow {
+  project_id: string;
+  day: string;
+  session_count: number;
+}
+
+// ---------------------------------------------------------------------------
 // Showcases domain types
 // ---------------------------------------------------------------------------
 

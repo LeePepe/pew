@@ -41,6 +41,22 @@ export function createMockDbRead() {
     getOrganizationBySlug: vi.fn(),
     checkOrgMembership: vi.fn(),
     listOrgMembers: vi.fn(),
+    // Projects RPC methods
+    listProjects: vi.fn(),
+    listAliasesWithStats: vi.fn(),
+    listUnassignedRefs: vi.fn(),
+    listProjectTags: vi.fn(),
+    getProjectByName: vi.fn(),
+    getProjectById: vi.fn(),
+    getProjectByNameExcluding: vi.fn(),
+    projectExistsForUser: vi.fn(),
+    sessionRecordExists: vi.fn(),
+    getAliasOwner: vi.fn(),
+    aliasAttachedToProject: vi.fn(),
+    projectTagExists: vi.fn(),
+    getProjectAliasStats: vi.fn(),
+    getProjectTagList: vi.fn(),
+    getProjectTimeline: vi.fn(),
     // Showcases RPC methods
     getShowcaseById: vi.fn(),
     getShowcaseOwner: vi.fn(),
@@ -100,6 +116,21 @@ export function createMockDbRead() {
     getOrganizationBySlug: ReturnType<typeof vi.fn>;
     checkOrgMembership: ReturnType<typeof vi.fn>;
     listOrgMembers: ReturnType<typeof vi.fn>;
+    listProjects: ReturnType<typeof vi.fn>;
+    listAliasesWithStats: ReturnType<typeof vi.fn>;
+    listUnassignedRefs: ReturnType<typeof vi.fn>;
+    listProjectTags: ReturnType<typeof vi.fn>;
+    getProjectByName: ReturnType<typeof vi.fn>;
+    getProjectById: ReturnType<typeof vi.fn>;
+    getProjectByNameExcluding: ReturnType<typeof vi.fn>;
+    projectExistsForUser: ReturnType<typeof vi.fn>;
+    sessionRecordExists: ReturnType<typeof vi.fn>;
+    getAliasOwner: ReturnType<typeof vi.fn>;
+    aliasAttachedToProject: ReturnType<typeof vi.fn>;
+    projectTagExists: ReturnType<typeof vi.fn>;
+    getProjectAliasStats: ReturnType<typeof vi.fn>;
+    getProjectTagList: ReturnType<typeof vi.fn>;
+    getProjectTimeline: ReturnType<typeof vi.fn>;
     getShowcaseById: ReturnType<typeof vi.fn>;
     getShowcaseOwner: ReturnType<typeof vi.fn>;
     checkShowcaseExists: ReturnType<typeof vi.fn>;
