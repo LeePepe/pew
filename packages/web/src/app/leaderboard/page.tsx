@@ -631,7 +631,7 @@ export default function LeaderboardPage() {
           >
             {allEntries.map((entry, i) => (
               <LeaderboardRow
-                key={entry.rank}
+                key={entry.user.id}
                 entry={entry}
                 index={i}
               />
