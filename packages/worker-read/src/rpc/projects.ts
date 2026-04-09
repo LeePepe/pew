@@ -22,7 +22,10 @@ export interface AliasStatsRow {
   project_id: string | null;
   session_count: number;
   last_active: string | null;
+  total_messages: number;
   total_duration_seconds: number;
+  models: string | null;
+  absolute_last_active: string | null;
 }
 
 export interface UnassignedRow {
@@ -30,7 +33,9 @@ export interface UnassignedRow {
   project_ref: string;
   session_count: number;
   last_active: string | null;
+  total_messages: number;
   total_duration_seconds: number;
+  models: string | null;
 }
 
 export interface TagRow {
@@ -195,49 +200,54 @@ async function handleListAliasesWithStats(
   let params: string[];
 
   if (req.from && req.to) {
-    // With date range filter
+    // With date range filter — includes absolute_last_active via subquery
     sql = `
       SELECT
-        sr.source,
-        sr.project_ref,
         pa.project_id,
-        COUNT(*) AS session_count,
-        MAX(sr.started_at) AS last_active,
-        COALESCE(SUM(sr.duration_seconds), 0) AS total_duration_seconds
-      FROM session_records sr
-      LEFT JOIN project_aliases pa
-        ON pa.user_id = sr.user_id
-        AND pa.source = sr.source
-        AND pa.project_ref = sr.project_ref
-      WHERE sr.user_id = ?
+        pa.source,
+        pa.project_ref,
+        COUNT(sr.id) AS session_count,
+        MAX(sr.last_message_at) AS last_active,
+        COALESCE(SUM(sr.total_messages), 0) AS total_messages,
+        COALESCE(SUM(sr.duration_seconds), 0) AS total_duration_seconds,
+        GROUP_CONCAT(DISTINCT sr.model) AS models,
+        (SELECT MAX(sr2.last_message_at)
+         FROM session_records sr2
+         WHERE sr2.user_id = pa.user_id
+           AND sr2.source = pa.source
+           AND sr2.project_ref = pa.project_ref
+        ) AS absolute_last_active
+      FROM project_aliases pa
+      LEFT JOIN session_records sr
+        ON sr.user_id = pa.user_id
+        AND sr.source = pa.source
+        AND sr.project_ref = pa.project_ref
         AND sr.started_at >= ?
         AND sr.started_at < ?
-        AND sr.project_ref IS NOT NULL
-        AND sr.project_ref != ''
-      GROUP BY sr.source, sr.project_ref
-      ORDER BY session_count DESC
+      WHERE pa.user_id = ?
+      GROUP BY pa.project_id, pa.source, pa.project_ref
     `;
-    params = [req.userId, req.from, req.to];
+    params = [req.from, req.to, req.userId];
   } else {
-    // All-time
+    // All-time — absolute_last_active equals last_active
     sql = `
       SELECT
-        sr.source,
-        sr.project_ref,
         pa.project_id,
-        COUNT(*) AS session_count,
-        MAX(sr.started_at) AS last_active,
-        COALESCE(SUM(sr.duration_seconds), 0) AS total_duration_seconds
-      FROM session_records sr
-      LEFT JOIN project_aliases pa
-        ON pa.user_id = sr.user_id
-        AND pa.source = sr.source
-        AND pa.project_ref = sr.project_ref
-      WHERE sr.user_id = ?
-        AND sr.project_ref IS NOT NULL
-        AND sr.project_ref != ''
-      GROUP BY sr.source, sr.project_ref
-      ORDER BY session_count DESC
+        pa.source,
+        pa.project_ref,
+        COUNT(sr.id) AS session_count,
+        MAX(sr.last_message_at) AS last_active,
+        COALESCE(SUM(sr.total_messages), 0) AS total_messages,
+        COALESCE(SUM(sr.duration_seconds), 0) AS total_duration_seconds,
+        GROUP_CONCAT(DISTINCT sr.model) AS models,
+        MAX(sr.last_message_at) AS absolute_last_active
+      FROM project_aliases pa
+      LEFT JOIN session_records sr
+        ON sr.user_id = pa.user_id
+        AND sr.source = pa.source
+        AND sr.project_ref = pa.project_ref
+      WHERE pa.user_id = ?
+      GROUP BY pa.project_id, pa.source, pa.project_ref
     `;
     params = [req.userId];
   }
@@ -265,12 +275,13 @@ async function handleListUnassignedRefs(
         sr.source,
         sr.project_ref,
         COUNT(*) AS session_count,
-        MAX(sr.started_at) AS last_active,
-        COALESCE(SUM(sr.duration_seconds), 0) AS total_duration_seconds
+        MAX(sr.last_message_at) AS last_active,
+        COALESCE(SUM(sr.total_messages), 0) AS total_messages,
+        COALESCE(SUM(sr.duration_seconds), 0) AS total_duration_seconds,
+        GROUP_CONCAT(DISTINCT sr.model) AS models
       FROM session_records sr
       WHERE sr.user_id = ?
         AND sr.project_ref IS NOT NULL
-        AND sr.project_ref != ''
         AND sr.started_at >= ?
         AND sr.started_at < ?
         AND NOT EXISTS (
@@ -280,7 +291,7 @@ async function handleListUnassignedRefs(
             AND pa.project_ref = sr.project_ref
         )
       GROUP BY sr.source, sr.project_ref
-      ORDER BY session_count DESC
+      ORDER BY last_active DESC
     `;
     params = [req.userId, req.from, req.to];
   } else {
@@ -289,12 +300,13 @@ async function handleListUnassignedRefs(
         sr.source,
         sr.project_ref,
         COUNT(*) AS session_count,
-        MAX(sr.started_at) AS last_active,
-        COALESCE(SUM(sr.duration_seconds), 0) AS total_duration_seconds
+        MAX(sr.last_message_at) AS last_active,
+        COALESCE(SUM(sr.total_messages), 0) AS total_messages,
+        COALESCE(SUM(sr.duration_seconds), 0) AS total_duration_seconds,
+        GROUP_CONCAT(DISTINCT sr.model) AS models
       FROM session_records sr
       WHERE sr.user_id = ?
         AND sr.project_ref IS NOT NULL
-        AND sr.project_ref != ''
         AND NOT EXISTS (
           SELECT 1 FROM project_aliases pa
           WHERE pa.user_id = sr.user_id
@@ -302,7 +314,7 @@ async function handleListUnassignedRefs(
             AND pa.project_ref = sr.project_ref
         )
       GROUP BY sr.source, sr.project_ref
-      ORDER BY session_count DESC
+      ORDER BY last_active DESC
     `;
     params = [req.userId];
   }
@@ -322,7 +334,9 @@ async function handleListProjectTags(
   }
 
   const results = await db
-    .prepare(`SELECT project_id, tag FROM project_tags WHERE user_id = ?`)
+    .prepare(
+      `SELECT project_id, tag FROM project_tags WHERE user_id = ? ORDER BY project_id, tag`
+    )
     .bind(req.userId)
     .all<TagRow>();
 
@@ -474,8 +488,11 @@ async function handleGetProjectAliasStats(
         pa.project_ref,
         pa.project_id,
         COUNT(sr.id) AS session_count,
-        MAX(sr.started_at) AS last_active,
-        COALESCE(SUM(sr.duration_seconds), 0) AS total_duration_seconds
+        MAX(sr.last_message_at) AS last_active,
+        COALESCE(SUM(sr.total_messages), 0) AS total_messages,
+        COALESCE(SUM(sr.duration_seconds), 0) AS total_duration_seconds,
+        GROUP_CONCAT(DISTINCT sr.model) AS models,
+        MAX(sr.last_message_at) AS absolute_last_active
       FROM project_aliases pa
       LEFT JOIN session_records sr
         ON sr.user_id = pa.user_id

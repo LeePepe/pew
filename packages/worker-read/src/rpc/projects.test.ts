@@ -118,7 +118,8 @@ describe("projects RPC handlers", () => {
       const response = await handleProjectsRpc(request, db);
 
       expect(response.status).toBe(200);
-      expect(db.bind).toHaveBeenCalledWith("u1", "2026-01-01T00:00:00Z", "2026-02-01T00:00:00Z");
+      // SQL params order: from, to, userId (for date-range query)
+      expect(db.bind).toHaveBeenCalledWith("2026-01-01T00:00:00Z", "2026-02-01T00:00:00Z", "u1");
     });
 
     it("should return 400 when userId is missing", async () => {
@@ -200,6 +201,19 @@ describe("projects RPC handlers", () => {
       const response = await handleProjectsRpc(request, db);
 
       expect(response.status).toBe(400);
+    });
+
+    it("should query with ORDER BY project_id, tag for stable sorting", async () => {
+      db.all.mockResolvedValue({ results: [] });
+
+      const request: ListProjectTagsRequest = {
+        method: "projects.listTags",
+        userId: "u1",
+      };
+      await handleProjectsRpc(request, db);
+
+      const sql = db.prepare.mock.calls[0][0];
+      expect(sql).toContain("ORDER BY project_id, tag");
     });
   });
 
