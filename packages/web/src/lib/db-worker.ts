@@ -27,6 +27,7 @@ import type {
   AuthCodeRow,
   InviteCodeRow,
   InviteCodeSimple,
+  InviteCodeById,
   AppSettingRow,
   UserSettingRow,
 } from "./rpc-types";
@@ -449,6 +450,10 @@ export function createWorkerDbRead(): DbRead {
 
     async checkInviteCodeExists(code: string): Promise<InviteCodeSimple | null> {
       return rpc<InviteCodeSimple | null>({ method: "auth.checkInviteCode", code });
+    },
+
+    async getInviteCodeById(id: number): Promise<InviteCodeById | null> {
+      return rpc<InviteCodeById | null>({ method: "auth.getInviteCodeById", id });
     },
 
     async checkUserHasUnusedInvite(userId: string): Promise<boolean> {

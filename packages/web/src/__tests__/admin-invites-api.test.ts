@@ -76,7 +76,7 @@ describe("GET /api/admin/invites", () => {
         created_at: "2026-03-10T12:00:00Z",
       },
     ];
-    mockDbRead.query.mockResolvedValueOnce({ results: mockRows });
+    mockDbRead.listInviteCodes.mockResolvedValueOnce(mockRows);
 
     const res = await GET(makeJsonRequest("GET", "/api/admin/invites"));
     expect(res.status).toBe(200);
@@ -108,8 +108,8 @@ describe("POST /api/admin/invites", () => {
       userId: "admin-1",
       email: "admin@test.com",
     });
-    // firstOrNull returns null (no collision)
-    mockDbRead.firstOrNull.mockResolvedValue(null);
+    // checkInviteCodeExists returns null (no collision)
+    mockDbRead.checkInviteCodeExists.mockResolvedValue(null);
     mockDbWrite.execute.mockResolvedValue({ changes: 1, duration: 0.01 });
 
     const res = await POST(makeJsonRequest("POST", "/api/admin/invites", { count: 3 }));
@@ -216,8 +216,8 @@ describe("DELETE /api/admin/invites", () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.deleted).toBe(true);
-    // Should NOT have called firstOrNull (no fallback needed)
-    expect(mockDbRead.firstOrNull).not.toHaveBeenCalled();
+    // Should NOT have called getInviteCodeById (no fallback needed)
+    expect(mockDbRead.getInviteCodeById).not.toHaveBeenCalled();
   });
 
   it("should delete burned pending:* code (atomic DELETE succeeds)", async () => {
@@ -243,8 +243,8 @@ describe("DELETE /api/admin/invites", () => {
     });
     // Atomic DELETE didn't match (code is fully consumed)
     mockDbWrite.execute.mockResolvedValueOnce({ changes: 0, duration: 0.01 });
-    // Fallback SELECT finds the row with a real user ID
-    mockDbRead.firstOrNull.mockResolvedValueOnce({
+    // Fallback getInviteCodeById finds the row with a real user ID
+    mockDbRead.getInviteCodeById.mockResolvedValueOnce({
       used_by: "user-uuid-abc123",
     });
 
@@ -263,8 +263,8 @@ describe("DELETE /api/admin/invites", () => {
     });
     // Atomic DELETE didn't match (no such row)
     mockDbWrite.execute.mockResolvedValueOnce({ changes: 0, duration: 0.01 });
-    // Fallback SELECT also finds nothing
-    mockDbRead.firstOrNull.mockResolvedValueOnce(null);
+    // Fallback getInviteCodeById also finds nothing
+    mockDbRead.getInviteCodeById.mockResolvedValueOnce(null);
 
     const res = await DELETE(
       makeJsonRequest("DELETE", "/api/admin/invites?id=999")

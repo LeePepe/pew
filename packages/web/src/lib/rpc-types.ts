@@ -233,18 +233,21 @@ export interface InviteCodeRow {
   id: number;
   code: string;
   created_by: string;
+  created_by_email: string | null;
   used_by: string | null;
+  used_by_email: string | null;
   used_at: string | null;
   created_at: string;
-  creator_name: string | null;
-  creator_image: string | null;
-  user_name: string | null;
-  user_image: string | null;
 }
 
 /** Simple invite code for validation */
 export interface InviteCodeSimple {
   id: number;
+  used_by: string | null;
+}
+
+/** Invite code by ID for delete check */
+export interface InviteCodeById {
   used_by: string | null;
 }
 

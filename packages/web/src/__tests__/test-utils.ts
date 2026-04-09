@@ -75,6 +75,7 @@ export function createMockDbRead() {
     getAuthCode: vi.fn(),
     listInviteCodes: vi.fn(),
     checkInviteCodeExists: vi.fn(),
+    getInviteCodeById: vi.fn(),
     checkUserHasUnusedInvite: vi.fn(),
     // Settings RPC methods
     getAllAppSettings: vi.fn(),
@@ -128,6 +129,7 @@ export function createMockDbRead() {
     getAuthCode: ReturnType<typeof vi.fn>;
     listInviteCodes: ReturnType<typeof vi.fn>;
     checkInviteCodeExists: ReturnType<typeof vi.fn>;
+    getInviteCodeById: ReturnType<typeof vi.fn>;
     checkUserHasUnusedInvite: ReturnType<typeof vi.fn>;
     getAllAppSettings: ReturnType<typeof vi.fn>;
     getAllUserSettings: ReturnType<typeof vi.fn>;

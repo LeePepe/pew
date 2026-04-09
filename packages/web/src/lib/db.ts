@@ -26,6 +26,7 @@ import type {
   AuthCodeRow,
   InviteCodeRow,
   InviteCodeSimple,
+  InviteCodeById,
   AppSettingRow,
   UserSettingRow,
 } from "./rpc-types";
@@ -246,6 +247,9 @@ export interface DbRead {
 
   /** Check if invite code exists and get its status */
   checkInviteCodeExists(code: string): Promise<InviteCodeSimple | null>;
+
+  /** Get invite code by ID (for delete check) */
+  getInviteCodeById(id: number): Promise<InviteCodeById | null>;
 
   /** Check if user has unused invite codes */
   checkUserHasUnusedInvite(userId: string): Promise<boolean>;
