@@ -463,7 +463,7 @@ export default function LeaderboardPage() {
   });
 
   // Accumulate entries as pages are loaded
-  // Track last processed data to avoid duplicate appends when offset changes
+  // Track last processed data to avoid duplicate appends
   const lastProcessedDataRef = useRef<typeof data>(null);
   /* eslint-disable react-hooks/set-state-in-effect -- accumulate pages */
   useEffect(() => {
@@ -477,6 +477,11 @@ export default function LeaderboardPage() {
         setAllEntries((prev) => [...prev, ...data.entries]);
       }
     }
+    // When data becomes null (filter change), clear entries
+    if (data === null && lastProcessedDataRef.current !== null) {
+      lastProcessedDataRef.current = null;
+      setAllEntries([]);
+    }
   }, [data, offset]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -484,7 +489,7 @@ export default function LeaderboardPage() {
   /* eslint-disable react-hooks/set-state-in-effect -- reset pagination on filter change is intentional */
   useEffect(() => {
     setOffset(0);
-    setAllEntries([]);
+    // allEntries will be cleared by the data=null effect above
   }, [period, scope]);
   /* eslint-enable react-hooks/set-state-in-effect */
 

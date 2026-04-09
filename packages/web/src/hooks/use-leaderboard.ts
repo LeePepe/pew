@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -64,12 +64,30 @@ export function useLeaderboard(
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Track the request parameters to detect when they change
+  const paramsRef = useRef({ period, limit, offset, teamId, orgId });
+  const isParamsChanged =
+    paramsRef.current.period !== period ||
+    paramsRef.current.limit !== limit ||
+    paramsRef.current.offset !== offset ||
+    paramsRef.current.teamId !== teamId ||
+    paramsRef.current.orgId !== orgId;
+
+  // Update ref after comparison
+  if (isParamsChanged) {
+    paramsRef.current = { period, limit, offset, teamId, orgId };
+  }
+
   const fetchData = useCallback(async () => {
-    // Initial load → loading=true; subsequent fetches → refreshing=true
-    if (data === null) {
+    // When offset is 0 (first page), always show loading state to avoid stale data flash
+    // For pagination (offset > 0), show refreshing to keep existing entries visible
+    if (offset === 0) {
       setLoading(true);
-    } else {
+      setData(null); // Clear stale data on filter change
+    } else if (data !== null) {
       setRefreshing(true);
+    } else {
+      setLoading(true);
     }
     setError(null);
 
