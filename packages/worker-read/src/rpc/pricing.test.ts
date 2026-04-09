@@ -1,12 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   handlePricingRpc,
-  type ListPricingPlansRequest,
-  type GetPricingPlanRequest,
-  type GetPricingPlanByNameRequest,
   type ListModelPricingRequest,
-  type GetModelPricingRequest,
-  type ListUsageTiersRequest,
+  type GetModelPricingByIdRequest,
+  type GetModelPricingByModelSourceRequest,
 } from "./pricing";
 import type { D1Database } from "@cloudflare/workers-types";
 
@@ -36,165 +33,32 @@ describe("pricing RPC handlers", () => {
   });
 
   // -------------------------------------------------------------------------
-  // pricing.listPlans
-  // -------------------------------------------------------------------------
-
-  describe("pricing.listPlans", () => {
-    it("should return all pricing plans", async () => {
-      const mockPlans = [
-        {
-          id: "p1",
-          name: "Free",
-          description: "Free tier",
-          price_cents: 0,
-          interval: "month",
-          features: '["basic"]',
-          is_active: true,
-          created_at: "2026-01-01T00:00:00Z",
-        },
-        {
-          id: "p2",
-          name: "Pro",
-          description: "Pro tier",
-          price_cents: 999,
-          interval: "month",
-          features: '["advanced"]',
-          is_active: true,
-          created_at: "2026-01-01T00:00:00Z",
-        },
-      ];
-      db.all.mockResolvedValue({ results: mockPlans });
-
-      const request: ListPricingPlansRequest = {
-        method: "pricing.listPlans",
-      };
-      const response = await handlePricingRpc(request, db);
-      const body = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(body).toEqual({ result: mockPlans });
-    });
-
-    it("should filter active plans only", async () => {
-      db.all.mockResolvedValue({ results: [] });
-
-      const request: ListPricingPlansRequest = {
-        method: "pricing.listPlans",
-        activeOnly: true,
-      };
-      await handlePricingRpc(request, db);
-
-      expect(db.prepare).toHaveBeenCalled();
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // pricing.getPlan
-  // -------------------------------------------------------------------------
-
-  describe("pricing.getPlan", () => {
-    it("should return plan by ID", async () => {
-      const mockPlan = {
-        id: "p1",
-        name: "Free",
-        description: "Free tier",
-        price_cents: 0,
-        interval: "month",
-        features: '["basic"]',
-        is_active: true,
-        created_at: "2026-01-01T00:00:00Z",
-      };
-      db.first.mockResolvedValue(mockPlan);
-
-      const request: GetPricingPlanRequest = {
-        method: "pricing.getPlan",
-        planId: "p1",
-      };
-      const response = await handlePricingRpc(request, db);
-      const body = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(body).toEqual({ result: mockPlan });
-    });
-
-    it("should return null when not found", async () => {
-      db.first.mockResolvedValue(null);
-
-      const request: GetPricingPlanRequest = {
-        method: "pricing.getPlan",
-        planId: "nonexistent",
-      };
-      const response = await handlePricingRpc(request, db);
-      const body = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(body).toEqual({ result: null });
-    });
-
-    it("should return 400 when planId missing", async () => {
-      const request = {
-        method: "pricing.getPlan",
-        planId: "",
-      } as GetPricingPlanRequest;
-      const response = await handlePricingRpc(request, db);
-
-      expect(response.status).toBe(400);
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // pricing.getPlanByName
-  // -------------------------------------------------------------------------
-
-  describe("pricing.getPlanByName", () => {
-    it("should return plan by name", async () => {
-      const mockPlan = {
-        id: "p1",
-        name: "Pro",
-        description: "Pro tier",
-        price_cents: 999,
-        interval: "month",
-        features: '["advanced"]',
-        is_active: true,
-        created_at: "2026-01-01T00:00:00Z",
-      };
-      db.first.mockResolvedValue(mockPlan);
-
-      const request: GetPricingPlanByNameRequest = {
-        method: "pricing.getPlanByName",
-        name: "Pro",
-      };
-      const response = await handlePricingRpc(request, db);
-      const body = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(body).toEqual({ result: mockPlan });
-    });
-
-    it("should return 400 when name missing", async () => {
-      const request = {
-        method: "pricing.getPlanByName",
-        name: "",
-      } as GetPricingPlanByNameRequest;
-      const response = await handlePricingRpc(request, db);
-
-      expect(response.status).toBe(400);
-    });
-  });
-
-  // -------------------------------------------------------------------------
   // pricing.listModelPricing
   // -------------------------------------------------------------------------
 
   describe("pricing.listModelPricing", () => {
-    it("should return all model pricing", async () => {
+    it("should return all model pricing rows", async () => {
       const mockPricing = [
         {
-          id: "mp1",
-          model: "gpt-4",
-          input_price_per_million: 30000,
-          output_price_per_million: 60000,
-          effective_date: "2026-01-01T00:00:00Z",
+          id: 1,
+          model: "gpt-4o",
+          input: 2.5,
+          output: 10.0,
+          cached: 1.25,
+          source: "openai",
+          note: "Standard pricing",
+          updated_at: "2026-01-01T00:00:00Z",
+          created_at: "2026-01-01T00:00:00Z",
+        },
+        {
+          id: 2,
+          model: "claude-3-opus",
+          input: 15.0,
+          output: 75.0,
+          cached: null,
+          source: "anthropic",
+          note: null,
+          updated_at: "2026-01-01T00:00:00Z",
           created_at: "2026-01-01T00:00:00Z",
         },
       ];
@@ -210,117 +74,163 @@ describe("pricing RPC handlers", () => {
       expect(body).toEqual({ result: mockPricing });
     });
 
-    it("should filter by model", async () => {
+    it("should return empty array when no pricing exists", async () => {
       db.all.mockResolvedValue({ results: [] });
 
       const request: ListModelPricingRequest = {
         method: "pricing.listModelPricing",
-        model: "gpt-4",
       };
-      await handlePricingRpc(request, db);
+      const response = await handlePricingRpc(request, db);
+      const body = await response.json();
 
-      expect(db.prepare).toHaveBeenCalled();
+      expect(response.status).toBe(200);
+      expect(body).toEqual({ result: [] });
     });
   });
 
   // -------------------------------------------------------------------------
-  // pricing.getModelPricing
+  // pricing.getModelPricingById
   // -------------------------------------------------------------------------
 
-  describe("pricing.getModelPricing", () => {
-    it("should return model pricing", async () => {
+  describe("pricing.getModelPricingById", () => {
+    it("should return pricing by ID", async () => {
       const mockPricing = {
-        id: "mp1",
-        model: "gpt-4",
-        input_price_per_million: 30000,
-        output_price_per_million: 60000,
-        effective_date: "2026-01-01T00:00:00Z",
+        id: 1,
+        model: "gpt-4o",
+        input: 2.5,
+        output: 10.0,
+        cached: 1.25,
+        source: "openai",
+        note: "Standard pricing",
+        updated_at: "2026-01-01T00:00:00Z",
         created_at: "2026-01-01T00:00:00Z",
       };
       db.first.mockResolvedValue(mockPricing);
 
-      const request: GetModelPricingRequest = {
-        method: "pricing.getModelPricing",
-        model: "gpt-4",
+      const request: GetModelPricingByIdRequest = {
+        method: "pricing.getModelPricingById",
+        id: 1,
       };
       const response = await handlePricingRpc(request, db);
       const body = await response.json();
 
       expect(response.status).toBe(200);
       expect(body).toEqual({ result: mockPricing });
+      expect(db.bind).toHaveBeenCalledWith(1);
     });
 
-    it("should filter by effective date", async () => {
+    it("should return null when not found", async () => {
       db.first.mockResolvedValue(null);
 
-      const request: GetModelPricingRequest = {
-        method: "pricing.getModelPricing",
-        model: "gpt-4",
-        effectiveDate: "2026-06-01T00:00:00Z",
-      };
-      await handlePricingRpc(request, db);
-
-      expect(db.prepare).toHaveBeenCalled();
-    });
-
-    it("should return 400 when model missing", async () => {
-      const request = {
-        method: "pricing.getModelPricing",
-        model: "",
-      } as GetModelPricingRequest;
-      const response = await handlePricingRpc(request, db);
-
-      expect(response.status).toBe(400);
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // pricing.listUsageTiers
-  // -------------------------------------------------------------------------
-
-  describe("pricing.listUsageTiers", () => {
-    it("should return usage tiers for plan", async () => {
-      const mockTiers = [
-        {
-          id: "ut1",
-          plan_id: "p1",
-          tier_name: "Tier 1",
-          min_tokens: 0,
-          max_tokens: 1000000,
-          price_per_million: 100,
-          created_at: "2026-01-01T00:00:00Z",
-        },
-        {
-          id: "ut2",
-          plan_id: "p1",
-          tier_name: "Tier 2",
-          min_tokens: 1000001,
-          max_tokens: null,
-          price_per_million: 50,
-          created_at: "2026-01-01T00:00:00Z",
-        },
-      ];
-      db.all.mockResolvedValue({ results: mockTiers });
-
-      const request: ListUsageTiersRequest = {
-        method: "pricing.listUsageTiers",
-        planId: "p1",
+      const request: GetModelPricingByIdRequest = {
+        method: "pricing.getModelPricingById",
+        id: 999,
       };
       const response = await handlePricingRpc(request, db);
       const body = await response.json();
 
       expect(response.status).toBe(200);
-      expect(body).toEqual({ result: mockTiers });
+      expect(body).toEqual({ result: null });
     });
 
-    it("should return 400 when planId missing", async () => {
+    it("should return 400 when id is not a number", async () => {
       const request = {
-        method: "pricing.listUsageTiers",
-        planId: "",
-      } as ListUsageTiersRequest;
+        method: "pricing.getModelPricingById",
+        id: "not-a-number",
+      } as unknown as GetModelPricingByIdRequest;
       const response = await handlePricingRpc(request, db);
 
       expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string };
+      expect(body.error).toContain("id is required");
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // pricing.getModelPricingByModelSource
+  // -------------------------------------------------------------------------
+
+  describe("pricing.getModelPricingByModelSource", () => {
+    it("should return pricing by model and source", async () => {
+      const mockPricing = {
+        id: 1,
+        model: "gpt-4o",
+        input: 2.5,
+        output: 10.0,
+        cached: 1.25,
+        source: "openai",
+        note: "Standard pricing",
+        updated_at: "2026-01-01T00:00:00Z",
+        created_at: "2026-01-01T00:00:00Z",
+      };
+      db.first.mockResolvedValue(mockPricing);
+
+      const request: GetModelPricingByModelSourceRequest = {
+        method: "pricing.getModelPricingByModelSource",
+        model: "gpt-4o",
+        source: "openai",
+      };
+      const response = await handlePricingRpc(request, db);
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body).toEqual({ result: mockPricing });
+      expect(db.bind).toHaveBeenCalledWith("gpt-4o", "openai", "openai");
+    });
+
+    it("should handle null source", async () => {
+      const mockPricing = {
+        id: 2,
+        model: "gpt-4o",
+        input: 2.5,
+        output: 10.0,
+        cached: null,
+        source: null,
+        note: null,
+        updated_at: "2026-01-01T00:00:00Z",
+        created_at: "2026-01-01T00:00:00Z",
+      };
+      db.first.mockResolvedValue(mockPricing);
+
+      const request: GetModelPricingByModelSourceRequest = {
+        method: "pricing.getModelPricingByModelSource",
+        model: "gpt-4o",
+        source: null,
+      };
+      const response = await handlePricingRpc(request, db);
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body).toEqual({ result: mockPricing });
+      expect(db.bind).toHaveBeenCalledWith("gpt-4o", null, null);
+    });
+
+    it("should return null when not found", async () => {
+      db.first.mockResolvedValue(null);
+
+      const request: GetModelPricingByModelSourceRequest = {
+        method: "pricing.getModelPricingByModelSource",
+        model: "nonexistent-model",
+        source: null,
+      };
+      const response = await handlePricingRpc(request, db);
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body).toEqual({ result: null });
+    });
+
+    it("should return 400 when model is missing", async () => {
+      const request = {
+        method: "pricing.getModelPricingByModelSource",
+        model: "",
+        source: null,
+      } as GetModelPricingByModelSourceRequest;
+      const response = await handlePricingRpc(request, db);
+
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as { error: string };
+      expect(body.error).toContain("model is required");
     });
   });
 
@@ -330,7 +240,7 @@ describe("pricing RPC handlers", () => {
 
   describe("unknown method", () => {
     it("should return 400 for unknown method", async () => {
-      const request = { method: "pricing.unknown" } as unknown as ListPricingPlansRequest;
+      const request = { method: "pricing.unknown" } as unknown as ListModelPricingRequest;
       const response = await handlePricingRpc(request, db);
 
       expect(response.status).toBe(400);
