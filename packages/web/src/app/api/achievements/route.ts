@@ -306,7 +306,7 @@ export async function GET(request: Request) {
       countSql: string,
       threshold: number
     ) {
-      const earners = await db.getAchievementEarners(def.id, sql, threshold, 5, 0);
+      const earners = await db.getAchievementEarners(def.id, sql, [threshold, 5, 0]);
 
       const users: EarnedByUser[] = earners.map((r) => {
         const { tier } = computeTierProgress(r.value, def.tiers);
@@ -321,7 +321,7 @@ export async function GET(request: Request) {
 
       earnedByMap.set(def.id, users);
 
-      const count = await db.getAchievementEarnersCount(def.id, countSql, threshold);
+      const count = await db.getAchievementEarnersCount(def.id, countSql, [threshold]);
       totalEarnedMap.set(def.id, count);
     }
 

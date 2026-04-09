@@ -102,9 +102,9 @@ export async function GET(request: Request) {
   try {
     // Get main leaderboard entries via RPC
     const leaderboardRows = await db.getGlobalLeaderboard({
-      fromDate,
-      teamId,
-      orgId,
+      ...(fromDate !== undefined && { fromDate }),
+      ...(teamId !== undefined && { teamId }),
+      ...(orgId !== undefined && { orgId }),
       limit,
     });
 
