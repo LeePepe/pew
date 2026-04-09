@@ -98,7 +98,7 @@ async function handleListUserOrganizations(
     .prepare(
       `SELECT o.id, o.name, o.slug, o.logo_url, o.created_by, o.created_at, o.updated_at
        FROM organizations o
-       JOIN organization_members om ON om.organization_id = o.id
+       JOIN organization_members om ON om.org_id = o.id
        WHERE om.user_id = ?
        ORDER BY o.name ASC`
     )
@@ -154,7 +154,7 @@ async function handleCheckOrgMembership(
   const result = await db
     .prepare(
       `SELECT id FROM organization_members
-       WHERE organization_id = ? AND user_id = ?`
+       WHERE org_id = ? AND user_id = ?`
     )
     .bind(req.orgId, req.userId)
     .first<{ id: string }>();
@@ -175,7 +175,7 @@ async function handleListOrgMembers(
       `SELECT u.id AS user_id, u.name, u.image, u.slug, om.joined_at
        FROM organization_members om
        JOIN users u ON u.id = om.user_id
-       WHERE om.organization_id = ?
+       WHERE om.org_id = ?
        ORDER BY om.joined_at DESC`
     )
     .bind(req.orgId)

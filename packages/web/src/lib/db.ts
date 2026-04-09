@@ -152,6 +152,9 @@ export interface DbRead {
 
   /** Get team logo URL */
   getTeamLogoUrl(teamId: string): Promise<string | null>;
+
+  /** Count team members */
+  countTeamMembers(teamId: string): Promise<number>;
 }
 
 // ---------------------------------------------------------------------------

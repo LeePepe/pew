@@ -283,9 +283,8 @@ describe("DELETE /api/teams/[teamId]", () => {
 
   it("should prevent owner from leaving when other members exist", async () => {
     vi.mocked(resolveUser).mockResolvedValueOnce({ userId: "u1" });
-    mockDbRead.firstOrNull
-      .mockResolvedValueOnce({ role: "owner" }) // membership
-      .mockResolvedValueOnce({ cnt: 3 }); // 3 members
+    mockDbRead.firstOrNull.mockResolvedValueOnce({ role: "owner" }); // membership
+    mockDbRead.countTeamMembers.mockResolvedValueOnce(3); // 3 members
 
     const res = await DELETE(makeRequest("DELETE"), makeParams());
 
@@ -295,9 +294,8 @@ describe("DELETE /api/teams/[teamId]", () => {
 
   it("should allow non-owner to leave (team persists)", async () => {
     vi.mocked(resolveUser).mockResolvedValueOnce({ userId: "u2" });
-    mockDbRead.firstOrNull
-      .mockResolvedValueOnce({ role: "member" }) // not owner
-      .mockResolvedValueOnce({ cnt: 3 }); // 3 members
+    mockDbRead.firstOrNull.mockResolvedValueOnce({ role: "member" }); // not owner
+    mockDbRead.countTeamMembers.mockResolvedValueOnce(3); // 3 members
     mockDbWrite.execute.mockResolvedValue({ changes: 1 });
 
     const res = await DELETE(makeRequest("DELETE"), makeParams());
@@ -312,9 +310,8 @@ describe("DELETE /api/teams/[teamId]", () => {
 
   it("should delete team when last member leaves", async () => {
     vi.mocked(resolveUser).mockResolvedValueOnce({ userId: "u1" });
-    mockDbRead.firstOrNull
-      .mockResolvedValueOnce({ role: "owner" })
-      .mockResolvedValueOnce({ cnt: 1 }); // last member
+    mockDbRead.firstOrNull.mockResolvedValueOnce({ role: "owner" });
+    mockDbRead.countTeamMembers.mockResolvedValueOnce(1); // last member
     mockDbRead.getTeamLogoUrl.mockResolvedValueOnce(null);
     mockDbWrite.execute.mockResolvedValue({ changes: 1 });
     mockDbWrite.batch.mockResolvedValue([]);

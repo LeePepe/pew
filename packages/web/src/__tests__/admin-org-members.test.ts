@@ -69,6 +69,9 @@ describe("admin organization member management", () => {
   const mockDbRead = {
     firstOrNull: vi.fn(),
     query: vi.fn(),
+    // Typed RPC methods for organizations domain
+    getOrganizationById: vi.fn(),
+    checkOrgMembership: vi.fn(),
   };
   const mockDbWrite = {
     execute: vi.fn(),
@@ -268,7 +271,7 @@ describe("admin organization member management", () => {
 
     it("should return 404 if org not found", async () => {
       vi.mocked(resolveAdmin).mockResolvedValue(ADMIN);
-      mockDbRead.firstOrNull.mockResolvedValueOnce(null);
+      mockDbRead.getOrganizationById.mockResolvedValueOnce(null);
 
       const req = new Request("http://localhost/api/admin/organizations/org-1/members/u1", {
         method: "DELETE",
@@ -281,9 +284,8 @@ describe("admin organization member management", () => {
 
     it("should return 404 if user is not a member", async () => {
       vi.mocked(resolveAdmin).mockResolvedValue(ADMIN);
-      mockDbRead.firstOrNull
-        .mockResolvedValueOnce({ id: "org-1" }) // org exists
-        .mockResolvedValueOnce(null); // not a member
+      mockDbRead.getOrganizationById.mockResolvedValueOnce({ id: "org-1" }); // org exists
+      mockDbRead.checkOrgMembership.mockResolvedValueOnce(false); // not a member
 
       const req = new Request("http://localhost/api/admin/organizations/org-1/members/u1", {
         method: "DELETE",
@@ -296,9 +298,8 @@ describe("admin organization member management", () => {
 
     it("should remove member successfully", async () => {
       vi.mocked(resolveAdmin).mockResolvedValue(ADMIN);
-      mockDbRead.firstOrNull
-        .mockResolvedValueOnce({ id: "org-1" })
-        .mockResolvedValueOnce({ id: "mem-1" }); // is a member
+      mockDbRead.getOrganizationById.mockResolvedValueOnce({ id: "org-1" });
+      mockDbRead.checkOrgMembership.mockResolvedValueOnce(true); // is a member
       mockDbWrite.execute.mockResolvedValueOnce({});
 
       const req = new Request("http://localhost/api/admin/organizations/org-1/members/u1", {
@@ -312,7 +313,7 @@ describe("admin organization member management", () => {
 
     it("should return 503 if table not migrated", async () => {
       vi.mocked(resolveAdmin).mockResolvedValue(ADMIN);
-      mockDbRead.firstOrNull.mockRejectedValueOnce(new Error("no such table"));
+      mockDbRead.getOrganizationById.mockRejectedValueOnce(new Error("no such table"));
 
       const req = new Request("http://localhost/api/admin/organizations/org-1/members/u1", {
         method: "DELETE",
@@ -323,7 +324,7 @@ describe("admin organization member management", () => {
 
     it("should return 500 on unexpected error", async () => {
       vi.mocked(resolveAdmin).mockResolvedValue(ADMIN);
-      mockDbRead.firstOrNull.mockRejectedValueOnce(new Error("DB failed"));
+      mockDbRead.getOrganizationById.mockRejectedValueOnce(new Error("DB failed"));
 
       const req = new Request("http://localhost/api/admin/organizations/org-1/members/u1", {
         method: "DELETE",

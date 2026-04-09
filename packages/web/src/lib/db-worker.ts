@@ -286,6 +286,10 @@ export function createWorkerDbRead(): DbRead {
       });
       return result?.logo_url ?? null;
     },
+
+    async countTeamMembers(teamId: string): Promise<number> {
+      return rpc<number>({ method: "teams.countMembers", teamId });
+    },
   };
 
   return reader;

@@ -302,11 +302,7 @@ export async function DELETE(
     }
 
     // Count remaining members
-    const countRow = await dbRead.firstOrNull<{ cnt: number }>(
-      "SELECT COUNT(*) AS cnt FROM team_members WHERE team_id = ?",
-      [teamId],
-    );
-    const memberCount = countRow?.cnt ?? 0;
+    const memberCount = await dbRead.countTeamMembers(teamId);
 
     if (membership.role === "owner" && memberCount > 1) {
       return NextResponse.json(
