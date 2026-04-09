@@ -20,9 +20,29 @@ export interface OrgRow {
   updated_at: string;
 }
 
+export interface OrgWithCountRow {
+  id: string;
+  name: string;
+  slug: string;
+  logo_url: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  member_count: number;
+}
+
 export interface OrgMemberRow {
   user_id: string;
   name: string | null;
+  image: string | null;
+  slug: string | null;
+  joined_at: string;
+}
+
+export interface OrgMemberAdminRow {
+  user_id: string;
+  name: string | null;
+  email: string;
   image: string | null;
   slug: string | null;
   joined_at: string;
@@ -36,6 +56,10 @@ export interface ListOrganizationsRequest {
   method: "organizations.list";
 }
 
+export interface ListOrganizationsWithCountRequest {
+  method: "organizations.listWithCount";
+}
+
 export interface ListUserOrganizationsRequest {
   method: "organizations.listForUser";
   userId: string;
@@ -44,6 +68,11 @@ export interface ListUserOrganizationsRequest {
 export interface GetOrganizationByIdRequest {
   method: "organizations.getById";
   orgId: string;
+}
+
+export interface GetOrganizationBySlugRequest {
+  method: "organizations.getBySlug";
+  slug: string;
 }
 
 export interface CheckOrgMembershipRequest {
@@ -57,18 +86,26 @@ export interface ListOrgMembersRequest {
   orgId: string;
 }
 
-export interface GetOrganizationBySlugRequest {
-  method: "organizations.getBySlug";
-  slug: string;
+export interface ListOrgMembersAdminRequest {
+  method: "organizations.listMembersAdmin";
+  orgId: string;
+}
+
+export interface CountOrgMembersRequest {
+  method: "organizations.countMembers";
+  orgId: string;
 }
 
 export type OrganizationsRpcRequest =
   | ListOrganizationsRequest
+  | ListOrganizationsWithCountRequest
   | ListUserOrganizationsRequest
   | GetOrganizationByIdRequest
   | GetOrganizationBySlugRequest
   | CheckOrgMembershipRequest
-  | ListOrgMembersRequest;
+  | ListOrgMembersRequest
+  | ListOrgMembersAdminRequest
+  | CountOrgMembersRequest;
 
 // ---------------------------------------------------------------------------
 // Handlers
@@ -82,6 +119,24 @@ async function handleListOrganizations(db: D1Database): Promise<Response> {
        ORDER BY name ASC`
     )
     .all<OrgRow>();
+
+  return Response.json({ result: results.results });
+}
+
+async function handleListOrganizationsWithCount(
+  db: D1Database
+): Promise<Response> {
+  const results = await db
+    .prepare(
+      `SELECT
+         o.id, o.name, o.slug, o.logo_url, o.created_by, o.created_at, o.updated_at,
+         COUNT(om.id) AS member_count
+       FROM organizations o
+       LEFT JOIN organization_members om ON om.org_id = o.id
+       GROUP BY o.id
+       ORDER BY o.name ASC`
+    )
+    .all<OrgWithCountRow>();
 
   return Response.json({ result: results.results });
 }
@@ -117,7 +172,9 @@ async function handleGetOrganizationById(
   }
 
   const result = await db
-    .prepare(`SELECT id, name, slug, logo_url, created_by, created_at, updated_at FROM organizations WHERE id = ?`)
+    .prepare(
+      `SELECT id, name, slug, logo_url, created_by, created_at, updated_at FROM organizations WHERE id = ?`
+    )
     .bind(req.orgId)
     .first<OrgRow>();
 
@@ -133,7 +190,9 @@ async function handleGetOrganizationBySlug(
   }
 
   const result = await db
-    .prepare(`SELECT id, name, slug, logo_url, created_by, created_at, updated_at FROM organizations WHERE slug = ?`)
+    .prepare(
+      `SELECT id, name, slug, logo_url, created_by, created_at, updated_at FROM organizations WHERE slug = ?`
+    )
     .bind(req.slug)
     .first<OrgRow>();
 
@@ -184,6 +243,44 @@ async function handleListOrgMembers(
   return Response.json({ result: results.results });
 }
 
+async function handleListOrgMembersAdmin(
+  req: ListOrgMembersAdminRequest,
+  db: D1Database
+): Promise<Response> {
+  if (!req.orgId) {
+    return Response.json({ error: "orgId is required" }, { status: 400 });
+  }
+
+  const results = await db
+    .prepare(
+      `SELECT u.id AS user_id, u.name, u.email, u.image, u.slug, om.joined_at
+       FROM organization_members om
+       JOIN users u ON u.id = om.user_id
+       WHERE om.org_id = ?
+       ORDER BY om.joined_at DESC`
+    )
+    .bind(req.orgId)
+    .all<OrgMemberAdminRow>();
+
+  return Response.json({ result: results.results });
+}
+
+async function handleCountOrgMembers(
+  req: CountOrgMembersRequest,
+  db: D1Database
+): Promise<Response> {
+  if (!req.orgId) {
+    return Response.json({ error: "orgId is required" }, { status: 400 });
+  }
+
+  const result = await db
+    .prepare(`SELECT COUNT(*) AS count FROM organization_members WHERE org_id = ?`)
+    .bind(req.orgId)
+    .first<{ count: number }>();
+
+  return Response.json({ result: result?.count ?? 0 });
+}
+
 // ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
@@ -195,6 +292,8 @@ export async function handleOrganizationsRpc(
   switch (request.method) {
     case "organizations.list":
       return handleListOrganizations(db);
+    case "organizations.listWithCount":
+      return handleListOrganizationsWithCount(db);
     case "organizations.listForUser":
       return handleListUserOrganizations(request, db);
     case "organizations.getById":
@@ -205,9 +304,15 @@ export async function handleOrganizationsRpc(
       return handleCheckOrgMembership(request, db);
     case "organizations.listMembers":
       return handleListOrgMembers(request, db);
+    case "organizations.listMembersAdmin":
+      return handleListOrgMembersAdmin(request, db);
+    case "organizations.countMembers":
+      return handleCountOrgMembers(request, db);
     default:
       return Response.json(
-        { error: `Unknown organizations method: ${(request as { method: string }).method}` },
+        {
+          error: `Unknown organizations method: ${(request as { method: string }).method}`,
+        },
         { status: 400 }
       );
   }
