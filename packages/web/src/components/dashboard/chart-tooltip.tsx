@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 interface ChartTooltipProps {
   /** Optional title displayed at the top of the tooltip */
-  title?: string;
+  title?: string | undefined;
   /** Tooltip content (rows, dividers, etc.) */
   children: React.ReactNode;
   /** Additional CSS classes */
