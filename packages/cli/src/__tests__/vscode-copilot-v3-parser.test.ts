@@ -249,4 +249,66 @@ describe("parseVscodeCopilotV3File", () => {
     const result = await parseVscodeCopilotV3File({ filePath });
     expect(result.deltas).toHaveLength(0);
   });
+
+  it("should return processedRequestIds for cursor persistence", async () => {
+    const filePath = join(tempDir, "session.json");
+    await writeFile(filePath, makeV3Session([
+      makeV3Request("copilot/claude-opus-4.6", 1775652693236, 10000, 500),
+      makeV3Request("copilot/gpt-4o", 1775652793236, 20000, 1000),
+    ]));
+
+    const result = await parseVscodeCopilotV3File({ filePath });
+    expect(result.processedRequestIds).toHaveLength(2);
+    expect(result.processedRequestIds).toContain("request_1775652693236");
+    expect(result.processedRequestIds).toContain("request_1775652793236");
+  });
+
+  it("should skip already-processed requests on incremental sync", async () => {
+    const filePath = join(tempDir, "session.json");
+
+    // First sync: 1 request
+    await writeFile(filePath, makeV3Session([
+      makeV3Request("copilot/claude-opus-4.6", 1775652693236, 10000, 500),
+    ]));
+    const result1 = await parseVscodeCopilotV3File({ filePath });
+    expect(result1.deltas).toHaveLength(1);
+    expect(result1.processedRequestIds).toEqual(["request_1775652693236"]);
+
+    // Second sync: file now has 2 requests, pass previous processedRequestIds
+    await writeFile(filePath, makeV3Session([
+      makeV3Request("copilot/claude-opus-4.6", 1775652693236, 10000, 500),
+      makeV3Request("copilot/gpt-4o", 1775652793236, 20000, 1000),
+    ]));
+    const result2 = await parseVscodeCopilotV3File({
+      filePath,
+      processedRequestIds: new Set(result1.processedRequestIds),
+    });
+
+    // Should only return the NEW request, not the old one
+    expect(result2.deltas).toHaveLength(1);
+    expect(result2.deltas[0].model).toBe("gpt-4o");
+    // processedRequestIds should include ALL seen requests
+    expect(result2.processedRequestIds).toHaveLength(2);
+    expect(result2.processedRequestIds).toContain("request_1775652693236");
+    expect(result2.processedRequestIds).toContain("request_1775652793236");
+  });
+
+  it("should handle requests without requestId gracefully", async () => {
+    const filePath = join(tempDir, "session.json");
+    await writeFile(filePath, makeV3Session([
+      {
+        // No requestId
+        timestamp: 1775652693236,
+        modelId: "copilot/gpt-4o",
+        result: { metadata: { promptTokens: 100, outputTokens: 50 } },
+      },
+      makeV3Request("copilot/claude-opus-4.6", 1775652793236, 5000, 300),
+    ]));
+
+    const result = await parseVscodeCopilotV3File({ filePath });
+    // Should skip the request without ID but process the valid one
+    expect(result.deltas).toHaveLength(1);
+    expect(result.deltas[0].model).toBe("claude-opus-4.6");
+    expect(result.processedRequestIds).toEqual(["request_1775652793236"]);
+  });
 });

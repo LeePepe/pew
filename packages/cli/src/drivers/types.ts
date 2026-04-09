@@ -141,6 +141,8 @@ export interface VscodeCopilotResumeState {
   requestMeta: Record<number, { modelId: string; timestamp: number }>;
   /** Indices already emitted as records (skip on re-encounter) */
   processedRequestIndices: number[];
+  /** Request IDs already processed for v3 JSON files (string-based dedup) */
+  processedRequestIds: Set<string>;
 }
 
 /**

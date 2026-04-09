@@ -27,6 +27,8 @@ interface VscodeCopilotParseResult extends TokenParseResult {
   endOffset: number;
   requestMeta: Record<number, { modelId: string; timestamp: number }>;
   processedRequestIndices: number[];
+  /** Request IDs processed in v3 JSON files */
+  processedRequestIds: string[];
 }
 
 export const vscodeCopilotTokenDriver: FileTokenDriver<VscodeCopilotCursor> = {
@@ -53,23 +55,31 @@ export const vscodeCopilotTokenDriver: FileTokenDriver<VscodeCopilotCursor> = {
       startOffset: inodesMatch ? (cursor.offset ?? 0) : 0,
       requestMeta: inodesMatch ? (cursor.requestMeta ?? {}) : {},
       processedRequestIndices: inodesMatch ? (cursor.processedRequestIndices ?? []) : [],
+      processedRequestIds: inodesMatch
+        ? new Set(cursor.processedRequestIds ?? [])
+        : new Set<string>(),
     };
   },
 
   async parse(filePath: string, resume: ResumeState): Promise<VscodeCopilotParseResult> {
-    // v3 JSON files: full parse each time (no incremental offset)
+    const r = resume as VscodeCopilotResumeState;
+
+    // v3 JSON files: full parse with request ID dedup
     if (filePath.endsWith(".json")) {
-      const result = await parseVscodeCopilotV3File({ filePath });
+      const result = await parseVscodeCopilotV3File({
+        filePath,
+        processedRequestIds: r.processedRequestIds,
+      });
       return {
         deltas: result.deltas,
         endOffset: 0,
         requestMeta: {},
         processedRequestIndices: [],
+        processedRequestIds: result.processedRequestIds,
       };
     }
 
     // CRDT JSONL files: incremental byte-offset parsing
-    const r = resume as VscodeCopilotResumeState;
     const result = await parseVscodeCopilotFile({
       filePath,
       startOffset: r.startOffset,
@@ -81,6 +91,7 @@ export const vscodeCopilotTokenDriver: FileTokenDriver<VscodeCopilotCursor> = {
       endOffset: result.endOffset,
       requestMeta: result.requestMeta,
       processedRequestIndices: result.processedRequestIndices,
+      processedRequestIds: [],
     };
   },
 
@@ -97,6 +108,7 @@ export const vscodeCopilotTokenDriver: FileTokenDriver<VscodeCopilotCursor> = {
       offset: r.endOffset,
       processedRequestIndices: r.processedRequestIndices,
       requestMeta: r.requestMeta,
+      processedRequestIds: r.processedRequestIds,
       updatedAt: new Date().toISOString(),
     };
   },

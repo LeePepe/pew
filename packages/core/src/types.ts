@@ -137,6 +137,8 @@ export interface VscodeCopilotCursor extends FileCursorBase {
   processedRequestIndices: number[];
   /** Index → metadata mapping for correlating kind=1 results with request info */
   requestMeta: Record<number, { modelId: string; timestamp: number }>;
+  /** Request IDs already processed for v3 JSON files (string-based dedup) */
+  processedRequestIds?: string[];
 }
 
 /** Cursor for OpenCode SQLite database (incremental by time_created) */

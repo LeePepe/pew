@@ -24,10 +24,14 @@ import { toNonNegInt } from "../utils/token-delta.js";
 
 export interface VscodeCopilotV3ParseOpts {
   filePath: string;
+  /** Request IDs already processed (for incremental sync dedup) */
+  processedRequestIds?: Set<string>;
 }
 
 export interface VscodeCopilotV3FileResult {
   deltas: ParsedDelta[];
+  /** All request IDs seen (for cursor persistence) */
+  processedRequestIds: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -46,40 +50,51 @@ export interface VscodeCopilotV3FileResult {
 export async function parseVscodeCopilotV3File(
   opts: VscodeCopilotV3ParseOpts,
 ): Promise<VscodeCopilotV3FileResult> {
-  const { filePath } = opts;
+  const { filePath, processedRequestIds = new Set<string>() } = opts;
   const deltas: ParsedDelta[] = [];
+  const allRequestIds: string[] = [];
 
   let raw: string;
   try {
     raw = await readFile(filePath, "utf8");
   } catch {
-    return { deltas };
+    return { deltas, processedRequestIds: [] };
   }
 
   let session: Record<string, unknown>;
   try {
     session = JSON.parse(raw);
   } catch {
-    return { deltas };
+    return { deltas, processedRequestIds: [] };
   }
 
   if (!session || typeof session !== "object" || Array.isArray(session)) {
-    return { deltas };
+    return { deltas, processedRequestIds: [] };
   }
 
   // Only handle version 3
   if (session.version !== 3) {
-    return { deltas };
+    return { deltas, processedRequestIds: [] };
   }
 
   const requests = session.requests;
   if (!Array.isArray(requests)) {
-    return { deltas };
+    return { deltas, processedRequestIds: [] };
   }
 
   for (const req of requests) {
     if (!req || typeof req !== "object") continue;
     const r = req as Record<string, unknown>;
+
+    // Extract requestId for dedup tracking
+    const requestId = r.requestId;
+    if (typeof requestId !== "string" || !requestId) continue;
+
+    // Track all valid request IDs for cursor persistence
+    allRequestIds.push(requestId);
+
+    // Skip already-processed requests (incremental sync)
+    if (processedRequestIds.has(requestId)) continue;
 
     // Extract model and timestamp
     const rawModelId = r.modelId;
@@ -121,5 +136,5 @@ export async function parseVscodeCopilotV3File(
     });
   }
 
-  return { deltas };
+  return { deltas, processedRequestIds: allRequestIds };
 }
