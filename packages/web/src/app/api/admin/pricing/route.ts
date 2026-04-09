@@ -10,7 +10,6 @@
 import { NextResponse } from "next/server";
 import { resolveAdmin } from "@/lib/admin";
 import { getDbRead, getDbWrite } from "@/lib/db";
-import type { DbPricingRow } from "@/lib/pricing";
 
 // ---------------------------------------------------------------------------
 // GET — list all DB pricing rows

@@ -19,6 +19,10 @@ import type {
   ShowcaseOwnerRow,
   ShowcaseExistsResult,
   PricingRow,
+  TeamRow,
+  TeamDetailRow,
+  TeamMemberRow,
+  TeamByInviteCode,
 } from "./rpc-types";
 
 export function createWorkerDbRead(): DbRead {
@@ -285,6 +289,51 @@ export function createWorkerDbRead(): DbRead {
     // Teams domain RPC methods
     // -------------------------------------------------------------------------
 
+    async listTeamsForUser(userId: string): Promise<TeamRow[]> {
+      return rpc<TeamRow[]>({ method: "teams.listForUser", userId });
+    },
+
+    async checkTeamSlugExists(slug: string): Promise<boolean> {
+      const result = await rpc<{ exists: boolean }>({
+        method: "teams.checkSlugExists",
+        slug,
+      });
+      return result.exists;
+    },
+
+    async findTeamByInviteCode(
+      inviteCode: string,
+    ): Promise<TeamByInviteCode | null> {
+      return rpc<TeamByInviteCode | null>({
+        method: "teams.findByInviteCode",
+        inviteCode,
+      });
+    },
+
+    async checkTeamMembershipExists(
+      teamId: string,
+      userId: string,
+    ): Promise<boolean> {
+      const result = await rpc<{ exists: boolean }>({
+        method: "teams.membershipExists",
+        teamId,
+        userId,
+      });
+      return result.exists;
+    },
+
+    async getTeamById(teamId: string): Promise<TeamDetailRow | null> {
+      return rpc<TeamDetailRow | null>({ method: "teams.getById", teamId });
+    },
+
+    async getTeamMembers(teamId: string): Promise<TeamMemberRow[]> {
+      return rpc<TeamMemberRow[]>({ method: "teams.getMembers", teamId });
+    },
+
+    async getTeamSeasonRegistrations(teamId: string): Promise<string[]> {
+      return rpc<string[]>({ method: "teams.getSeasonRegistrations", teamId });
+    },
+
     async getTeamLogoUrl(teamId: string): Promise<string | null> {
       const result = await rpc<{ logo_url: string | null } | null>({
         method: "teams.getLogoUrl",
@@ -294,7 +343,11 @@ export function createWorkerDbRead(): DbRead {
     },
 
     async countTeamMembers(teamId: string): Promise<number> {
-      return rpc<number>({ method: "teams.countMembers", teamId });
+      const result = await rpc<{ count: number }>({
+        method: "teams.countMembers",
+        teamId,
+      });
+      return result.count;
     },
 
     async getTeamMembership(
@@ -307,6 +360,10 @@ export function createWorkerDbRead(): DbRead {
         userId,
       });
       return result?.role ?? null;
+    },
+
+    async getAppSetting(key: string): Promise<string | null> {
+      return rpc<string | null>({ method: "teams.getAppSetting", key });
     },
 
     // -------------------------------------------------------------------------

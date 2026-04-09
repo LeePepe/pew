@@ -41,10 +41,27 @@ export function createMockDbRead() {
     getOrganizationBySlug: vi.fn(),
     checkOrgMembership: vi.fn(),
     listOrgMembers: vi.fn(),
+    // Showcases RPC methods
+    getShowcaseById: vi.fn(),
+    getShowcaseOwner: vi.fn(),
+    checkShowcaseExists: vi.fn(),
+    checkShowcaseExistsByRepoKey: vi.fn(),
+    checkShowcaseUpvote: vi.fn(),
+    getShowcaseUpvoteCount: vi.fn(),
+    listShowcases: vi.fn(),
+    countShowcases: vi.fn(),
     // Teams RPC methods
+    listTeamsForUser: vi.fn(),
+    checkTeamSlugExists: vi.fn(),
+    findTeamByInviteCode: vi.fn(),
+    checkTeamMembershipExists: vi.fn(),
+    getTeamById: vi.fn(),
+    getTeamMembers: vi.fn(),
+    getTeamSeasonRegistrations: vi.fn(),
     getTeamLogoUrl: vi.fn(),
     countTeamMembers: vi.fn(),
     getTeamMembership: vi.fn(),
+    getAppSetting: vi.fn(),
     // Pricing RPC methods
     listModelPricing: vi.fn(),
     getModelPricingById: vi.fn(),
@@ -69,9 +86,25 @@ export function createMockDbRead() {
     getOrganizationBySlug: ReturnType<typeof vi.fn>;
     checkOrgMembership: ReturnType<typeof vi.fn>;
     listOrgMembers: ReturnType<typeof vi.fn>;
+    getShowcaseById: ReturnType<typeof vi.fn>;
+    getShowcaseOwner: ReturnType<typeof vi.fn>;
+    checkShowcaseExists: ReturnType<typeof vi.fn>;
+    checkShowcaseExistsByRepoKey: ReturnType<typeof vi.fn>;
+    checkShowcaseUpvote: ReturnType<typeof vi.fn>;
+    getShowcaseUpvoteCount: ReturnType<typeof vi.fn>;
+    listShowcases: ReturnType<typeof vi.fn>;
+    countShowcases: ReturnType<typeof vi.fn>;
+    listTeamsForUser: ReturnType<typeof vi.fn>;
+    checkTeamSlugExists: ReturnType<typeof vi.fn>;
+    findTeamByInviteCode: ReturnType<typeof vi.fn>;
+    checkTeamMembershipExists: ReturnType<typeof vi.fn>;
+    getTeamById: ReturnType<typeof vi.fn>;
+    getTeamMembers: ReturnType<typeof vi.fn>;
+    getTeamSeasonRegistrations: ReturnType<typeof vi.fn>;
     getTeamLogoUrl: ReturnType<typeof vi.fn>;
     countTeamMembers: ReturnType<typeof vi.fn>;
     getTeamMembership: ReturnType<typeof vi.fn>;
+    getAppSetting: ReturnType<typeof vi.fn>;
     listModelPricing: ReturnType<typeof vi.fn>;
     getModelPricingById: ReturnType<typeof vi.fn>;
     getModelPricingByModelSource: ReturnType<typeof vi.fn>;

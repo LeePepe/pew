@@ -35,106 +35,20 @@ export async function GET(
       return NextResponse.json({ error: "Not a member" }, { status: 403 });
     }
 
-    // Get team details — try with auto_register_season, fall back without (migration lag)
-    let team: {
-      id: string;
-      name: string;
-      slug: string;
-      invite_code: string;
-      created_at: string;
-      logo_url: string | null;
-      auto_register_season: number;
-    } | null;
-    try {
-      team = await dbRead.firstOrNull<{
-        id: string;
-        name: string;
-        slug: string;
-        invite_code: string;
-        created_at: string;
-        logo_url: string | null;
-        auto_register_season: number;
-      }>(
-        "SELECT id, name, slug, invite_code, created_at, logo_url, auto_register_season FROM teams WHERE id = ?",
-        [teamId],
-      );
-    } catch (teamErr) {
-      const teamMsg = teamErr instanceof Error ? teamErr.message : "";
-      if (teamMsg.includes("no such column")) {
-        // Migration 016 not applied yet — fall back without auto_register_season
-        const fallback = await dbRead.firstOrNull<{
-          id: string;
-          name: string;
-          slug: string;
-          invite_code: string;
-          created_at: string;
-          logo_url: string | null;
-        }>(
-          "SELECT id, name, slug, invite_code, created_at, logo_url FROM teams WHERE id = ?",
-          [teamId],
-        );
-        team = fallback ? { ...fallback, auto_register_season: 0 } : null;
-      } else {
-        throw teamErr;
-      }
-    }
+    // Get team details
+    const team = await dbRead.getTeamById(teamId);
 
     if (!team) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
 
-    // Get members — try with nickname, fall back without
-    let members: { results: { user_id: string; name: string | null; nickname: string | null; slug: string | null; image: string | null; role: string; joined_at: string }[] };
-    try {
-      members = await dbRead.query<{
-        user_id: string;
-        name: string | null;
-        nickname: string | null;
-        slug: string | null;
-        image: string | null;
-        role: string;
-        joined_at: string;
-      }>(
-        `SELECT tm.user_id, u.name, u.nickname, u.slug, u.image, tm.role, tm.joined_at
-         FROM team_members tm
-         JOIN users u ON u.id = tm.user_id
-         WHERE tm.team_id = ?
-         ORDER BY tm.joined_at ASC`,
-        [teamId],
-      );
-    } catch (innerErr) {
-      const innerMsg = innerErr instanceof Error ? innerErr.message : "";
-      if (innerMsg.includes("no such column")) {
-        const fallback = await dbRead.query<{
-          user_id: string;
-          name: string | null;
-          image: string | null;
-          role: string;
-          joined_at: string;
-        }>(
-          `SELECT tm.user_id, u.name, u.image, tm.role, tm.joined_at
-           FROM team_members tm
-           JOIN users u ON u.id = tm.user_id
-           WHERE tm.team_id = ?
-           ORDER BY tm.joined_at ASC`,
-          [teamId],
-        );
-        members = {
-          results: fallback.results.map((m) => ({ ...m, nickname: null, slug: null })),
-        };
-      } else {
-        throw innerErr;
-      }
-    }
+    // Get members
+    const members = await dbRead.getTeamMembers(teamId);
 
     // Fetch season registrations for this team (graceful if table missing)
     let registeredSeasonIds: string[] = [];
     try {
-      const regResult = await dbRead.query<{ season_id: string }>(
-        "SELECT season_id FROM season_teams WHERE team_id = ?",
-        [teamId],
-      );
-      registeredSeasonIds = regResult.results.map((r) => r.season_id);
+      registeredSeasonIds = await dbRead.getTeamSeasonRegistrations(teamId);
     } catch (regErr) {
       const regMsg = regErr instanceof Error ? regErr.message : "";
       if (!regMsg.includes("no such table")) {
@@ -148,7 +62,7 @@ export async function GET(
       logo_url: team.logo_url ?? null,
       auto_register_season: !!team.auto_register_season,
       role,
-      members: members.results.map((m) => ({
+      members: members.map((m) => ({
         userId: m.user_id,
         name: m.nickname ?? m.name,
         slug: m.slug,

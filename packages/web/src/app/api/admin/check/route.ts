@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ isAdmin: false });
   }
 
-  let email = authResult.email;
+  let email: string | null | undefined = authResult.email;
   if (!email) {
     const db = await getDbRead();
     email = await db.getUserEmail(authResult.userId);

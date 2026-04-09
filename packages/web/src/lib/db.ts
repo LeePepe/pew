@@ -18,6 +18,10 @@ import type {
   ShowcaseOwnerRow,
   ShowcaseExistsResult,
   PricingRow,
+  TeamRow,
+  TeamDetailRow,
+  TeamMemberRow,
+  TeamByInviteCode,
 } from "./rpc-types";
 
 // ---------------------------------------------------------------------------
@@ -155,6 +159,27 @@ export interface DbRead {
   // Teams domain RPC methods
   // ---------------------------------------------------------------------------
 
+  /** List teams for a user */
+  listTeamsForUser(userId: string): Promise<TeamRow[]>;
+
+  /** Check if team slug exists */
+  checkTeamSlugExists(slug: string): Promise<boolean>;
+
+  /** Find team by invite code */
+  findTeamByInviteCode(inviteCode: string): Promise<TeamByInviteCode | null>;
+
+  /** Check if user is a member of team */
+  checkTeamMembershipExists(teamId: string, userId: string): Promise<boolean>;
+
+  /** Get team by ID */
+  getTeamById(teamId: string): Promise<TeamDetailRow | null>;
+
+  /** Get team members */
+  getTeamMembers(teamId: string): Promise<TeamMemberRow[]>;
+
+  /** Get team season registrations */
+  getTeamSeasonRegistrations(teamId: string): Promise<string[]>;
+
   /** Get team logo URL */
   getTeamLogoUrl(teamId: string): Promise<string | null>;
 
@@ -163,6 +188,9 @@ export interface DbRead {
 
   /** Get user's role in a team (null if not a member) */
   getTeamMembership(teamId: string, userId: string): Promise<string | null>;
+
+  /** Get app setting by key */
+  getAppSetting(key: string): Promise<string | null>;
 
   // ---------------------------------------------------------------------------
   // Pricing domain RPC methods

@@ -130,6 +130,51 @@ export interface ShowcaseExistsResult {
 }
 
 // ---------------------------------------------------------------------------
+// Teams domain types
+// ---------------------------------------------------------------------------
+
+/** Team record for listing */
+export interface TeamRow {
+  id: string;
+  name: string;
+  slug: string;
+  invite_code: string;
+  created_by: string;
+  created_at: string;
+  logo_url: string | null;
+  member_count: number;
+}
+
+/** Team detail record */
+export interface TeamDetailRow {
+  id: string;
+  name: string;
+  slug: string;
+  invite_code: string;
+  created_at: string;
+  logo_url: string | null;
+  auto_register_season: number | null;
+}
+
+/** Team member record */
+export interface TeamMemberRow {
+  user_id: string;
+  name: string | null;
+  nickname: string | null;
+  slug: string | null;
+  image: string | null;
+  role: string;
+  joined_at: string;
+}
+
+/** Team found by invite code */
+export interface TeamByInviteCode {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+// ---------------------------------------------------------------------------
 // Pricing domain types
 // ---------------------------------------------------------------------------
 

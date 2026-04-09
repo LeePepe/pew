@@ -70,7 +70,7 @@ describe("GET /api/teams/[teamId]", () => {
   it("should return 404 when team not found", async () => {
     vi.mocked(resolveUser).mockResolvedValueOnce({ userId: "u1" });
     mockDbRead.getTeamMembership.mockResolvedValueOnce("member"); // membership exists
-    mockDbRead.firstOrNull.mockResolvedValueOnce(null); // team not found
+    mockDbRead.getTeamById.mockResolvedValueOnce(null); // team not found
 
     const res = await GET(makeRequest("GET"), makeParams());
 
@@ -80,35 +80,36 @@ describe("GET /api/teams/[teamId]", () => {
   it("should return team details with members", async () => {
     vi.mocked(resolveUser).mockResolvedValueOnce({ userId: "u1" });
     mockDbRead.getTeamMembership.mockResolvedValueOnce("owner");
-    mockDbRead.firstOrNull.mockResolvedValueOnce({
+    mockDbRead.getTeamById.mockResolvedValueOnce({
       id: "t1",
       name: "Team Alpha",
       slug: "team-alpha",
       invite_code: "abc12345",
       created_at: "2026-01-01T00:00:00Z",
+      logo_url: null,
+      auto_register_season: null,
     });
-    mockDbRead.query
-      .mockResolvedValueOnce({
-        results: [
-          {
-            user_id: "u1",
-            name: "Alice",
-            nickname: "ali",
-            image: null,
-            role: "owner",
-            joined_at: "2026-01-01T00:00:00Z",
-          },
-          {
-            user_id: "u2",
-            name: "Bob",
-            nickname: null,
-            image: "https://example.com/bob.png",
-            role: "member",
-            joined_at: "2026-01-02T00:00:00Z",
-          },
-        ],
-      })
-      .mockResolvedValueOnce({ results: [] }); // season registrations
+    mockDbRead.getTeamMembers.mockResolvedValueOnce([
+      {
+        user_id: "u1",
+        name: "Alice",
+        nickname: "ali",
+        slug: null,
+        image: null,
+        role: "owner",
+        joined_at: "2026-01-01T00:00:00Z",
+      },
+      {
+        user_id: "u2",
+        name: "Bob",
+        nickname: null,
+        slug: null,
+        image: "https://example.com/bob.png",
+        role: "member",
+        joined_at: "2026-01-02T00:00:00Z",
+      },
+    ]);
+    mockDbRead.getTeamSeasonRegistrations.mockResolvedValueOnce([]); // season registrations
 
     const res = await GET(makeRequest("GET"), makeParams());
     const body = await res.json();
@@ -122,98 +123,77 @@ describe("GET /api/teams/[teamId]", () => {
     expect(body.members[1].name).toBe("Bob"); // falls back to name
   });
 
-  it("should fall back when nickname column does not exist", async () => {
+  it("should handle getTeamMembers returning members without nickname", async () => {
     vi.mocked(resolveUser).mockResolvedValueOnce({ userId: "u1" });
     mockDbRead.getTeamMembership.mockResolvedValueOnce("member");
-    mockDbRead.firstOrNull.mockResolvedValueOnce({
+    mockDbRead.getTeamById.mockResolvedValueOnce({
       id: "t1",
       name: "Team",
       slug: "team",
       invite_code: "x",
       created_at: "2026-01-01T00:00:00Z",
+      logo_url: null,
+      auto_register_season: null,
     });
-    // First query fails (no such column), fallback query succeeds
-    mockDbRead.query
-      .mockRejectedValueOnce(new Error("no such column: nickname"))
-      .mockResolvedValueOnce({
-        results: [
-          {
-            user_id: "u1",
-            name: "Alice",
-            image: null,
-            role: "owner",
-            joined_at: "2026-01-01T00:00:00Z",
-          },
-        ],
-      })
-      .mockResolvedValueOnce({ results: [] }); // season registrations
+    mockDbRead.getTeamMembers.mockResolvedValueOnce([
+      {
+        user_id: "u1",
+        name: "Alice",
+        nickname: null,
+        slug: null,
+        image: null,
+        role: "owner",
+        joined_at: "2026-01-01T00:00:00Z",
+      },
+    ]);
+    mockDbRead.getTeamSeasonRegistrations.mockResolvedValueOnce([]);
 
     const res = await GET(makeRequest("GET"), makeParams());
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    // nickname should be null in fallback, so name field uses u.name
+    // nickname should be null, so name field uses u.name
     expect(body.members[0].name).toBe("Alice");
   });
 
-  it("should fall back when auto_register_season column does not exist (migration lag)", async () => {
+  it("should handle auto_register_season being null", async () => {
     vi.mocked(resolveUser).mockResolvedValueOnce({ userId: "u1" });
     mockDbRead.getTeamMembership.mockResolvedValueOnce("member");
-    mockDbRead.firstOrNull
-      // First team query fails (no such column: auto_register_season)
-      .mockRejectedValueOnce(new Error("no such column: auto_register_season"))
-      // Fallback query without auto_register_season succeeds
-      .mockResolvedValueOnce({
-        id: "t1",
-        name: "Team",
-        slug: "team",
-        invite_code: "x",
-        created_at: "2026-01-01T00:00:00Z",
-        logo_url: null,
-      });
-    mockDbRead.query
-      .mockResolvedValueOnce({
-        results: [
-          {
-            user_id: "u1",
-            name: "Alice",
-            nickname: null,
-            slug: null,
-            image: null,
-            role: "owner",
-            joined_at: "2026-01-01T00:00:00Z",
-          },
-        ],
-      })
-      .mockResolvedValueOnce({ results: [] }); // season registrations
+    mockDbRead.getTeamById.mockResolvedValueOnce({
+      id: "t1",
+      name: "Team",
+      slug: "team",
+      invite_code: "x",
+      created_at: "2026-01-01T00:00:00Z",
+      logo_url: null,
+      auto_register_season: null,
+    });
+    mockDbRead.getTeamMembers.mockResolvedValueOnce([
+      {
+        user_id: "u1",
+        name: "Alice",
+        nickname: null,
+        slug: null,
+        image: null,
+        role: "owner",
+        joined_at: "2026-01-01T00:00:00Z",
+      },
+    ]);
+    mockDbRead.getTeamSeasonRegistrations.mockResolvedValueOnce([]);
 
     const res = await GET(makeRequest("GET"), makeParams());
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    // auto_register_season should default to false when column doesn't exist
+    // auto_register_season should default to false when null
     expect(body.auto_register_season).toBe(false);
   });
 
-  it("should return 404 when team not found during migration lag fallback", async () => {
-    vi.mocked(resolveUser).mockResolvedValueOnce({ userId: "u1" });
-    mockDbRead.getTeamMembership.mockResolvedValueOnce("member");
-    mockDbRead.firstOrNull
-      // First team query fails (no such column)
-      .mockRejectedValueOnce(new Error("no such column: auto_register_season"))
-      // Fallback query returns null (team not found)
-      .mockResolvedValueOnce(null);
-
-    const res = await GET(makeRequest("GET"), makeParams());
-
-    expect(res.status).toBe(404);
-  });
-
-  it("should rethrow non-column errors from team query", async () => {
+  it("should rethrow errors from getTeamById", async () => {
     vi.mocked(resolveUser).mockResolvedValueOnce({ userId: "u1" });
     mockDbRead.getTeamMembership.mockResolvedValueOnce("member");
     // Team query fails with unexpected error
-    mockDbRead.firstOrNull.mockRejectedValueOnce(new Error("D1 connection failed"));
+    mockDbRead.getTeamById.mockRejectedValueOnce(new Error("D1 connection failed"));
 
     const res = await GET(makeRequest("GET"), makeParams());
 
@@ -234,7 +214,7 @@ describe("GET /api/teams/[teamId]", () => {
   it("should return 500 on unexpected error in GET", async () => {
     vi.mocked(resolveUser).mockResolvedValueOnce({ userId: "u1" });
     mockDbRead.getTeamMembership.mockResolvedValueOnce("member");
-    mockDbRead.firstOrNull.mockRejectedValueOnce(new Error("D1 boom"));
+    mockDbRead.getTeamById.mockRejectedValueOnce(new Error("D1 boom"));
 
     const res = await GET(makeRequest("GET"), makeParams());
 
