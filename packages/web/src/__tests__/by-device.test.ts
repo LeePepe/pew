@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET } from "@/app/api/usage/by-device/route";
 import * as dbModule from "@/lib/db";
-import { createMockClient, makeGetRequest } from "./test-utils";
+import { createMockDbRead, makeGetRequest } from "./test-utils";
 
 // Mock DB
 vi.mock("@/lib/db", () => ({
@@ -34,12 +34,12 @@ const { buildPricingMap } = (await import("@/lib/pricing")) as unknown as {
 };
 
 describe("GET /api/usage/by-device", () => {
-  let mockClient: ReturnType<typeof createMockClient>;
+  let mockDbRead: ReturnType<typeof createMockDbRead>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockClient = createMockClient();
-    vi.mocked(dbModule.getDbRead).mockResolvedValue(mockClient as any);
+    mockDbRead = createMockDbRead();
+    vi.mocked(dbModule.getDbRead).mockResolvedValue(mockDbRead as any);
   });
 
   describe("authentication", () => {
@@ -64,7 +64,7 @@ describe("GET /api/usage/by-device", () => {
 
     it("should return devices and timeline for valid date range", async () => {
       // Summary query
-      mockClient.query.mockResolvedValueOnce({
+      mockDbRead.query.mockResolvedValueOnce({
         results: [
           {
             device_id: "aaaa-1111",
@@ -96,7 +96,7 @@ describe("GET /api/usage/by-device", () => {
         meta: {},
       });
       // Cost detail query
-      mockClient.query.mockResolvedValueOnce({
+      mockDbRead.query.mockResolvedValueOnce({
         results: [
           {
             device_id: "aaaa-1111",
@@ -118,7 +118,7 @@ describe("GET /api/usage/by-device", () => {
         meta: {},
       });
       // Timeline query
-      mockClient.query.mockResolvedValueOnce({
+      mockDbRead.query.mockResolvedValueOnce({
         results: [
           {
             date: "2026-03-01",
@@ -140,7 +140,7 @@ describe("GET /api/usage/by-device", () => {
         meta: {},
       });
       // Pricing DB query (no overrides)
-      mockClient.query.mockResolvedValueOnce({ results: [], meta: {} });
+      mockDbRead.listModelPricing.mockResolvedValueOnce([]);
 
       const res = await GET(
         makeGetRequest("/api/usage/by-device", { from: "2026-03-01", to: "2026-03-11" })
@@ -155,7 +155,7 @@ describe("GET /api/usage/by-device", () => {
     });
 
     it("should include estimated_cost per device", async () => {
-      mockClient.query.mockResolvedValueOnce({
+      mockDbRead.query.mockResolvedValueOnce({
         results: [
           {
             device_id: "aaaa-1111",
@@ -173,7 +173,7 @@ describe("GET /api/usage/by-device", () => {
         ],
         meta: {},
       });
-      mockClient.query.mockResolvedValueOnce({
+      mockDbRead.query.mockResolvedValueOnce({
         results: [
           {
             device_id: "aaaa-1111",
@@ -186,9 +186,9 @@ describe("GET /api/usage/by-device", () => {
         ],
         meta: {},
       });
-      mockClient.query.mockResolvedValueOnce({ results: [], meta: {} });
+      mockDbRead.query.mockResolvedValueOnce({ results: [], meta: {} });
       // Pricing DB query (no overrides)
-      mockClient.query.mockResolvedValueOnce({ results: [], meta: {} });
+      mockDbRead.listModelPricing.mockResolvedValueOnce([]);
 
       const res = await GET(makeGetRequest("/api/usage/by-device", { from: "2026-03-01", to: "2026-03-11" }));
       const body = await res.json();
@@ -198,7 +198,7 @@ describe("GET /api/usage/by-device", () => {
     });
 
     it("should join alias from device_aliases", async () => {
-      mockClient.query.mockResolvedValueOnce({
+      mockDbRead.query.mockResolvedValueOnce({
         results: [
           {
             device_id: "aaaa-1111",
@@ -229,10 +229,10 @@ describe("GET /api/usage/by-device", () => {
         ],
         meta: {},
       });
-      mockClient.query.mockResolvedValueOnce({ results: [], meta: {} });
-      mockClient.query.mockResolvedValueOnce({ results: [], meta: {} });
+      mockDbRead.query.mockResolvedValueOnce({ results: [], meta: {} });
+      mockDbRead.query.mockResolvedValueOnce({ results: [], meta: {} });
       // Pricing DB query (no overrides)
-      mockClient.query.mockResolvedValueOnce({ results: [], meta: {} });
+      mockDbRead.listModelPricing.mockResolvedValueOnce([]);
 
       const res = await GET(makeGetRequest("/api/usage/by-device", { from: "2026-03-01", to: "2026-03-11" }));
       const body = await res.json();
@@ -242,7 +242,7 @@ describe("GET /api/usage/by-device", () => {
     });
 
     it("should include device_id = 'default' in results", async () => {
-      mockClient.query.mockResolvedValueOnce({
+      mockDbRead.query.mockResolvedValueOnce({
         results: [
           {
             device_id: "default",
@@ -260,7 +260,7 @@ describe("GET /api/usage/by-device", () => {
         ],
         meta: {},
       });
-      mockClient.query.mockResolvedValueOnce({
+      mockDbRead.query.mockResolvedValueOnce({
         results: [
           {
             device_id: "default",
@@ -273,9 +273,9 @@ describe("GET /api/usage/by-device", () => {
         ],
         meta: {},
       });
-      mockClient.query.mockResolvedValueOnce({ results: [], meta: {} });
+      mockDbRead.query.mockResolvedValueOnce({ results: [], meta: {} });
       // Pricing DB query (no overrides)
-      mockClient.query.mockResolvedValueOnce({ results: [], meta: {} });
+      mockDbRead.listModelPricing.mockResolvedValueOnce([]);
 
       const res = await GET(makeGetRequest("/api/usage/by-device", { from: "2026-01-01", to: "2026-03-01" }));
       const body = await res.json();
@@ -285,7 +285,7 @@ describe("GET /api/usage/by-device", () => {
     });
 
     it("should return sources and models as arrays", async () => {
-      mockClient.query.mockResolvedValueOnce({
+      mockDbRead.query.mockResolvedValueOnce({
         results: [
           {
             device_id: "aaaa-1111",
@@ -303,10 +303,10 @@ describe("GET /api/usage/by-device", () => {
         ],
         meta: {},
       });
-      mockClient.query.mockResolvedValueOnce({ results: [], meta: {} });
-      mockClient.query.mockResolvedValueOnce({ results: [], meta: {} });
+      mockDbRead.query.mockResolvedValueOnce({ results: [], meta: {} });
+      mockDbRead.query.mockResolvedValueOnce({ results: [], meta: {} });
       // Pricing DB query (no overrides)
-      mockClient.query.mockResolvedValueOnce({ results: [], meta: {} });
+      mockDbRead.listModelPricing.mockResolvedValueOnce([]);
 
       const res = await GET(makeGetRequest("/api/usage/by-device", { from: "2026-03-01", to: "2026-03-11" }));
       const body = await res.json();
@@ -318,14 +318,14 @@ describe("GET /api/usage/by-device", () => {
     });
 
     it("should use default date range when params are missing", async () => {
-      mockClient.query.mockResolvedValue({ results: [], meta: {} });
+      mockDbRead.query.mockResolvedValue({ results: [], meta: {} });
 
       const res = await GET(makeGetRequest("/api/usage/by-device"));
 
       expect(res.status).toBe(200);
       // Should have called query (not returned 400)
-      expect(mockClient.query).toHaveBeenCalled();
-      const [, params] = mockClient.query.mock.calls[0]!;
+      expect(mockDbRead.query).toHaveBeenCalled();
+      const [, params] = mockDbRead.query.mock.calls[0]!;
       // First param is userId, second is fromDate, third is toDate
       expect(params![0]).toBe("u1");
       expect(typeof params![1]).toBe("string");
@@ -333,7 +333,7 @@ describe("GET /api/usage/by-device", () => {
     });
 
     it("should return 500 on D1 error", async () => {
-      mockClient.query.mockRejectedValueOnce(new Error("D1 down"));
+      mockDbRead.query.mockRejectedValueOnce(new Error("D1 down"));
 
       const res = await GET(makeGetRequest("/api/usage/by-device"));
 
@@ -342,7 +342,7 @@ describe("GET /api/usage/by-device", () => {
 
     it("should use DB pricing overrides for estimated_cost", async () => {
       // Summary: one device using a custom-priced model
-      mockClient.query.mockResolvedValueOnce({
+      mockDbRead.query.mockResolvedValueOnce({
         results: [
           {
             device_id: "aaaa-1111",
@@ -361,7 +361,7 @@ describe("GET /api/usage/by-device", () => {
         meta: {},
       });
       // Cost detail
-      mockClient.query.mockResolvedValueOnce({
+      mockDbRead.query.mockResolvedValueOnce({
         results: [
           {
             device_id: "aaaa-1111",
@@ -375,24 +375,21 @@ describe("GET /api/usage/by-device", () => {
         meta: {},
       });
       // Timeline
-      mockClient.query.mockResolvedValueOnce({ results: [], meta: {} });
+      mockDbRead.query.mockResolvedValueOnce({ results: [], meta: {} });
       // Pricing DB query — override claude-sonnet-4 to $100/$200 per 1M
-      mockClient.query.mockResolvedValueOnce({
-        results: [
-          {
-            id: 1,
-            model: "claude-sonnet-4-20250514",
-            input: 100,
-            output: 200,
-            cached: null,
-            source: null,
-            note: null,
-            updated_at: "2026-03-01T00:00:00Z",
-            created_at: "2026-03-01T00:00:00Z",
-          },
-        ],
-        meta: {},
-      });
+      mockDbRead.listModelPricing.mockResolvedValueOnce([
+        {
+          id: 1,
+          model: "claude-sonnet-4-20250514",
+          input: 100,
+          output: 200,
+          cached: null,
+          source: null,
+          note: null,
+          updated_at: "2026-03-01T00:00:00Z",
+          created_at: "2026-03-01T00:00:00Z",
+        },
+      ]);
 
       const res = await GET(
         makeGetRequest("/api/usage/by-device", { from: "2026-03-01", to: "2026-03-11" })
@@ -413,7 +410,7 @@ describe("GET /api/usage/by-device", () => {
 
     it("should fall back to static defaults when model_pricing table is missing", async () => {
       // Summary
-      mockClient.query.mockResolvedValueOnce({
+      mockDbRead.query.mockResolvedValueOnce({
         results: [
           {
             device_id: "aaaa-1111",
@@ -432,7 +429,7 @@ describe("GET /api/usage/by-device", () => {
         meta: {},
       });
       // Cost detail
-      mockClient.query.mockResolvedValueOnce({
+      mockDbRead.query.mockResolvedValueOnce({
         results: [
           {
             device_id: "aaaa-1111",
@@ -446,9 +443,9 @@ describe("GET /api/usage/by-device", () => {
         meta: {},
       });
       // Timeline
-      mockClient.query.mockResolvedValueOnce({ results: [], meta: {} });
+      mockDbRead.query.mockResolvedValueOnce({ results: [], meta: {} });
       // Pricing DB query — table doesn't exist
-      mockClient.query.mockRejectedValueOnce(
+      mockDbRead.listModelPricing.mockRejectedValueOnce(
         new Error("no such table: model_pricing")
       );
 

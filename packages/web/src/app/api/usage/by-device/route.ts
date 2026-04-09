@@ -18,7 +18,6 @@ import {
   buildPricingMap,
   lookupPricing,
   estimateCost,
-  type DbPricingRow,
 } from "@/lib/pricing";
 
 // ---------------------------------------------------------------------------
@@ -185,9 +184,7 @@ export async function GET(request: Request) {
     // 4. Build pricing map (merge static defaults + DB overrides)
     let pricingMap;
     try {
-      const { results: pricingRows } = await db.query<DbPricingRow>(
-        "SELECT * FROM model_pricing ORDER BY model ASC"
-      );
+      const pricingRows = await db.listModelPricing();
       pricingMap = buildPricingMap(pricingRows);
     } catch {
       // Table might not exist yet — fall back to static defaults
