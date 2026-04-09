@@ -395,9 +395,16 @@ describe("DELETE /api/organizations/[orgId]/leave", () => {
 
   it("should leave organization successfully", async () => {
     resolveUser.mockResolvedValueOnce(USER);
-    mockDbRead.firstOrNull
-      .mockResolvedValueOnce({ id: "org-1" }) // org exists
-      .mockResolvedValueOnce({ id: "membership-1" }); // is a member
+    mockDbRead.getOrganizationById.mockResolvedValueOnce({
+      id: "org-1",
+      name: "Anthropic",
+      slug: "anthropic",
+      logo_url: null,
+      created_by: "admin-1",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    });
+    mockDbRead.checkOrgMembership.mockResolvedValueOnce(true);
     mockDbWrite.execute.mockResolvedValueOnce({ changes: 1 });
 
     const res = await LEAVE(makeOrgRequest("DELETE", "org-1/leave"), {
@@ -410,7 +417,7 @@ describe("DELETE /api/organizations/[orgId]/leave", () => {
 
   it("should return 404 for non-existent org", async () => {
     resolveUser.mockResolvedValueOnce(USER);
-    mockDbRead.firstOrNull.mockResolvedValueOnce(null);
+    mockDbRead.getOrganizationById.mockResolvedValueOnce(null);
 
     const res = await LEAVE(makeOrgRequest("DELETE", "not-found/leave"), {
       params: Promise.resolve({ orgId: "not-found" }),
@@ -422,9 +429,16 @@ describe("DELETE /api/organizations/[orgId]/leave", () => {
 
   it("should return 404 if not a member", async () => {
     resolveUser.mockResolvedValueOnce(USER);
-    mockDbRead.firstOrNull
-      .mockResolvedValueOnce({ id: "org-1" })
-      .mockResolvedValueOnce(null); // not a member
+    mockDbRead.getOrganizationById.mockResolvedValueOnce({
+      id: "org-1",
+      name: "Anthropic",
+      slug: "anthropic",
+      logo_url: null,
+      created_by: "admin-1",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    });
+    mockDbRead.checkOrgMembership.mockResolvedValueOnce(false);
 
     const res = await LEAVE(makeOrgRequest("DELETE", "org-1/leave"), {
       params: Promise.resolve({ orgId: "org-1" }),
@@ -444,7 +458,7 @@ describe("DELETE /api/organizations/[orgId]/leave", () => {
 
   it("should return 503 if table not migrated", async () => {
     resolveUser.mockResolvedValueOnce(USER);
-    mockDbRead.firstOrNull.mockRejectedValueOnce(new Error("no such table"));
+    mockDbRead.getOrganizationById.mockRejectedValueOnce(new Error("no such table"));
 
     const res = await LEAVE(makeOrgRequest("DELETE", "org-1/leave"), {
       params: Promise.resolve({ orgId: "org-1" }),
