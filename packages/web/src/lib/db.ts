@@ -29,6 +29,7 @@ import type {
   ShowcaseRpcRow,
   ShowcaseOwnerRow,
   ShowcaseExistsResult,
+  SessionRecordRow,
   PricingRow,
   UsageRecordRow,
   UsageDeviceSummaryRow,
@@ -354,6 +355,21 @@ export interface DbRead {
 
   /** Get app setting by key */
   getAppSetting(key: string): Promise<string | null>;
+
+  // ---------------------------------------------------------------------------
+  // Sessions domain RPC methods
+  // ---------------------------------------------------------------------------
+
+  /** Get session records with project info */
+  getSessionRecords(
+    userId: string,
+    fromDate: string,
+    toDate: string,
+    options?: {
+      source?: string;
+      kind?: string;
+    },
+  ): Promise<SessionRecordRow[]>;
 
   // ---------------------------------------------------------------------------
   // Pricing domain RPC methods

@@ -30,6 +30,7 @@ import type {
   ShowcaseRpcRow,
   ShowcaseOwnerRow,
   ShowcaseExistsResult,
+  SessionRecordRow,
   PricingRow,
   UsageRecordRow,
   UsageDeviceSummaryRow,
@@ -654,6 +655,29 @@ export function createWorkerDbRead(): DbRead {
 
     async getAppSetting(key: string): Promise<string | null> {
       return rpc<string | null>({ method: "teams.getAppSetting", key });
+    },
+
+    // -------------------------------------------------------------------------
+    // Sessions domain RPC methods
+    // -------------------------------------------------------------------------
+
+    async getSessionRecords(
+      userId: string,
+      fromDate: string,
+      toDate: string,
+      options?: {
+        source?: string;
+        kind?: string;
+      },
+    ): Promise<SessionRecordRow[]> {
+      return rpc<SessionRecordRow[]>({
+        method: "sessions.getRecords",
+        userId,
+        fromDate,
+        toDate,
+        source: options?.source,
+        kind: options?.kind,
+      });
     },
 
     // -------------------------------------------------------------------------

@@ -29,6 +29,22 @@ export interface SessionStatsRow {
   avg_messages: number;
 }
 
+/** Session record with project info for /api/sessions */
+export interface SessionRecordRow {
+  session_key: string;
+  source: string;
+  kind: string;
+  started_at: string;
+  last_message_at: string;
+  duration_seconds: number;
+  user_messages: number;
+  assistant_messages: number;
+  total_messages: number;
+  project_ref: string | null;
+  project_name: string | null;
+  model: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // RPC Request Types
 // ---------------------------------------------------------------------------
@@ -58,10 +74,20 @@ export interface CountSessionsRequest {
   toDate?: string;
 }
 
+export interface GetSessionRecordsRequest {
+  method: "sessions.getRecords";
+  userId: string;
+  fromDate: string;
+  toDate: string;
+  source?: string;
+  kind?: string;
+}
+
 export type SessionsRpcRequest =
   | ListSessionsRequest
   | GetSessionStatsRequest
-  | CountSessionsRequest;
+  | CountSessionsRequest
+  | GetSessionRecordsRequest;
 
 // ---------------------------------------------------------------------------
 // Handlers
@@ -177,6 +203,63 @@ async function handleCountSessions(
   return Response.json({ result: result?.count ?? 0 });
 }
 
+async function handleGetSessionRecords(
+  req: GetSessionRecordsRequest,
+  db: D1Database
+): Promise<Response> {
+  if (!req.userId || !req.fromDate || !req.toDate) {
+    return Response.json(
+      { error: "userId, fromDate, and toDate are required" },
+      { status: 400 }
+    );
+  }
+
+  const conditions = [
+    "sr.user_id = ?",
+    "sr.started_at >= ?",
+    "sr.started_at < ?",
+  ];
+  const params: unknown[] = [req.userId, req.fromDate, req.toDate];
+
+  if (req.source) {
+    conditions.push("sr.source = ?");
+    params.push(req.source);
+  }
+
+  if (req.kind) {
+    conditions.push("sr.kind = ?");
+    params.push(req.kind);
+  }
+
+  const sql = `
+    SELECT
+      sr.session_key,
+      sr.source,
+      sr.kind,
+      sr.started_at,
+      sr.last_message_at,
+      sr.duration_seconds,
+      sr.user_messages,
+      sr.assistant_messages,
+      sr.total_messages,
+      sr.project_ref,
+      p.name AS project_name,
+      sr.model
+    FROM session_records sr
+    LEFT JOIN project_aliases pa
+      ON pa.user_id = sr.user_id
+      AND pa.source = sr.source
+      AND pa.project_ref = sr.project_ref
+    LEFT JOIN projects p ON p.id = pa.project_id
+    WHERE ${conditions.join(" AND ")}
+    ORDER BY sr.started_at DESC
+  `;
+
+  const results = await db.prepare(sql).bind(...params).all<SessionRecordRow>();
+
+  return Response.json({ result: results.results });
+}
+
 // ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
@@ -192,6 +275,8 @@ export async function handleSessionsRpc(
       return handleGetSessionStats(request, db);
     case "sessions.count":
       return handleCountSessions(request, db);
+    case "sessions.getRecords":
+      return handleGetSessionRecords(request, db);
     default:
       return Response.json(
         { error: `Unknown sessions method: ${(request as { method: string }).method}` },

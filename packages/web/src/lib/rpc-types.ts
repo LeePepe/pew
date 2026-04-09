@@ -308,6 +308,26 @@ export interface PricingRow {
 }
 
 // ---------------------------------------------------------------------------
+// Sessions domain types
+// ---------------------------------------------------------------------------
+
+/** Session record with project info */
+export interface SessionRecordRow {
+  session_key: string;
+  source: string;
+  kind: string;
+  started_at: string;
+  last_message_at: string;
+  duration_seconds: number;
+  user_messages: number;
+  assistant_messages: number;
+  total_messages: number;
+  project_ref: string | null;
+  project_name: string | null;
+  model: string | null;
+}
+
+// ---------------------------------------------------------------------------
 // Usage domain types
 // ---------------------------------------------------------------------------
 
