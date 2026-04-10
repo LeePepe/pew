@@ -538,4 +538,119 @@ describe("GET /api/leaderboard", () => {
       expect(body.entries[0].total_duration_seconds).toBe(0);
     });
   });
+
+  describe("source/model filters", () => {
+    it("should reject invalid source", async () => {
+      const res = await GET(makeGetRequest("/api/leaderboard", { source: "not-a-real-agent" }));
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toContain("Invalid source");
+    });
+
+    it("should reject both source and model together", async () => {
+      const res = await GET(makeGetRequest("/api/leaderboard", { source: "claude-code", model: "o3" }));
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toContain("Cannot specify both source and model");
+    });
+
+    it("should pass source filter to getGlobalLeaderboard", async () => {
+      mockDb.getGlobalLeaderboard.mockResolvedValueOnce([]);
+      mockDb.getLeaderboardSessionStats.mockResolvedValueOnce([]);
+
+      const res = await GET(makeGetRequest("/api/leaderboard", { source: "claude-code" }));
+
+      expect(res.status).toBe(200);
+      expect(mockDb.getGlobalLeaderboard).toHaveBeenCalledWith(
+        expect.objectContaining({ source: "claude-code" }),
+      );
+    });
+
+    it("should pass source filter to getLeaderboardSessionStats", async () => {
+      mockDb.getGlobalLeaderboard.mockResolvedValueOnce([
+        {
+          user_id: "u1", name: "Alice", nickname: null, image: null,
+          slug: "alice", total_tokens: 1000, input_tokens: 500,
+          output_tokens: 400, cached_input_tokens: 100,
+        },
+      ]);
+      mockDb.getLeaderboardUserTeams.mockResolvedValueOnce([]);
+      mockDb.getLeaderboardSessionStats.mockResolvedValueOnce([]);
+
+      await GET(makeGetRequest("/api/leaderboard", { source: "codex" }));
+
+      expect(mockDb.getLeaderboardSessionStats).toHaveBeenCalledWith(
+        ["u1"],
+        expect.any(String), // fromDate
+        "codex",
+      );
+    });
+
+    it("should pass model filter to getGlobalLeaderboard", async () => {
+      mockDb.getGlobalLeaderboard.mockResolvedValueOnce([]);
+
+      const res = await GET(makeGetRequest("/api/leaderboard", { model: "claude-sonnet-4-20250514" }));
+
+      expect(res.status).toBe(200);
+      expect(mockDb.getGlobalLeaderboard).toHaveBeenCalledWith(
+        expect.objectContaining({ model: "claude-sonnet-4-20250514" }),
+      );
+    });
+
+    it("should skip session stats and return null when model filter is active", async () => {
+      mockDb.getGlobalLeaderboard.mockResolvedValueOnce([
+        {
+          user_id: "u1", name: "Alice", nickname: null, image: null,
+          slug: "alice", total_tokens: 1000, input_tokens: 500,
+          output_tokens: 400, cached_input_tokens: 100,
+        },
+      ]);
+      mockDb.getLeaderboardUserTeams.mockResolvedValueOnce([]);
+
+      const res = await GET(makeGetRequest("/api/leaderboard", { model: "o3" }));
+      const body = await res.json();
+
+      expect(res.status).toBe(200);
+      // Session stats should be null, not 0
+      expect(body.entries[0].session_count).toBeNull();
+      expect(body.entries[0].total_duration_seconds).toBeNull();
+      // getLeaderboardSessionStats should NOT have been called
+      expect(mockDb.getLeaderboardSessionStats).not.toHaveBeenCalled();
+    });
+
+    it("should use public cache for source-filtered requests", async () => {
+      mockDb.getGlobalLeaderboard.mockResolvedValueOnce([]);
+      mockDb.getLeaderboardSessionStats.mockResolvedValueOnce([]);
+
+      const res = await GET(makeGetRequest("/api/leaderboard", { source: "claude-code" }));
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Cache-Control")).toBe(
+        "public, s-maxage=60, stale-while-revalidate=120",
+      );
+    });
+
+    it("should use public cache for model-filtered requests", async () => {
+      mockDb.getGlobalLeaderboard.mockResolvedValueOnce([]);
+
+      const res = await GET(makeGetRequest("/api/leaderboard", { model: "gpt-4.1" }));
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Cache-Control")).toBe(
+        "public, s-maxage=60, stale-while-revalidate=120",
+      );
+    });
+
+    it("should use private cache when source + team are combined", async () => {
+      mockDb.getGlobalLeaderboard.mockResolvedValueOnce([]);
+      mockDb.getLeaderboardSessionStats.mockResolvedValueOnce([]);
+
+      const res = await GET(makeGetRequest("/api/leaderboard", { source: "claude-code", team: "t1" }));
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Cache-Control")).toBe("private, no-store");
+    });
+  });
 });
