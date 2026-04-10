@@ -817,6 +817,7 @@ export function createWorkerDbRead(): DbRead {
       toDate: string,
       options?: {
         source?: string;
+        deviceId?: string;
         granularity?: "half-hour" | "day";
       },
     ): Promise<UsageRecordRow[]> {
@@ -826,6 +827,7 @@ export function createWorkerDbRead(): DbRead {
         fromDate,
         toDate,
         source: options?.source,
+        deviceId: options?.deviceId,
         granularity: options?.granularity,
       });
     },

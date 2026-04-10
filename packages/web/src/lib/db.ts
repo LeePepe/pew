@@ -464,6 +464,7 @@ export interface DbRead {
     toDate: string,
     options?: {
       source?: string;
+      deviceId?: string;
       granularity?: "half-hour" | "day";
     },
   ): Promise<UsageRecordRow[]>;
