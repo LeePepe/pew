@@ -37,7 +37,7 @@ import { handleLiveRpc, type LiveRpcRequest } from "./rpc/live";
 // Version
 // ---------------------------------------------------------------------------
 
-export const WORKER_VERSION = "2.16.4";
+export const WORKER_VERSION = "2.17.0";
 
 // ---------------------------------------------------------------------------
 // Boot timestamp (for uptime calculation)
