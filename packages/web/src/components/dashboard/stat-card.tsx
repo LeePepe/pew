@@ -24,6 +24,12 @@ export interface StatCardProps {
    * Pass a Tailwind color class (e.g., "bg-primary", "bg-chart-5").
    */
   accentColor?: string;
+  /**
+   * Layout mode for trends:
+   * - "stacked": trends in a column below the value (default)
+   * - "side": trends in a second column beside the value (for primary cards with many trends)
+   */
+  trendsLayout?: "stacked" | "side";
   className?: string;
 }
 
@@ -45,12 +51,44 @@ export function StatCard({
   trends,
   variant = "secondary",
   accentColor,
+  trendsLayout = "stacked",
   className,
 }: StatCardProps) {
   // Merge single trend + trends array into one list
   const allTrends = trends ?? (trend ? [trend] : []);
 
   const isPrimary = variant === "primary";
+  const useSideLayout = trendsLayout === "side" && allTrends.length > 0;
+
+  const TrendsContent = allTrends.length > 0 ? (
+    <div className={cn(
+      "flex flex-col gap-1",
+      useSideLayout ? "justify-center" : "mt-3"
+    )}>
+      {allTrends.map((t, i) => {
+        const isPos = t.value > 0;
+        const isNeg = t.value < 0;
+        return (
+          <div key={i} className="flex items-center gap-1 text-xs">
+            <span
+              className={cn(
+                "font-medium",
+                isPos && "text-success",
+                isNeg && "text-destructive",
+                !isPos && !isNeg && "text-muted-foreground"
+              )}
+            >
+              {isPos && "+"}
+              {t.value}%
+            </span>
+            {t.label && (
+              <span className="text-muted-foreground">{t.label}</span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  ) : null;
 
   return (
     <div
@@ -68,59 +106,80 @@ export function StatCard({
         )} />
       )}
 
-      <div className="flex items-start justify-between">
-        <div className="space-y-1">
-          <p
-            className={cn(
-              "text-muted-foreground",
-              isPrimary ? "text-xs md:text-sm font-medium" : "text-xs md:text-sm"
-            )}
-          >
-            {title}
-          </p>
-          <p
-            className={cn(
-              "font-semibold text-foreground font-display tracking-tight",
-              isPrimary ? "text-3xl md:text-4xl" : "text-2xl md:text-3xl"
-            )}
-          >
-            {typeof value === "number" ? value.toLocaleString() : value}
-          </p>
-          {subtitle && (
-            <p className="text-xs text-muted-foreground">{subtitle}</p>
-          )}
-        </div>
-        {Icon && (
-          <div className={cn("rounded-md bg-card p-2", iconColor)}>
-            <Icon className={cn(isPrimary ? "h-6 w-6" : "h-5 w-5")} strokeWidth={1.5} />
-          </div>
-        )}
-      </div>
-      {allTrends.length > 0 && (
-        <div className="mt-3 flex flex-col gap-1">
-          {allTrends.map((t, i) => {
-            const isPos = t.value > 0;
-            const isNeg = t.value < 0;
-            return (
-              <div key={i} className="flex items-center gap-1 text-xs">
-                <span
-                  className={cn(
-                    "font-medium",
-                    isPos && "text-success",
-                    isNeg && "text-destructive",
-                    !isPos && !isNeg && "text-muted-foreground"
-                  )}
-                >
-                  {isPos && "+"}
-                  {t.value}%
-                </span>
-                {t.label && (
-                  <span className="text-muted-foreground">{t.label}</span>
+      {/* Side layout: two columns on md+, stacked on mobile */}
+      {useSideLayout ? (
+        <div className="flex flex-col md:flex-row md:gap-6">
+          {/* Left: main content */}
+          <div className="flex items-start justify-between flex-1 min-w-0">
+            <div className="space-y-1">
+              <p
+                className={cn(
+                  "text-muted-foreground",
+                  isPrimary ? "text-xs md:text-sm font-medium" : "text-xs md:text-sm"
                 )}
+              >
+                {title}
+              </p>
+              <p
+                className={cn(
+                  "font-semibold text-foreground font-display tracking-tight",
+                  isPrimary ? "text-3xl md:text-4xl" : "text-2xl md:text-3xl"
+                )}
+              >
+                {typeof value === "number" ? value.toLocaleString() : value}
+              </p>
+              {subtitle && (
+                <p className="text-xs text-muted-foreground">{subtitle}</p>
+              )}
+            </div>
+            {Icon && (
+              <div className={cn("rounded-md bg-card p-2", iconColor)}>
+                <Icon className={cn(isPrimary ? "h-6 w-6" : "h-5 w-5")} strokeWidth={1.5} />
               </div>
-            );
-          })}
+            )}
+          </div>
+          {/* Right: trends (hidden on mobile, shown below instead) */}
+          <div className="hidden md:flex md:items-center md:border-l md:border-border/50 md:pl-6">
+            {TrendsContent}
+          </div>
+          {/* Mobile: trends below */}
+          <div className="md:hidden mt-3">
+            {TrendsContent}
+          </div>
         </div>
+      ) : (
+        /* Stacked layout (default) */
+        <>
+          <div className="flex items-start justify-between">
+            <div className="space-y-1">
+              <p
+                className={cn(
+                  "text-muted-foreground",
+                  isPrimary ? "text-xs md:text-sm font-medium" : "text-xs md:text-sm"
+                )}
+              >
+                {title}
+              </p>
+              <p
+                className={cn(
+                  "font-semibold text-foreground font-display tracking-tight",
+                  isPrimary ? "text-3xl md:text-4xl" : "text-2xl md:text-3xl"
+                )}
+              >
+                {typeof value === "number" ? value.toLocaleString() : value}
+              </p>
+              {subtitle && (
+                <p className="text-xs text-muted-foreground">{subtitle}</p>
+              )}
+            </div>
+            {Icon && (
+              <div className={cn("rounded-md bg-card p-2", iconColor)}>
+                <Icon className={cn(isPrimary ? "h-6 w-6" : "h-5 w-5")} strokeWidth={1.5} />
+              </div>
+            )}
+          </div>
+          {TrendsContent}
+        </>
       )}
     </div>
   );

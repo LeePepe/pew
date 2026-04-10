@@ -222,7 +222,7 @@ export default function DashboardPage() {
 
           {/* ── Overview ────────────────────────────────────── */}
           <DashboardSegment title="Overview" action={<PeriodSelector value={period} onChange={setPeriod} />}>
-            {/* Row 1 — Core metrics (always 4 columns) */}
+            {/* Row 1 — Token metrics: Total, Input, Output, Cache */}
             <StatGrid columns={4}>
               <StatCard
                 title="Total Tokens"
@@ -232,6 +232,7 @@ export default function DashboardPage() {
                 iconColor="text-primary"
                 variant="primary"
                 accentColor="bg-gradient-to-r from-primary to-chart-8"
+                trendsLayout="side"
                 trends={[
                   ...(wow && wow.previousWeekSameDay.tokens > 0 && wow.previousWeekSameDay.tokens !== wow.previousWeek.tokens
                     ? [{ value: Math.round(wow.sameDayTokenGrowth), label: "vs last week to-date" }]
@@ -262,6 +263,21 @@ export default function DashboardPage() {
                 accentColor="bg-chart-5"
               />
               <StatCard
+                title="Cached Tokens"
+                value={formatTokens(data.summary.cached_input_tokens)}
+                subtitle={
+                  data.summary.input_tokens > 0
+                    ? `${Math.round((data.summary.cached_input_tokens / data.summary.input_tokens) * 100)}% hit rate`
+                    : "0% hit rate"
+                }
+                icon={Database}
+                accentColor="bg-chart-2"
+              />
+            </StatGrid>
+
+            {/* Row 2 — Cost metrics: Est. Cost, Cache Savings, Monthly, Daily */}
+            <StatGrid columns={showForecast ? 4 : 2}>
+              <StatCard
                 title="Est. Cost"
                 value={formatCost(estimatedCost)}
                 subtitle="Based on public pricing"
@@ -269,6 +285,7 @@ export default function DashboardPage() {
                 iconColor="text-chart-6"
                 variant="primary"
                 accentColor="bg-chart-6"
+                trendsLayout="side"
                 trends={[
                   ...(wow && wow.previousWeekSameDay.cost > 0 && wow.previousWeekSameDay.cost !== wow.previousWeek.cost
                     ? [{ value: -Math.round(wow.sameDayCostGrowth), label: "vs last week to-date" }]
@@ -284,27 +301,12 @@ export default function DashboardPage() {
                     : []),
                 ]}
               />
-            </StatGrid>
-
-            {/* Row 2 — Economy metrics (4 cols with forecast, 2 cols without) */}
-            <StatGrid columns={showForecast ? 4 : 2}>
               <StatCard
                 title="Cache Savings"
                 value={formatCost(cacheSavings.netSavings)}
                 subtitle={`${Math.round(cacheSavings.savingsPercent)}% vs full input price`}
                 icon={PiggyBank}
                 iconColor="text-success"
-              />
-              <StatCard
-                title="Cached Tokens"
-                value={formatTokens(data.summary.cached_input_tokens)}
-                subtitle={
-                  data.summary.input_tokens > 0
-                    ? `${Math.round((data.summary.cached_input_tokens / data.summary.input_tokens) * 100)}% hit rate`
-                    : "0% hit rate"
-                }
-                icon={Database}
-                iconColor="text-muted-foreground"
               />
               {showForecast && (
                 <StatCard
