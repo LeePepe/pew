@@ -44,6 +44,7 @@ export function useDeviceData(
       if (fromDate) params.set("from", fromDate);
       if (toDate) params.set("to", toDate);
       if (granularity) params.set("granularity", granularity);
+      params.set("tzOffset", String(new Date().getTimezoneOffset()));
 
       const qs = params.toString();
       const url = `/api/usage/by-device${qs ? `?${qs}` : ""}`;
