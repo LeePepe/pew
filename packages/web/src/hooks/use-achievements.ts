@@ -70,7 +70,13 @@ interface UseAchievementsResult {
   refetch: () => void;
 }
 
-export function useAchievements(): UseAchievementsResult {
+interface UseAchievementsOptions {
+  /** Limit to top N achievements (3, 6, or 9). Omit for full list with earnedBy data. */
+  limit?: 3 | 6 | 9;
+}
+
+export function useAchievements(options?: UseAchievementsOptions): UseAchievementsResult {
+  const limit = options?.limit;
   const [data, setData] = useState<AchievementData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -82,6 +88,7 @@ export function useAchievements(): UseAchievementsResult {
     try {
       const tzOffset = new Date().getTimezoneOffset();
       const params = new URLSearchParams({ tzOffset: String(tzOffset) });
+      if (limit) params.set("limit", String(limit));
       const res = await fetch(`/api/achievements?${params}`);
 
       if (!res.ok) {
@@ -96,7 +103,7 @@ export function useAchievements(): UseAchievementsResult {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [limit]);
 
   useEffect(() => {
     fetchData();

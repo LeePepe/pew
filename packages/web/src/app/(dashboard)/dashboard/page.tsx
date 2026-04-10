@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Zap,
   ArrowDownToLine,
@@ -68,8 +68,26 @@ export default function DashboardPage() {
   // Half-hour granularity for streak (needs 365 days of data)
   const yearHalfHourData = useUsageData({ days: 365, granularity: "half-hour" });
 
+  // Responsive achievements limit: 9 on large screens, 6 on medium, 3 on small
+  const [achievementsLimit, setAchievementsLimit] = useState<3 | 6 | 9>(9);
+  useEffect(() => {
+    const updateLimit = () => {
+      // These breakpoints match the TopAchievement grid layout
+      if (window.innerWidth >= 768) {
+        setAchievementsLimit(9); // 3x3 grid
+      } else if (window.innerWidth >= 480) {
+        setAchievementsLimit(6); // 2x3 grid
+      } else {
+        setAchievementsLimit(3); // 1x3 grid
+      }
+    };
+    updateLimit();
+    window.addEventListener("resize", updateLimit);
+    return () => window.removeEventListener("resize", updateLimit);
+  }, []);
+
   // Server-side achievements
-  const { data: achievementsData, loading: achievementsLoading } = useAchievements();
+  const { data: achievementsData, loading: achievementsLoading } = useAchievements({ limit: achievementsLimit });
 
   const currentYear = new Date().getFullYear();
   const heatmapData = toHeatmapData(yearData.daily);

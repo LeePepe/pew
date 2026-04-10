@@ -138,21 +138,33 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const tzOffsetParam = url.searchParams.get("tzOffset");
   const tzOffset = tzOffsetParam ? parseInt(tzOffsetParam, 10) : 0;
+  const limitParam = url.searchParams.get("limit");
+  const limit = limitParam ? parseInt(limitParam, 10) : null; // null = full mode (all achievements + earnedBy)
 
-  // 3. Query data
+  // 3. Query data (parallel fetch for performance)
   const db = await getDbRead();
   const pricingMap = getDefaultPricingMap();
   const today = new Date().toISOString().slice(0, 10);
 
   try {
-    // ---- Usage aggregates ----
-    const usageAgg = await db.getAchievementUsageAggregates(userId);
-
-    // ---- Daily usage (for streak, big-day, veteran) ----
-    const dailyUsage = await db.getAchievementDailyUsage(userId);
-
-    // ---- Daily cost (for daily-burn) ----
-    const costByModelSourceDay = await db.getAchievementDailyCostBreakdown(userId);
+    // ---- Parallel fetch all base data ----
+    const [
+      usageAgg,
+      dailyUsage,
+      costByModelSourceDay,
+      diversity,
+      sessionAgg,
+      hourlyUsage,
+      costByModelSource,
+    ] = await Promise.all([
+      db.getAchievementUsageAggregates(userId),
+      db.getAchievementDailyUsage(userId),
+      db.getAchievementDailyCostBreakdown(userId),
+      db.getAchievementDiversityCounts(userId),
+      db.getAchievementSessionAggregates(userId),
+      db.getAchievementHourlyUsage(userId),
+      db.getAchievementCostByModelSource(userId),
+    ]);
 
     // Aggregate cost by day
     const dailyCostMap = new Map<string, number>();
@@ -167,18 +179,6 @@ export async function GET(request: Request) {
       );
       dailyCostMap.set(row.day, (dailyCostMap.get(row.day) ?? 0) + cost);
     }
-
-    // ---- Diversity counts ----
-    const diversity = await db.getAchievementDiversityCounts(userId);
-
-    // ---- Session aggregates ----
-    const sessionAgg = await db.getAchievementSessionAggregates(userId);
-
-    // ---- Hourly usage for timezone-dependent achievements ----
-    const hourlyUsage = await db.getAchievementHourlyUsage(userId);
-
-    // ---- Total cost by model+source (for big-spender) ----
-    const costByModelSource = await db.getAchievementCostByModelSource(userId);
 
     let totalCost = 0;
     for (const row of costByModelSource) {
@@ -290,34 +290,35 @@ export async function GET(request: Request) {
       billionaire: usageAgg?.total_tokens ?? 0,
     };
 
-    // 5. Query earnedBy data for non-timezone-dependent achievements
+    // 5. Query earnedBy data for non-timezone-dependent achievements (skip in limit mode)
     const earnedByMap = new Map<string, EarnedByUser[]>();
     const totalEarnedMap = new Map<string, number>();
 
-    // For each non-timezone-dependent achievement, query top 5 earners
-    const socialAchievements = ACHIEVEMENT_DEFS.filter(
-      (d) => !TIMEZONE_DEPENDANT_IDS.has(d.id)
-    );
+    if (limit === null) {
+      // For each non-timezone-dependent achievement, query top 5 earners
+      const socialAchievements = ACHIEVEMENT_DEFS.filter(
+        (d) => !TIMEZONE_DEPENDANT_IDS.has(d.id)
+      );
 
-    // Helper to run earnedBy query for an achievement
-    async function queryEarnedBy(
-      def: typeof ACHIEVEMENT_DEFS[number],
-      sql: string,
-      countSql: string,
-      threshold: number
-    ) {
-      const earners = await db.getAchievementEarners(def.id, sql, [threshold, 5, 0]);
+      // Helper to run earnedBy query for an achievement
+      async function queryEarnedBy(
+        def: typeof ACHIEVEMENT_DEFS[number],
+        sql: string,
+        countSql: string,
+        threshold: number
+      ) {
+        const earners = await db.getAchievementEarners(def.id, sql, [threshold, 5, 0]);
 
-      const users: EarnedByUser[] = earners.map((r) => {
-        const { tier } = computeTierProgress(r.value, def.tiers);
-        return {
-          id: r.id,
-          name: r.name ?? "Anonymous",
-          image: r.image,
-          slug: r.slug,
-          tier: tier === "locked" ? "bronze" : tier,
-        };
-      });
+        const users: EarnedByUser[] = earners.map((r) => {
+          const { tier } = computeTierProgress(r.value, def.tiers);
+          return {
+            id: r.id,
+            name: r.name ?? "Anonymous",
+            image: r.image,
+            slug: r.slug,
+            tier: tier === "locked" ? "bronze" : tier,
+          };
+        });
 
       earnedByMap.set(def.id, users);
 
@@ -522,9 +523,10 @@ export async function GET(request: Request) {
       }
       // big-spender, daily-burn, streak: Skip - require runtime pricing lookup or complex date logic
     }
+    } // end if (limit === null)
 
     // 6. Build response
-    const achievements: AchievementResponse[] = ACHIEVEMENT_DEFS.map((def) => {
+    let achievements: AchievementResponse[] = ACHIEVEMENT_DEFS.map((def) => {
       const currentValue = values[def.id] ?? 0;
       const { tier, progress, nextThreshold } = computeTierProgress(
         currentValue,
@@ -551,9 +553,32 @@ export async function GET(request: Request) {
       };
     });
 
-    // Compute summary
-    const totalUnlocked = achievements.filter((a) => a.tier !== "locked").length;
-    const diamondCount = achievements.filter((a) => a.tier === "diamond").length;
+    // Apply limit if specified: sort by tier (highest first), then progress, and take top N
+    if (limit !== null && limit > 0) {
+      const tierRank: Record<AchievementTier, number> = {
+        diamond: 4,
+        gold: 3,
+        silver: 2,
+        bronze: 1,
+        locked: 0,
+      };
+      achievements = [...achievements]
+        .sort((a, b) => {
+          const rankDiff = tierRank[b.tier] - tierRank[a.tier];
+          if (rankDiff !== 0) return rankDiff;
+          return b.progress - a.progress;
+        })
+        .slice(0, limit);
+    }
+
+    // Compute summary (based on full data, not limited)
+    const allAchievements = ACHIEVEMENT_DEFS.map((def) => {
+      const currentValue = values[def.id] ?? 0;
+      const { tier } = computeTierProgress(currentValue, def.tiers);
+      return { tier };
+    });
+    const totalUnlocked = allAchievements.filter((a) => a.tier !== "locked").length;
+    const diamondCount = allAchievements.filter((a) => a.tier === "diamond").length;
 
     return NextResponse.json({
       achievements,

@@ -107,14 +107,6 @@ const TIER_STYLES: Record<AchievementTier, {
   },
 };
 
-const TIER_RANK: Record<AchievementTier, number> = {
-  diamond: 4,
-  gold: 3,
-  silver: 2,
-  bronze: 1,
-  locked: 0,
-};
-
 // ---------------------------------------------------------------------------
 // TopAchievement Component
 // ---------------------------------------------------------------------------
@@ -126,8 +118,10 @@ export interface TopAchievementProps {
 }
 
 /**
- * Displays the user's highest-tier achievement with a link to view all.
- * Shows the single best achievement (by tier, then by progress).
+ * Displays the user's top achievements in a responsive grid.
+ * - Large screens (md+): 3x3 grid (9 achievements)
+ * - Medium screens: 2x3 grid (6 achievements)
+ * - Small screens: 1x3 grid (3 achievements)
  */
 export function TopAchievement({
   achievements,
@@ -140,31 +134,29 @@ export function TopAchievement({
         <div className="flex items-center gap-2">
           <Trophy className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
           <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Top Achievement
+            Top Achievements
           </span>
         </div>
-        <Skeleton className="h-24 w-full rounded-xl" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+          {Array.from({ length: 9 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 w-full rounded-xl" />
+          ))}
+        </div>
       </div>
     );
   }
 
-  // Find the highest-tier achievement
-  const sorted = [...achievements].sort((a, b) => {
-    const rankDiff = TIER_RANK[b.tier] - TIER_RANK[a.tier];
-    if (rankDiff !== 0) return rankDiff;
-    return b.progress - a.progress;
-  });
+  // Filter to only unlocked achievements (already sorted by tier/progress from API)
+  const unlocked = achievements.filter((a) => a.tier !== "locked");
 
-  const top = sorted[0];
-
-  // If no achievements or all locked, show placeholder
-  if (!top || top.tier === "locked") {
+  // If no achievements unlocked, show placeholder
+  if (unlocked.length === 0) {
     return (
       <div className={cn("space-y-3", className)}>
         <div className="flex items-center gap-2">
           <Trophy className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
           <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Top Achievement
+            Top Achievements
           </span>
         </div>
         <div className="rounded-xl bg-muted/30 p-4">
@@ -183,59 +175,64 @@ export function TopAchievement({
     );
   }
 
-  const styles = TIER_STYLES[top.tier];
-  const Icon = ICON_MAP[top.icon] ?? Trophy;
-
   return (
     <div className={cn("space-y-3", className)}>
       <div className="flex items-center gap-2">
         <Trophy className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
         <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          Top Achievement
+          Top Achievements
         </span>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+        {unlocked.map((ach) => {
+          const styles = TIER_STYLES[ach.tier];
+          const Icon = ICON_MAP[ach.icon] ?? Trophy;
+
+          return (
+            <div
+              key={ach.id}
+              className="flex items-center gap-3 rounded-xl bg-card/50 p-3"
+            >
+              {/* Icon */}
+              <div className={cn(
+                "flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br",
+                styles.gradient,
+              )}>
+                <Icon className={cn("h-5 w-5", styles.iconColor)} strokeWidth={1.5} />
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-foreground truncate">
+                    {ach.name}
+                  </span>
+                  <span className={cn(
+                    "shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider",
+                    styles.badgeBg,
+                    styles.badgeColor,
+                  )}>
+                    {ach.tier}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-xs text-muted-foreground truncate">
+                  {ach.tier === "diamond"
+                    ? `${ach.displayValue} achieved!`
+                    : `${ach.displayValue} / ${ach.displayThreshold}`}
+                </p>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       <Link
         href="/leaderboard/achievements"
-        className="block rounded-xl bg-card/50 p-4 transition-colors hover:bg-card group"
+        className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
       >
-        <div className="flex items-center gap-3">
-          {/* Icon */}
-          <div className={cn(
-            "flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br",
-            styles.gradient,
-          )}>
-            <Icon className={cn("h-6 w-6", styles.iconColor)} strokeWidth={1.5} />
-          </div>
-
-          {/* Content */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-foreground truncate">
-                {top.name}
-              </span>
-              <span className={cn(
-                "shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider",
-                styles.badgeBg,
-                styles.badgeColor,
-              )}>
-                {top.tier}
-              </span>
-            </div>
-            <p className="mt-0.5 text-xs text-muted-foreground truncate">
-              {top.tier === "diamond"
-                ? `${top.displayValue} achieved!`
-                : `${top.displayValue} / ${top.displayThreshold}`}
-            </p>
-          </div>
-
-          {/* Arrow */}
-          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 transition-transform group-hover:translate-x-0.5" />
-        </div>
-
-        <p className="mt-3 text-xs text-primary">
-          View all achievements →
-        </p>
+        View all achievements
+        <ChevronRight className="h-3 w-3" />
       </Link>
     </div>
   );
