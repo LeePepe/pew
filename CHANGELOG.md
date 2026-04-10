@@ -1,5 +1,33 @@
 # Changelog
 
+## v2.18.0
+
+### Added
+- Add Models leaderboard page
+- Add Agents leaderboard page
+- Add Agents and Models tabs to leaderboard nav
+- Add source/model options to useLeaderboard hook
+- Pipe source/model filters through db layer and API route
+- Add source/model filters to global leaderboard RPC
+- Add trend charts and section dividers to devices page
+- Add DeviceModelTrendChart component
+- Add DeviceAgentTrendChart component
+- Add deviceId filter to usage API route and hook
+- Add deviceId to DB abstraction and worker adapter
+- Add deviceId filter to usage.get RPC
+- Add agent × model drill-down charts to By Devices page
+
+### Changed
+- Add technical spec for leaderboard Agents & Models tabs
+- Extract shared leaderboard components (ScopeDropdown, LeaderboardRow, PeriodTabs)
+- Add leaderboard API tests for source/model params and cache policy
+- Add tests for leaderboard.getGlobal and getUserSessionStats filters
+- Add retro for worker-read RPC deploy requirement
+
+### Fixed
+- Update Models leaderboard dropdown to reflect actual usage
+- Make agent/model selection derive from URL, not local state
+
 ## v2.17.0
 
 ### Added
