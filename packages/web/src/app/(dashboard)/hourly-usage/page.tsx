@@ -484,7 +484,9 @@ export default function RecentPage() {
                   <HourlyModelChart data={hourlyByModel} />
                 </div>
                 {devices.length > 0 && (
-                  <HourlyDeviceChart data={hourlyByDevice} deviceDetails={devices} />
+                  <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
+                    <HourlyDeviceChart data={hourlyByDevice} deviceDetails={devices} />
+                  </div>
                 )}
               </DashboardSegment>
             </>
