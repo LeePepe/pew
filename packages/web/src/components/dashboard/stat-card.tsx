@@ -98,11 +98,11 @@ export function StatCard({
         className
       )}
     >
-      {/* Top accent bar — custom color or gradient for primary */}
-      {(accentColor || isPrimary) && (
+      {/* Top accent bar — only shown when explicitly provided */}
+      {accentColor && (
         <div className={cn(
           "h-0.5 w-8 rounded-full mb-4",
-          accentColor ?? "bg-gradient-to-r from-primary to-chart-8"
+          accentColor
         )} />
       )}
 
@@ -132,7 +132,7 @@ export function StatCard({
             )}
           </div>
           {/* Middle: trends (hidden on mobile, shown below instead) */}
-          <div className="hidden md:flex md:items-center md:border-l md:border-border/50 md:pl-6">
+          <div className="hidden md:flex md:items-center md:border-r md:border-border/50 md:pr-6">
             {TrendsContent}
           </div>
           {/* Right: icon */}
