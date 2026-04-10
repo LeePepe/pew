@@ -110,7 +110,7 @@ function ModelSelector({
         />
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-0.5 min-w-[220px] max-h-[320px] overflow-y-auto rounded-lg border border-border bg-background p-1 shadow-lg">
+        <div className="absolute left-0 top-full z-50 mt-0.5 min-w-[220px] max-h-[320px] overflow-y-auto rounded-lg border border-border bg-background p-1 shadow-lg space-y-1">
           {MODEL_LIST.map((model) => {
             const c = modelColor(model);
             return (
