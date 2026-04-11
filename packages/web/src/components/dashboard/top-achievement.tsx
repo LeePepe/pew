@@ -137,7 +137,7 @@ export function TopAchievement({
             Top Achievements
           </span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
           {Array.from({ length: 9 }).map((_, i) => (
             <Skeleton key={i} className="h-16 w-full rounded-xl" />
           ))}
@@ -184,7 +184,7 @@ export function TopAchievement({
         </span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
         {unlocked.map((ach) => {
           const styles = TIER_STYLES[ach.tier];
           const Icon = ICON_MAP[ach.icon] ?? Trophy;
@@ -202,21 +202,21 @@ export function TopAchievement({
                 <Icon className={cn("h-5 w-5", styles.iconColor)} strokeWidth={1.5} />
               </div>
 
-              {/* Content */}
+              {/* Content — vertical stack for better readability */}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-foreground truncate">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-sm font-medium text-foreground">
                     {ach.name}
                   </span>
                   <span className={cn(
-                    "shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider",
+                    "shrink-0 px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider",
                     styles.badgeBg,
                     styles.badgeColor,
                   )}>
                     {ach.tier}
                   </span>
                 </div>
-                <p className="mt-0.5 text-xs text-muted-foreground truncate">
+                <p className="mt-0.5 text-xs text-muted-foreground">
                   {ach.tier === "diamond"
                     ? `${ach.displayValue} achieved!`
                     : `${ach.displayValue} / ${ach.displayThreshold}`}
