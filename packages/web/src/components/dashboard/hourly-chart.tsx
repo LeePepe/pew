@@ -116,7 +116,7 @@ export function HourlyChart({ data, className }: HourlyChartProps) {
       )}
     >
       {/* Header */}
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Clock className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
           <p className="text-xs md:text-sm text-muted-foreground">
