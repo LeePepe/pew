@@ -239,59 +239,93 @@ function DayRow({
 // Skeleton
 // ---------------------------------------------------------------------------
 
+function ChartSkeleton() {
+  return (
+    <div className="rounded-[var(--radius-card)] bg-secondary p-4 md:p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <Skeleton className="h-3 w-20" />
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-2 w-2 rounded-full" />
+          <Skeleton className="h-2 w-12" />
+        </div>
+      </div>
+      <Skeleton className="h-[200px] w-full rounded-lg" />
+    </div>
+  );
+}
+
+function CompactChartSkeleton() {
+  return (
+    <div className="rounded-[var(--radius-card)] bg-secondary p-4 md:p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <Skeleton className="h-3 w-20" />
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-2 w-2 rounded-full" />
+          <Skeleton className="h-2 w-12" />
+        </div>
+      </div>
+      <Skeleton className="h-[160px] w-full rounded-lg" />
+    </div>
+  );
+}
+
 function RecentSkeleton() {
   return (
-    <div className="space-y-4">
-      <Skeleton className="h-[280px] w-full rounded-xl" />
-      <div className="rounded-xl bg-secondary p-1 overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-border">
-              <th className="px-4 py-3 text-left">
-                <Skeleton className="h-3 w-16" />
-              </th>
-              <th className="px-4 py-3 text-right">
-                <Skeleton className="h-3 w-12 ml-auto" />
-              </th>
-              <th className="px-4 py-3 text-right">
-                <Skeleton className="h-3 w-12 ml-auto" />
-              </th>
-              <th className="px-4 py-3 text-right hidden md:table-cell">
-                <Skeleton className="h-3 w-12 ml-auto" />
-              </th>
-              <th className="px-4 py-3 text-right">
-                <Skeleton className="h-3 w-12 ml-auto" />
-              </th>
-              <th className="px-4 py-3 text-right hidden sm:table-cell">
-                <Skeleton className="h-3 w-12 ml-auto" />
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {Array.from({ length: 3 }).map((_, i) => (
-              <tr key={i} className="border-b border-border/50">
-                <td className="px-4 py-3">
-                  <Skeleton className="h-4 w-28" />
-                </td>
-                <td className="px-4 py-3">
-                  <Skeleton className="h-4 w-14 ml-auto" />
-                </td>
-                <td className="px-4 py-3">
-                  <Skeleton className="h-4 w-14 ml-auto" />
-                </td>
-                <td className="px-4 py-3 hidden md:table-cell">
-                  <Skeleton className="h-4 w-14 ml-auto" />
-                </td>
-                <td className="px-4 py-3">
-                  <Skeleton className="h-4 w-14 ml-auto" />
-                </td>
-                <td className="px-4 py-3 hidden sm:table-cell">
-                  <Skeleton className="h-4 w-14 ml-auto" />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <div className="grid gap-4 md:gap-6 xl:grid-cols-4">
+      {/* Left column skeleton: 4 charts + table */}
+      <div className="xl:col-span-3 space-y-4 md:space-y-6">
+        <div className="rounded-[var(--radius-card)] border border-secondary bg-background p-4 md:p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Skeleton className="h-4 w-32" />
+          </div>
+          <div className="space-y-4">
+            <ChartSkeleton />
+            <ChartSkeleton />
+            <ChartSkeleton />
+            <ChartSkeleton />
+          </div>
+          {/* Table skeleton */}
+          <div className="mt-6 rounded-xl bg-background/50 p-1 overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="px-4 py-3 text-left"><Skeleton className="h-3 w-12" /></th>
+                  <th className="px-4 py-3 text-right"><Skeleton className="h-3 w-10 ml-auto" /></th>
+                  <th className="px-4 py-3 text-right"><Skeleton className="h-3 w-10 ml-auto" /></th>
+                  <th className="px-4 py-3 text-right hidden md:table-cell"><Skeleton className="h-3 w-10 ml-auto" /></th>
+                  <th className="px-4 py-3 text-right"><Skeleton className="h-3 w-10 ml-auto" /></th>
+                  <th className="px-4 py-3 text-right hidden sm:table-cell"><Skeleton className="h-3 w-10 ml-auto" /></th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <tr key={i} className="border-b border-border/50">
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-12 ml-auto" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-12 ml-auto" /></td>
+                    <td className="px-4 py-3 hidden md:table-cell"><Skeleton className="h-4 w-12 ml-auto" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-12 ml-auto" /></td>
+                    <td className="px-4 py-3 hidden sm:table-cell"><Skeleton className="h-4 w-12 ml-auto" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Right column skeleton: 3 pattern charts */}
+      <div className="xl:col-span-1 space-y-4 md:space-y-6">
+        <div className="rounded-[var(--radius-card)] border border-secondary bg-background p-4 md:p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Skeleton className="h-4 w-28" />
+          </div>
+          <div className="space-y-4">
+            <CompactChartSkeleton />
+            <CompactChartSkeleton />
+            <CompactChartSkeleton />
+          </div>
+        </div>
       </div>
     </div>
   );

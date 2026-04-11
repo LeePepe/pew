@@ -85,13 +85,13 @@ describe("sidebar navigation", () => {
     });
 
     // Device navigation entries
-    it("Analytics group should include By Device after By Model", () => {
+    it("Analytics group should include By Device after Sessions", () => {
       const analyticsGroup = BASE_NAV_GROUPS.find((g) => g.label === "Analytics")!;
       const items = analyticsGroup.items.map((i) => i.label);
-      const modelIdx = items.indexOf("By Model");
+      const sessionsIdx = items.indexOf("Sessions");
       const deviceIdx = items.indexOf("By Device");
       expect(deviceIdx).toBeGreaterThan(-1);
-      expect(deviceIdx).toBe(modelIdx + 1);
+      expect(deviceIdx).toBe(sessionsIdx + 1);
     });
 
     it("By Device should link to /devices with Monitor icon", () => {
@@ -102,18 +102,18 @@ describe("sidebar navigation", () => {
       expect(byDevice!.icon).toBe("Monitor");
     });
 
-    it("Analytics group should include Projects after Sessions", () => {
+    it("Analytics group should include By Project after By Model", () => {
       const analyticsGroup = BASE_NAV_GROUPS.find((g) => g.label === "Analytics")!;
       const items = analyticsGroup.items.map((i) => i.label);
-      const sessionsIdx = items.indexOf("Sessions");
-      const projectIdx = items.indexOf("Projects");
+      const modelIdx = items.indexOf("By Model");
+      const projectIdx = items.indexOf("By Project");
       expect(projectIdx).toBeGreaterThan(-1);
-      expect(projectIdx).toBe(sessionsIdx + 1);
+      expect(projectIdx).toBe(modelIdx + 1);
     });
 
-    it("Projects should link to /projects with FolderGit2 icon", () => {
+    it("By Project should link to /projects with FolderGit2 icon", () => {
       const analyticsGroup = BASE_NAV_GROUPS.find((g) => g.label === "Analytics")!;
-      const projects = analyticsGroup.items.find((i) => i.label === "Projects" && i.icon === "FolderGit2");
+      const projects = analyticsGroup.items.find((i) => i.label === "By Project" && i.icon === "FolderGit2");
       expect(projects).toBeDefined();
       expect(projects!.href).toBe("/projects");
     });
@@ -215,7 +215,7 @@ describe("route labels", () => {
       settings: "Settings",
       general: "General",
       teams: "Teams",
-      projects: "Projects",
+      projects: "By Project",
       "manage-projects": "Projects",
       "hourly-usage": "Hourly Usage",
       "daily-usage": "Daily Usage",
