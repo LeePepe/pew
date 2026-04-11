@@ -98,12 +98,10 @@ function MiniStat({
   return (
     <div className={cn("flex items-center gap-2", className)}>
       <Icon className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
-      <div className="flex items-baseline gap-1.5">
-        <span className="text-sm font-semibold tabular-nums text-foreground">
-          {value}
-        </span>
-        <span className="text-xs text-muted-foreground">{label}</span>
-      </div>
+      <span className="text-xs text-muted-foreground">
+        <span className="font-semibold tabular-nums text-foreground">{value}</span>
+        {" "}{label}
+      </span>
     </div>
   );
 }
