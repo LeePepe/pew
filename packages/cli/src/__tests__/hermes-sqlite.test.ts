@@ -26,6 +26,9 @@ describe("parseHermesDatabase", () => {
     return () => sessions;
   }
 
+  // Fixed timestamp for deterministic tests (2026-04-03T10:00:00Z)
+  const testStartedAt = 1775210400;
+
   it("should emit full deltas on first sync", async () => {
     await setupDb();
 
@@ -38,6 +41,7 @@ describe("parseHermesDatabase", () => {
         cache_read_tokens: 200,
         cache_write_tokens: 50,
         reasoning_tokens: 100,
+        started_at: testStartedAt,
       },
       {
         id: "session-2",
@@ -47,6 +51,7 @@ describe("parseHermesDatabase", () => {
         cache_read_tokens: 300,
         cache_write_tokens: 100,
         reasoning_tokens: 0,
+        started_at: testStartedAt + 3600, // 1 hour later
       },
     ];
 
@@ -105,6 +110,7 @@ describe("parseHermesDatabase", () => {
         cache_read_tokens: 200,
         cache_write_tokens: 50,
         reasoning_tokens: 100,
+        started_at: testStartedAt,
       },
     ];
 
@@ -121,6 +127,7 @@ describe("parseHermesDatabase", () => {
         cache_read_tokens: 200,
         cache_write_tokens: 50,
         reasoning_tokens: 100,
+        started_at: testStartedAt,
       },
     ];
 
@@ -153,6 +160,7 @@ describe("parseHermesDatabase", () => {
         cache_read_tokens: 200,
         cache_write_tokens: 50,
         reasoning_tokens: 100,
+        started_at: testStartedAt,
       },
     ];
 
@@ -182,6 +190,7 @@ describe("parseHermesDatabase", () => {
         cache_read_tokens: 0,
         cache_write_tokens: 0,
         reasoning_tokens: 0,
+        started_at: testStartedAt,
       },
     ];
 
@@ -199,6 +208,7 @@ describe("parseHermesDatabase", () => {
         cache_read_tokens: 0,
         cache_write_tokens: 0,
         reasoning_tokens: 0,
+        started_at: testStartedAt + 3600,
       },
     ];
 
@@ -224,6 +234,7 @@ describe("parseHermesDatabase", () => {
         cache_read_tokens: 0,
         cache_write_tokens: 0,
         reasoning_tokens: 0,
+        started_at: testStartedAt,
       },
     ];
 
@@ -255,6 +266,7 @@ describe("parseHermesDatabase", () => {
         cache_read_tokens: 0,
         cache_write_tokens: 0,
         reasoning_tokens: 0,
+        started_at: testStartedAt,
       },
     ];
 
@@ -295,6 +307,7 @@ describe("parseHermesDatabase", () => {
         cache_read_tokens: 0,
         cache_write_tokens: 0,
         reasoning_tokens: 0,
+        started_at: testStartedAt,
       },
     ];
 
@@ -310,6 +323,7 @@ describe("parseHermesDatabase", () => {
         cache_read_tokens: 0,
         cache_write_tokens: 0,
         reasoning_tokens: 0,
+        started_at: testStartedAt,
       },
     ];
 
@@ -337,6 +351,7 @@ describe("parseHermesDatabase", () => {
         cache_read_tokens: 0,
         cache_write_tokens: 0,
         reasoning_tokens: 0,
+        started_at: testStartedAt,
       },
     ];
 
@@ -362,6 +377,7 @@ describe("parseHermesDatabase", () => {
         cache_read_tokens: 0,
         cache_write_tokens: 0,
         reasoning_tokens: 0,
+        started_at: testStartedAt,
       },
     ];
 
@@ -369,6 +385,61 @@ describe("parseHermesDatabase", () => {
 
     expect(result.deltas).toHaveLength(1);
     expect(result.deltas[0].model).toBe("unknown");
+
+    await teardownDb();
+  });
+
+  it("should use session started_at as timestamp for idempotent uploads", async () => {
+    await setupDb();
+
+    const sessions: SessionRow[] = [
+      {
+        id: "session-1",
+        model: "claude-opus-4",
+        input_tokens: 1000,
+        output_tokens: 500,
+        cache_read_tokens: 0,
+        cache_write_tokens: 0,
+        reasoning_tokens: 0,
+        started_at: testStartedAt, // 2026-04-03T10:00:00Z
+      },
+    ];
+
+    const result = await parseHermesDatabase(dbPath, mockSessions(sessions));
+
+    expect(result.deltas).toHaveLength(1);
+    // Timestamp should be derived from started_at, not sync time
+    expect(result.deltas[0].timestamp).toBe("2026-04-03T10:00:00.000Z");
+
+    await teardownDb();
+  });
+
+  it("should produce same timestamp on reset+sync for idempotency", async () => {
+    await setupDb();
+
+    const sessions: SessionRow[] = [
+      {
+        id: "session-1",
+        model: "claude-opus-4",
+        input_tokens: 1000,
+        output_tokens: 500,
+        cache_read_tokens: 0,
+        cache_write_tokens: 0,
+        reasoning_tokens: 0,
+        started_at: testStartedAt,
+      },
+    ];
+
+    // First sync
+    const result1 = await parseHermesDatabase(dbPath, mockSessions(sessions));
+    const timestamp1 = result1.deltas[0].timestamp;
+
+    // Simulate reset (no cursor) and re-sync
+    const result2 = await parseHermesDatabase(dbPath, mockSessions(sessions));
+    const timestamp2 = result2.deltas[0].timestamp;
+
+    // Both should have the same timestamp (idempotent)
+    expect(timestamp1).toBe(timestamp2);
 
     await teardownDb();
   });

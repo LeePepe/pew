@@ -7,6 +7,9 @@ import type { HermesSqliteCursor } from "@pew/core";
 import type { SyncContext } from "../../../drivers/types.js";
 import type { SessionRow } from "../../../parsers/hermes-sqlite.js";
 
+// Fixed timestamp for deterministic tests (2026-04-03T10:00:00Z)
+const testStartedAt = 1775210400;
+
 /** Helper: create mock sessions */
 function mockSessions(sessions: SessionRow[]): () => SessionRow[] {
   return () => sessions;
@@ -72,6 +75,7 @@ describe("hermesSqliteTokenDriver", () => {
         cache_read_tokens: 200,
         cache_write_tokens: 50,
         reasoning_tokens: 100,
+        started_at: testStartedAt,
       },
     ];
 
@@ -135,6 +139,7 @@ describe("hermesSqliteTokenDriver", () => {
         cache_read_tokens: 200,
         cache_write_tokens: 50,
         reasoning_tokens: 100,
+        started_at: testStartedAt,
       },
     ];
 
@@ -186,6 +191,7 @@ describe("hermesSqliteTokenDriver", () => {
         cache_read_tokens: 0,
         cache_write_tokens: 0,
         reasoning_tokens: 0,
+        started_at: testStartedAt,
       },
     ];
 
@@ -230,6 +236,7 @@ describe("hermesSqliteTokenDriver", () => {
         cache_read_tokens: 0,
         cache_write_tokens: 0,
         reasoning_tokens: 0,
+        started_at: testStartedAt,
       },
       {
         id: "session-2",
@@ -239,6 +246,7 @@ describe("hermesSqliteTokenDriver", () => {
         cache_read_tokens: 0,
         cache_write_tokens: 0,
         reasoning_tokens: 0,
+        started_at: testStartedAt + 3600,
       },
     ];
 

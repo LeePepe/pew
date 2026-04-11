@@ -146,7 +146,7 @@ export async function parseCopilotCliFile(opts: {
 
 /**
  * Extract a ParsedDelta from an `assistant_usage` telemetry event.
- * Returns null if the event has no usable token data.
+ * Returns null if the event has no usable token data or missing timestamp.
  */
 function extractUsageDelta(
   event: Record<string, unknown>,
@@ -154,16 +154,18 @@ function extractUsageDelta(
   const props = event.properties as Record<string, unknown> | undefined;
   const metrics = event.metrics as Record<string, unknown> | undefined;
 
+  // Require created_at for idempotent uploads — skip events without it.
+  // Using current time as fallback would break reset+sync idempotency.
+  const timestamp =
+    typeof event.created_at === "string" && event.created_at.length > 0
+      ? event.created_at
+      : null;
+  if (!timestamp) return null;
+
   const model =
     typeof props?.model === "string" && props.model.length > 0
       ? props.model
       : "unknown";
-
-  // Prefer created_at from the event; fall back to current time
-  const timestamp =
-    typeof event.created_at === "string" && event.created_at.length > 0
-      ? event.created_at
-      : new Date().toISOString();
 
   const tokens: TokenDelta = {
     inputTokens: toNonNegInt(metrics?.input_tokens),

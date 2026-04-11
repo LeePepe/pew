@@ -117,7 +117,8 @@ export function openHermesDb(
          output_tokens,
          cache_read_tokens,
          cache_write_tokens,
-         reasoning_tokens
+         reasoning_tokens,
+         started_at
        FROM sessions
        WHERE started_at IS NOT NULL
        ORDER BY started_at ASC`,
