@@ -1,5 +1,17 @@
 # Changelog
 
+## v2.19.0
+
+### Added
+- Daily Usage left stacked area charts, right donut charts
+- Add 4 timeline charts to Hourly Usage left column
+
+### Changed
+- Redesign Daily Usage page with 2-column layout
+- Re-enable animation for first 3 timeline charts
+- Fix Hourly Usage page animation jank
+- Hourly Usage page to 2-column layout (3:1)
+
 ## v2.18.8
 
 ### Added
