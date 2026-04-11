@@ -13,7 +13,7 @@
  *   to     — end datetime (ISO 8601, exclusive of days param if provided)
  *   source — filter by source (optional)
  *
- * Returns { user, records, summary }.
+ * Returns { user, viewed_user_id, records, summary }.
  */
 
 import { NextResponse } from "next/server";
@@ -315,6 +315,7 @@ export async function GET(
         created_at: user.created_at,
         first_seen: firstSeen,
       },
+      viewed_user_id: user.id,
       records,
       summary,
     });

@@ -182,6 +182,7 @@ describe("GET /api/users/[slug]", () => {
       expect(res.status).toBe(200);
       const body = await res.json();
 
+      expect(body.viewed_user_id).toBe("u1");
       expect(body.user).toEqual({
         name: "Test User",
         image: "https://example.com/avatar.jpg",

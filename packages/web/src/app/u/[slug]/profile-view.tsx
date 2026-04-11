@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import {
   Zap,
   ArrowDownToLine,
@@ -29,6 +30,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PageHeader } from "@/components/leaderboard/page-header";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { Button } from "@/components/ui/button";
 
 // ---------------------------------------------------------------------------
 // Skeleton
@@ -87,6 +89,7 @@ interface PublicProfileViewProps {
 export function PublicProfileView({ slug }: PublicProfileViewProps) {
   const { user, data, daily, sources, models, loading, error, notFound } =
     usePublicProfile({ slug, days: 30 });
+  const { data: session } = useSession();
 
   const yearData = usePublicProfile({ slug, days: 365 });
 
@@ -94,6 +97,11 @@ export function PublicProfileView({ slug }: PublicProfileViewProps) {
 
   const currentYear = new Date().getFullYear();
   const estimatedCost = useMemo(() => computeTotalCost(models, pricingMap), [models, pricingMap]);
+  const viewerUserId = session?.user?.id ?? null;
+  const viewedUserId = data?.viewed_user_id ?? null;
+  const showCompareButton = Boolean(
+    viewerUserId && viewedUserId && viewerUserId !== viewedUserId,
+  );
 
   // 404
   if (notFound) {
@@ -252,24 +260,31 @@ export function PublicProfileView({ slug }: PublicProfileViewProps) {
             </div>
           ) : (
             user && (
-              <div className="flex items-center gap-4">
-                <Avatar className="h-16 w-16">
-                  {user.image && (
-                    <AvatarImage src={user.image} alt={user.name ?? slug} />
-                  )}
-                  <AvatarFallback className="text-lg bg-primary text-primary-foreground">
-                    {(user.name ?? slug)[0]?.toUpperCase() ?? "?"}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <h2 className="text-2xl font-bold font-display text-foreground">
-                    {user.name ?? slug}
-                  </h2>
-                  <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <Calendar className="h-3.5 w-3.5" />
-                    Member since {formatMemberSince(user.created_at)}
-                  </p>
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <Avatar className="h-16 w-16">
+                    {user.image && (
+                      <AvatarImage src={user.image} alt={user.name ?? slug} />
+                    )}
+                    <AvatarFallback className="text-lg bg-primary text-primary-foreground">
+                      {(user.name ?? slug)[0]?.toUpperCase() ?? "?"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <h2 className="text-2xl font-bold font-display text-foreground">
+                      {user.name ?? slug}
+                    </h2>
+                    <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                      <Calendar className="h-3.5 w-3.5" />
+                      Member since {formatMemberSince(user.created_at)}
+                    </p>
+                  </div>
                 </div>
+                {showCompareButton && (
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={`/u/${slug}/compare`}>Compare</Link>
+                  </Button>
+                )}
               </div>
             )
           )}

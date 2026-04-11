@@ -30,6 +30,7 @@ export interface PublicUser {
 
 export interface PublicProfileData {
   user: PublicUser;
+  viewed_user_id: string;
   records: UsageRow[];
   summary: UsageSummary;
 }
@@ -42,6 +43,10 @@ interface UsePublicProfileOptions {
   slug: string;
   /** Number of days to look back (default 30, max 365) */
   days?: number;
+  /** Explicit start date (ISO date/datetime). Overrides days when paired with `to`. */
+  from?: string;
+  /** Explicit end date (ISO date/datetime). Used with `from`. */
+  to?: string;
   /** Source filter (optional) */
   source?: string;
 }
@@ -62,7 +67,7 @@ interface UsePublicProfileResult {
 export function usePublicProfile(
   options: UsePublicProfileOptions,
 ): UsePublicProfileResult {
-  const { slug, days = 30, source } = options;
+  const { slug, days = 30, from, to, source } = options;
   const [data, setData] = useState<PublicProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -74,7 +79,13 @@ export function usePublicProfile(
     setNotFound(false);
 
     try {
-      const params = new URLSearchParams({ days: String(days) });
+      const params = new URLSearchParams();
+      if (from && to) {
+        params.set("from", from);
+        params.set("to", to);
+      } else {
+        params.set("days", String(days));
+      }
       if (source) params.set("source", source);
 
       const res = await fetch(`/api/users/${slug}?${params.toString()}`);
@@ -98,7 +109,7 @@ export function usePublicProfile(
     } finally {
       setLoading(false);
     }
-  }, [slug, days, source]);
+  }, [slug, days, from, to, source]);
 
   useEffect(() => {
     fetchData();
