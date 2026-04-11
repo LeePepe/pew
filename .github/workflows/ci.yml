@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0 # Full history for gitleaks
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -34,8 +36,116 @@ jobs:
 
       - name: G2a Dependency CVE Scan
         run: |
-          # Install osv-scanner
           curl -sSfL https://github.com/google/osv-scanner/releases/download/v2.0.2/osv-scanner_linux_amd64 -o /tmp/osv-scanner
           chmod +x /tmp/osv-scanner
-          # Scan bun.lock for vulnerabilities
           /tmp/osv-scanner --lockfile=bun.lock
+
+      - name: G2b Secret Leak Scan
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907e6e0f797021 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ═══════════════════════════════════════════════════════════════
+  # Stage 2: E2E tests (requires secrets)
+  # ═══════════════════════════════════════════════════════════════
+  e2e-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: quality-gate
+    # Only run if secrets are available (skip for external PRs)
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        run: bun run build
+
+      - name: Write .env.local
+        run: |
+          cat > packages/web/.env.local << 'EOF'
+          CF_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }}
+          CF_D1_DATABASE_ID=${{ secrets.CF_D1_DATABASE_ID }}
+          CF_D1_API_TOKEN=${{ secrets.CF_D1_API_TOKEN }}
+          WORKER_INGEST_URL=${{ secrets.WORKER_INGEST_URL }}
+          WORKER_READ_URL=${{ secrets.WORKER_READ_URL }}
+          WORKER_SECRET=${{ secrets.WORKER_SECRET }}
+          WORKER_READ_SECRET=${{ secrets.WORKER_READ_SECRET }}
+          AUTH_SECRET=${{ secrets.AUTH_SECRET }}
+          EOF
+
+      - name: Write .env.test
+        run: |
+          cat > packages/web/.env.test << 'EOF'
+          CF_D1_DATABASE_ID_TEST=${{ secrets.CF_D1_DATABASE_ID_TEST }}
+          WORKER_INGEST_URL_TEST=${{ secrets.WORKER_INGEST_URL_TEST }}
+          WORKER_READ_URL_TEST=${{ secrets.WORKER_READ_URL_TEST }}
+          EOF
+
+      - name: L2 API E2E Tests
+        run: bun run test:e2e
+
+  e2e-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: quality-gate
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        run: bun run build
+
+      - name: Install Playwright browsers
+        run: bunx playwright install chromium --with-deps
+
+      - name: Write .env.local
+        run: |
+          cat > packages/web/.env.local << 'EOF'
+          CF_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }}
+          CF_D1_DATABASE_ID=${{ secrets.CF_D1_DATABASE_ID }}
+          CF_D1_API_TOKEN=${{ secrets.CF_D1_API_TOKEN }}
+          WORKER_INGEST_URL=${{ secrets.WORKER_INGEST_URL }}
+          WORKER_READ_URL=${{ secrets.WORKER_READ_URL }}
+          WORKER_SECRET=${{ secrets.WORKER_SECRET }}
+          WORKER_READ_SECRET=${{ secrets.WORKER_READ_SECRET }}
+          AUTH_SECRET=${{ secrets.AUTH_SECRET }}
+          EOF
+
+      - name: Write .env.test
+        run: |
+          cat > packages/web/.env.test << 'EOF'
+          CF_D1_DATABASE_ID_TEST=${{ secrets.CF_D1_DATABASE_ID_TEST }}
+          WORKER_INGEST_URL_TEST=${{ secrets.WORKER_INGEST_URL_TEST }}
+          WORKER_READ_URL_TEST=${{ secrets.WORKER_READ_URL_TEST }}
+          EOF
+
+      - name: L3 Playwright E2E Tests
+        run: bun run test:e2e:ui
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: packages/web/playwright-report/
+          retention-days: 7
