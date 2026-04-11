@@ -137,7 +137,7 @@ export function TopAchievement({
             Top Achievements
           </span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {Array.from({ length: 9 }).map((_, i) => (
             <Skeleton key={i} className="h-16 w-full rounded-xl" />
           ))}
@@ -184,7 +184,7 @@ export function TopAchievement({
         </span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {unlocked.map((ach) => {
           const styles = TIER_STYLES[ach.tier];
           const Icon = ICON_MAP[ach.icon] ?? Trophy;
