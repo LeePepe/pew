@@ -329,13 +329,13 @@ function SalaryTrendChart({ data, className }: SalaryTrendChartProps) {
             <XAxis
               dataKey="date"
               tickFormatter={fmtDate}
-              tick={{ fill: chartAxis, fontSize: 10 }}
+              tick={{ fill: chartAxis, fontSize: 11 }}
               axisLine={false}
               tickLine={false}
             />
             <YAxis
               tickFormatter={formatSalary}
-              tick={{ fill: chartAxis, fontSize: 10 }}
+              tick={{ fill: chartAxis, fontSize: 11 }}
               axisLine={false}
               tickLine={false}
               width={52}

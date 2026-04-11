@@ -158,14 +158,14 @@ export function HourlyChart({ data, className }: HourlyChartProps) {
             <XAxis
               dataKey="hour"
               tickFormatter={fmtHour}
-              tick={{ fill: chartAxis, fontSize: 9 }}
+              tick={{ fill: chartAxis, fontSize: 11 }}
               axisLine={false}
               tickLine={false}
               interval={2}
             />
             <YAxis
               tickFormatter={formatTokens}
-              tick={{ fill: chartAxis, fontSize: 10 }}
+              tick={{ fill: chartAxis, fontSize: 11 }}
               axisLine={false}
               tickLine={false}
               width={48}

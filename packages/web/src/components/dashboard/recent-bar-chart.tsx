@@ -327,7 +327,7 @@ export function RecentBarChart({
             <XAxis
               dataKey="slot"
               tickFormatter={fmtSlot}
-              tick={{ fill: chartAxis, fontSize: 10 }}
+              tick={{ fill: chartAxis, fontSize: 11 }}
               axisLine={false}
               tickLine={false}
               interval={tickInterval}
