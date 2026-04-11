@@ -38,9 +38,9 @@ function makeRow(overrides: Partial<UsageRow> = {}): UsageRow {
 // ---------------------------------------------------------------------------
 
 describe("PERIOD_OPTIONS", () => {
-  it("contains all three period values", () => {
+  it("contains all three period values in order: week, month, all", () => {
     const values = PERIOD_OPTIONS.map((o) => o.value);
-    expect(values).toEqual(["all", "month", "week"]);
+    expect(values).toEqual(["week", "month", "all"]);
   });
 
   it("has human-readable labels", () => {
