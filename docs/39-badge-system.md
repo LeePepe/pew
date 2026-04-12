@@ -355,9 +355,13 @@ Records `revoked_at`, `revoked_by`, `revoke_reason` for audit. Same action for b
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/users/[slug]/badges` | Get user's active badges (respects `is_public`) |
+| GET | `/api/users/[slug]/badges` | Get user's active badges |
 
-**Privacy**: Returns 404 if user has `is_public=0`, consistent with `/api/users/[slug]/achievements` behavior. Note: the main profile route (`/api/users/[slug]`) has additional bypasses (admin, teammate, same-season), but the badges endpoint uses the simpler achievements-style check for simplicity.
+**Privacy**: Uses the same `canBypassPublic()` logic as `/api/users/[slug]`:
+- Public users (`is_public=1`): accessible to anyone
+- Private users (`is_public=0`): accessible only to admin, teammate, or same-season participant
+
+This ensures badge visibility matches profile visibility — if someone can see a private user's profile popup, they can also see their badges. No "badge-shaped hole" in authorized views.
 
 ### Leaderboard Integration
 
@@ -446,7 +450,7 @@ Add new RPC handlers in `packages/worker-read`:
 | 6 | Badges immutable once created | Simplifies state machine; typos fixed via archive + recreate |
 | 7 | Four-state model (active/expired/revoked_early/revoked_post_expiry) | Distinguishes natural expiry from admin revoke, and early termination from post-expiry clearing |
 | 8 | DB-level unique constraint on non-revoked assignments | Prevents race conditions on concurrent assign requests |
-| 9 | Respect user is_public for badge API | Consistent with achievements route privacy model |
+| 9 | Badge API uses `canBypassPublic()` like profile route | Ensures badge visibility matches profile visibility — no "badge-shaped hole" |
 | 10 | 1-3 min leaderboard visibility SLA | Badges aren't time-critical; admin UI shows immediate state |
 
 ---
@@ -457,9 +461,13 @@ Add new RPC handlers in `packages/worker-read`:
 
 | Scenario | Expected |
 |----------|----------|
-| GET `/api/users/[slug]/badges` for public user | 200 + badge array |
-| GET `/api/users/[slug]/badges` for private user | 404 |
-| Leaderboard only contains public users | Private users excluded entirely (existing behavior); badges only appear for public users |
+| GET badges for public user (no auth) | 200 + badge array |
+| GET badges for private user (no auth) | 404 |
+| GET badges for private user (as admin) | 200 + badge array |
+| GET badges for private user (as teammate) | 200 + badge array |
+| GET badges for private user (same season) | 200 + badge array |
+| GET badges for private user (unrelated authed user) | 404 |
+| Leaderboard only contains public users | Private users excluded entirely; badges only for public users |
 
 ### Assignment Uniqueness Tests
 
