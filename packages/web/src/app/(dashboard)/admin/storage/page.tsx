@@ -8,6 +8,9 @@ import {
   ArrowDown,
   Search,
   X,
+  Trash2,
+  RefreshCw,
+  Database,
 } from "lucide-react";
 import { cn, formatTokens, formatTokensFull } from "@/lib/utils";
 import { useAdmin } from "@/hooks/use-admin";
@@ -27,6 +30,10 @@ import type {
   StorageUserRow,
   StorageSummary,
 } from "@/app/api/admin/storage/route";
+import type {
+  CacheListResponse,
+  CacheClearResponse,
+} from "@/app/api/admin/cache/route";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -174,11 +181,69 @@ export default function AdminStoragePage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogTab, setDialogTab] = useState<ProfileDialogTab>("total");
 
+  // Cache management
+  const [cacheKeys, setCacheKeys] = useState<string[]>([]);
+  const [cacheCount, setCacheCount] = useState(0);
+  const [cacheTruncated, setCacheTruncated] = useState(false);
+  const [cacheLoading, setCacheLoading] = useState(false);
+  const [cacheClearing, setCacheClearing] = useState(false);
+  const [cacheError, setCacheError] = useState<string | null>(null);
+
   const openProfileDialog = useCallback((user: StorageUserRow, tab: ProfileDialogTab = "total") => {
     setDialogUser(user);
     setDialogTab(tab);
     setDialogOpen(true);
   }, []);
+
+  // ---------------------------------------------------------------------------
+  // Cache management handlers
+  // ---------------------------------------------------------------------------
+
+  const fetchCacheKeys = useCallback(async () => {
+    setCacheLoading(true);
+    setCacheError(null);
+    try {
+      const res = await fetch("/api/admin/cache");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as CacheListResponse;
+      setCacheKeys(data.keys);
+      setCacheCount(data.count);
+      setCacheTruncated(data.truncated);
+    } catch (err) {
+      setCacheError(err instanceof Error ? err.message : "Failed to load");
+    } finally {
+      setCacheLoading(false);
+    }
+  }, []);
+
+  const handleClearCache = useCallback(async () => {
+    if (!confirm("Clear all cache entries? This cannot be undone.")) return;
+    setCacheClearing(true);
+    setCacheError(null);
+    try {
+      const res = await fetch("/api/admin/cache", { method: "DELETE" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as CacheClearResponse;
+      // Refresh list after clearing
+      await fetchCacheKeys();
+      alert(`Cleared ${data.deleted} cache entries${data.truncated ? " (more remain)" : ""}`);
+    } catch (err) {
+      setCacheError(err instanceof Error ? err.message : "Failed to clear");
+    } finally {
+      setCacheClearing(false);
+    }
+  }, [fetchCacheKeys]);
+
+  const handleInvalidateKey = useCallback(async (key: string) => {
+    try {
+      const res = await fetch(`/api/admin/cache?key=${encodeURIComponent(key)}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      // Refresh list
+      await fetchCacheKeys();
+    } catch (err) {
+      setCacheError(err instanceof Error ? err.message : "Failed to invalidate");
+    }
+  }, [fetchCacheKeys]);
 
   // ---------------------------------------------------------------------------
   // Redirect non-admins
@@ -217,8 +282,11 @@ export default function AdminStoragePage() {
   }, []);
 
   useEffect(() => {
-    if (isAdmin) fetchData();
-  }, [isAdmin, fetchData]);
+    if (isAdmin) {
+      fetchData();
+      fetchCacheKeys();
+    }
+  }, [isAdmin, fetchData, fetchCacheKeys]);
 
   // ---------------------------------------------------------------------------
   // Sort handler
@@ -340,6 +408,77 @@ export default function AdminStoragePage() {
             </div>
           </div>
         )}
+
+        {/* Cache Management */}
+        <div className="rounded-xl bg-secondary p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Database className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
+              <h2 className="font-medium">KV Cache</h2>
+              {cacheTruncated && (
+                <span className="text-xs text-amber-500">(truncated)</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={fetchCacheKeys}
+                disabled={cacheLoading}
+                className="inline-flex items-center gap-1.5 rounded-md bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={cn("h-3 w-3", cacheLoading && "animate-spin")} strokeWidth={1.5} />
+                Refresh
+              </button>
+              <button
+                onClick={handleClearCache}
+                disabled={cacheLoading || cacheClearing || cacheKeys.length === 0}
+                className="inline-flex items-center gap-1.5 rounded-md bg-destructive/10 text-destructive px-3 py-1.5 text-xs font-medium hover:bg-destructive/20 transition-colors disabled:opacity-50"
+              >
+                <Trash2 className="h-3 w-3" strokeWidth={1.5} />
+                Clear All
+              </button>
+            </div>
+          </div>
+
+          {cacheError && (
+            <div className="rounded-md bg-destructive/10 p-2 text-xs text-destructive mb-3">
+              {cacheError}
+            </div>
+          )}
+
+          {cacheLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-8 w-full" />
+            </div>
+          ) : cacheKeys.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No cache entries.</p>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground mb-2">
+                {cacheCount} key{cacheCount !== 1 ? "s" : ""}
+              </p>
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                {cacheKeys.map((key) => (
+                  <div
+                    key={key}
+                    className="flex items-center justify-between rounded-md bg-background px-3 py-1.5 text-xs group"
+                  >
+                    <code className="font-mono text-muted-foreground truncate flex-1 mr-2">
+                      {key}
+                    </code>
+                    <button
+                      onClick={() => handleInvalidateKey(key)}
+                      className="text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
+                      title="Invalidate key"
+                    >
+                      <X className="h-3 w-3" strokeWidth={1.5} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
 
         {/* Search bar */}
         {!loading && users.length > 0 && (
