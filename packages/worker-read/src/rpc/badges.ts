@@ -90,7 +90,8 @@ export interface ListAssignmentsRequest {
   method: "badges.listAssignments";
   badgeId?: string;
   userId?: string;
-  status?: "active" | "expired" | "revoked" | "all";
+  /** Filter by status: revoked = revoked_early only, cleared = revoked_post_expiry only */
+  status?: "active" | "expired" | "revoked" | "cleared" | "all";
   limit: number;
   offset: number;
 }
@@ -312,7 +313,12 @@ async function handleListAssignments(
       params.push(now);
       break;
     case "revoked":
-      conditions.push("ba.revoked_at IS NOT NULL");
+      // revoked_early: revoked while still active (revoked_at <= expires_at)
+      conditions.push("ba.revoked_at IS NOT NULL AND ba.revoked_at <= ba.expires_at");
+      break;
+    case "cleared":
+      // revoked_post_expiry: cleared after already expired (revoked_at > expires_at)
+      conditions.push("ba.revoked_at IS NOT NULL AND ba.revoked_at > ba.expires_at");
       break;
     // "all" - no additional filter
   }

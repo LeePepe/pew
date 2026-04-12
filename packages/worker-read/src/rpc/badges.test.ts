@@ -308,6 +308,38 @@ describe("badges RPC handlers", () => {
         expect.stringContaining("revoked_at IS NULL AND ba.expires_at >"),
       );
     });
+
+    it("should filter revoked (revoked_early only)", async () => {
+      db.all.mockResolvedValue({ results: [] });
+
+      const request: ListAssignmentsRequest = {
+        method: "badges.listAssignments",
+        status: "revoked",
+        limit: 50,
+        offset: 0,
+      };
+      await handleBadgesRpc(request, db);
+
+      expect(db.prepare).toHaveBeenCalledWith(
+        expect.stringContaining("revoked_at IS NOT NULL AND ba.revoked_at <= ba.expires_at"),
+      );
+    });
+
+    it("should filter cleared (revoked_post_expiry only)", async () => {
+      db.all.mockResolvedValue({ results: [] });
+
+      const request: ListAssignmentsRequest = {
+        method: "badges.listAssignments",
+        status: "cleared",
+        limit: 50,
+        offset: 0,
+      };
+      await handleBadgesRpc(request, db);
+
+      expect(db.prepare).toHaveBeenCalledWith(
+        expect.stringContaining("revoked_at IS NOT NULL AND ba.revoked_at > ba.expires_at"),
+      );
+    });
   });
 
   // -------------------------------------------------------------------------

@@ -30,7 +30,7 @@ import type { BadgeRow, BadgeAssignmentRow, UserSearchResult } from "@/lib/rpc-t
 // ---------------------------------------------------------------------------
 
 type TabId = "definitions" | "assignments";
-type AssignmentStatusFilter = "all" | "active" | "expired" | "revoked";
+type AssignmentStatusFilter = "all" | "active" | "expired" | "revoked" | "cleared";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -1044,7 +1044,7 @@ export default function AdminBadgesPage() {
         <>
           {/* Status filter */}
           <div className="mb-4 flex gap-2">
-            {(["all", "active", "expired", "revoked"] as const).map((s) => (
+            {(["all", "active", "expired", "revoked", "cleared"] as const).map((s) => (
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
