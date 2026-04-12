@@ -33,6 +33,7 @@ import { handlePricingRpc, type PricingRpcRequest } from "./rpc/pricing";
 import { handleAdminRpc, type AdminRpcRequest } from "./rpc/admin";
 import { handleLiveRpc, type LiveRpcRequest } from "./rpc/live";
 import { handleCacheRpc, type CacheRpcRequest } from "./rpc/cache";
+import { handleBadgesRpc, type BadgesRpcRequest } from "./rpc/badges";
 
 // ---------------------------------------------------------------------------
 // Version
@@ -311,7 +312,8 @@ export type RpcRequest =
   | PricingRpcRequest
   | AdminRpcRequest
   | LiveRpcRequest
-  | CacheRpcRequest;
+  | CacheRpcRequest
+  | BadgesRpcRequest;
 
 async function handleRpc(body: unknown, env: Env): Promise<Response> {
   if (typeof body !== "object" || body === null) {
@@ -363,6 +365,8 @@ async function handleRpc(body: unknown, env: Env): Promise<Response> {
         return handleLiveRpc(body as LiveRpcRequest, env.DB);
       case "cache":
         return handleCacheRpc(body as CacheRpcRequest, env.CACHE);
+      case "badges":
+        return handleBadgesRpc(body as BadgesRpcRequest, env.DB);
       default:
         return Response.json(
           { error: `Unknown RPC domain: ${domain}` },
