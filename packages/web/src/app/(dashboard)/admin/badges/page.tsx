@@ -219,13 +219,13 @@ function CreateBadgeDialog({ open, onClose, onCreated }: CreateBadgeDialogProps)
           {/* Text */}
           <div>
             <label className="mb-1 block text-sm font-medium">
-              Text (1-4 characters)
+              Text (1-3 characters)
             </label>
             <input
               type="text"
               value={text}
               onChange={(e) => setText(e.target.value)}
-              maxLength={4}
+              maxLength={3}
               className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
               placeholder="MVP"
               required

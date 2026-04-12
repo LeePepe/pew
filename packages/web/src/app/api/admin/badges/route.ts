@@ -42,7 +42,7 @@ function validateBadgeText(text: unknown): string | null {
   if (typeof text !== "string") return "text must be a string";
   const trimmed = text.trim();
   if (trimmed.length === 0) return "text is required";
-  if (trimmed.length > 4) return "text must be 1-4 characters";
+  if (trimmed.length > 3) return "text must be 1-3 characters";
   // Allow alphanumeric + common unicode (Chinese, Japanese, Korean, emoji)
   // Block HTML/script injection
   if (/<|>|&|script/i.test(trimmed)) {

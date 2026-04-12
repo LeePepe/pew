@@ -695,7 +695,7 @@ export type BadgeColorPalette =
 /** Badge definition (admin-created template) */
 export interface Badge {
   id: string;
-  /** 1-4 characters displayed on the badge */
+  /** 1-3 characters displayed on the badge */
   text: string;
   /** Icon type (Lucide icon name) */
   icon: BadgeIconType;

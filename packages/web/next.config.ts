@@ -20,6 +20,11 @@ const nextConfig: NextConfig = {
         hostname: "s.zhe.to",
         pathname: "/apps/pew/**",
       },
+      {
+        protocol: "https",
+        hostname: "lh3.googleusercontent.com",
+        pathname: "/**",
+      },
     ],
   },
   env: {

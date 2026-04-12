@@ -33,8 +33,8 @@ export type BadgeIconType =
 interface BadgeIconProps {
   text: string; // 1-4 chars
   icon: BadgeIconType;
-  colorBg: string; // hex for pill background
-  colorText: string; // hex for pill text
+  colorBg: string; // hex for background
+  colorText: string; // hex for text
   size?: "sm" | "md" | "lg";
   className?: string;
 }
@@ -64,9 +64,21 @@ const ICON_MAP: Record<BadgeIconType, LucideIcon> = {
  * lg: Large size for admin previews
  */
 const SIZE_CONFIG = {
-  sm: { icon: 16, pill: "text-[8px] px-1 py-0", offset: "-bottom-0.5" },
-  md: { icon: 20, pill: "text-[9px] px-1.5 py-0", offset: "-bottom-1" },
-  lg: { icon: 28, pill: "text-[10px] px-2 py-0.5", offset: "-bottom-1.5" },
+  sm: {
+    container: "w-7 h-7",
+    icon: 28,
+    text: "text-[9px]",
+  },
+  md: {
+    container: "w-9 h-9",
+    icon: 36,
+    text: "text-[11px]",
+  },
+  lg: {
+    container: "w-12 h-12",
+    icon: 48,
+    text: "text-sm",
+  },
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -76,7 +88,8 @@ const SIZE_CONFIG = {
 /**
  * Badge icon component for displaying admin-assigned badges.
  *
- * Design: Lucide icon with a colored pill overlay at the bottom.
+ * Design: Rounded square with semi-transparent icon background,
+ * text centered on top.
  *
  * Used in:
  * - Leaderboard rank column
@@ -96,25 +109,30 @@ export function BadgeIcon({
 
   return (
     <div
-      className={cn("relative inline-flex items-center justify-center", className)}
+      className={cn(
+        "relative inline-flex items-center justify-center rounded-lg",
+        config.container,
+        className,
+      )}
+      style={{ backgroundColor: colorBg }}
       role="img"
       aria-label={`Badge: ${text}`}
     >
-      {/* Lucide icon */}
+      {/* Background icon (semi-transparent) */}
       <IconComponent
         size={config.icon}
-        className="text-muted-foreground"
+        className="absolute opacity-20"
+        style={{ color: colorText }}
         strokeWidth={1.5}
       />
 
-      {/* Text pill overlay */}
+      {/* Text overlay */}
       <span
         className={cn(
-          "absolute rounded-full font-semibold whitespace-nowrap",
-          config.pill,
-          config.offset,
+          "relative z-10 font-bold leading-none",
+          config.text,
         )}
-        style={{ backgroundColor: colorBg, color: colorText }}
+        style={{ color: colorText }}
       >
         {text}
       </span>
