@@ -9,6 +9,7 @@ import {
   Search,
   X,
   Users,
+  Check,
 } from "lucide-react";
 import { cn, formatTokens, formatTokensFull } from "@/lib/utils";
 import { useAdmin } from "@/hooks/use-admin";
@@ -464,9 +465,6 @@ function ComparePageContent() {
                       const isSelected = selectedUserIds.includes(user.user_id);
                       const isDisabled =
                         !isSelected && selectedUserIds.length >= 10;
-                      const selectedIndex = selectedUserIds.indexOf(
-                        user.user_id
-                      );
 
                       return (
                         <tr
@@ -485,22 +483,15 @@ function ComparePageContent() {
                               onClick={() => toggleUser(user.user_id)}
                               disabled={isDisabled}
                               className={cn(
-                                "flex h-5 w-5 items-center justify-center rounded border transition-colors",
+                                "flex h-5 w-5 items-center justify-center rounded border-2 transition-colors",
                                 isSelected
-                                  ? "border-primary bg-primary text-primary-foreground"
-                                  : "border-border bg-background hover:border-primary/50",
-                                isDisabled && "cursor-not-allowed"
+                                  ? "border-primary bg-primary"
+                                  : "border-muted-foreground/30 bg-background hover:border-primary/50",
+                                isDisabled && "cursor-not-allowed opacity-50"
                               )}
                             >
                               {isSelected && (
-                                <div
-                                  className="h-2.5 w-2.5 rounded-full"
-                                  style={{
-                                    backgroundColor: CHART_COLORS[
-                                      selectedIndex % CHART_COLORS.length
-                                    ] as string,
-                                  }}
-                                />
+                                <Check className="h-3.5 w-3.5 text-primary-foreground" strokeWidth={3} />
                               )}
                             </button>
                           </td>
