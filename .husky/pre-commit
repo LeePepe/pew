@@ -2,6 +2,16 @@
 
 # pre-commit: L1 Unit/Component + G1 Static Analysis (quality system)
 
+# G0: Verify lockfile is in sync with package.json (catches missing workspace deps)
+# This mirrors CI's `bun install --frozen-lockfile` check
+bun install --frozen-lockfile 2>&1
+LOCK_EXIT=$?
+
+if [ $LOCK_EXIT -ne 0 ]; then
+  echo "❌ pre-commit FAILED: Lockfile out of sync. Run 'bun install' and commit bun.lock."
+  exit 1
+fi
+
 # L1 Unit/Component: coverage ≥90% enforced by vitest.config.ts
 bun run test:coverage 2>&1
 TEST_EXIT=$?
@@ -29,4 +39,4 @@ if [ $LINT_EXIT -ne 0 ]; then
   exit 1
 fi
 
-echo "✅ pre-commit passed: L1 Unit ≥90% + G1 Static Analysis"
+echo "✅ pre-commit passed: G0 Lockfile + L1 Unit ≥90% + G1 Static Analysis"
