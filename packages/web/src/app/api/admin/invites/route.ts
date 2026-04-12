@@ -24,7 +24,8 @@ export async function GET(request: Request) {
   const dbRead = await getDbRead();
 
   try {
-    const results = await dbRead.listInviteCodes();
+    // Admin list wants all codes - use 1000 as reasonable upper bound
+    const results = await dbRead.listInviteCodes(1000);
     return NextResponse.json({ rows: results });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "";

@@ -523,7 +523,7 @@ export interface DbRead {
   getAuthCode(code: string): Promise<AuthCodeRow | null>;
 
   /** List all invite codes with user info */
-  listInviteCodes(): Promise<InviteCodeRow[]>;
+  listInviteCodes(limit?: number): Promise<InviteCodeRow[]>;
 
   /** Check if invite code exists and get its status */
   checkInviteCodeExists(code: string): Promise<InviteCodeSimple | null>;

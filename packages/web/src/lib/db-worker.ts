@@ -925,8 +925,11 @@ export function createWorkerDbRead(): DbRead {
       return rpc<AuthCodeRow | null>({ method: "auth.getCode", code });
     },
 
-    async listInviteCodes(): Promise<InviteCodeRow[]> {
-      return rpc<InviteCodeRow[]>({ method: "auth.listInviteCodes" });
+    async listInviteCodes(limit?: number): Promise<InviteCodeRow[]> {
+      return rpc<InviteCodeRow[]>({
+        method: "auth.listInviteCodes",
+        ...(limit !== undefined && { limit }),
+      });
     },
 
     async checkInviteCodeExists(code: string): Promise<InviteCodeSimple | null> {
