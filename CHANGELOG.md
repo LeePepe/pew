@@ -1,5 +1,22 @@
 # Changelog
 
+## v2.20.0
+
+### Added
+- Add KV cache management UI to admin storage page
+- Add cache.* RPC domain for admin management
+- Cache leaderboard.getGlobal for public requests
+- Cache seasons.list and getSnapshots
+- Cache pricing.listModelPricing with 24h TTL
+- Add KV cache helper with tests
+- Add test KV namespace binding
+- Add user profile dialog on username click
+
+### Changed
+- Complete KV cache implementation retrospective
+- Mark KV cache steps 10-11 complete
+- Add Cloudflare KV cache design (doc 38)
+
 ## v2.19.1
 
 ### Added

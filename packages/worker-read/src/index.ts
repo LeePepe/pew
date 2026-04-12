@@ -38,7 +38,7 @@ import { handleCacheRpc, type CacheRpcRequest } from "./rpc/cache";
 // Version
 // ---------------------------------------------------------------------------
 
-export const WORKER_VERSION = "2.19.1";
+export const WORKER_VERSION = "2.20.0";
 
 // ---------------------------------------------------------------------------
 // Boot timestamp (for uptime calculation)
