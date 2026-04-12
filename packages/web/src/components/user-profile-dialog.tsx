@@ -147,14 +147,17 @@ interface DialogHeaderProps {
   isAdmin: boolean;
 }
 
-function DialogHeader({ slug, name, image, badges, isAdmin }: DialogHeaderProps) {
-  // Light fetch just for user info (name, avatar, member since)
+function DialogHeader({ slug, name, image, badges: badgesProp, isAdmin }: DialogHeaderProps) {
+  // Light fetch just for user info (name, avatar, member since, badges)
   const { user, loading } = useUserProfile({ slug: slug ?? "", days: 7 });
 
   const displayName = user?.name ?? name ?? "User";
   const displayImage = user?.image ?? image;
   const initial = displayName[0]?.toUpperCase() ?? "?";
   const isFirstLoad = loading && !user;
+
+  // Prefer fresh badges from uncached profile fetch, fall back to cached prop
+  const displayBadges = user?.badges ?? badgesProp ?? [];
 
   return (
     <div className="flex items-start justify-between mb-5">
@@ -176,9 +179,9 @@ function DialogHeader({ slug, name, image, badges, isAdmin }: DialogHeaderProps)
                 displayName
               )}
             </Dialog.Title>
-            {badges && badges.length > 0 && (
+            {displayBadges.length > 0 && (
               <div className="flex gap-1">
-                {badges.map((badge, idx) => (
+                {displayBadges.map((badge, idx) => (
                   <BadgeIcon
                     key={idx}
                     text={badge.text}

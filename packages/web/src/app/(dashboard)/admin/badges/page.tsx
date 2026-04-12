@@ -610,6 +610,91 @@ function AssignBadgeDialog({
 }
 
 // ---------------------------------------------------------------------------
+// Revoke/Clear Dialog (with reason input)
+// ---------------------------------------------------------------------------
+
+interface RevokeDialogProps {
+  open: boolean;
+  isActive: boolean;
+  onClose: () => void;
+  onConfirm: (reason: string) => void;
+}
+
+function RevokeDialog({ open, isActive, onClose, onConfirm }: RevokeDialogProps) {
+  const [reason, setReason] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const action = isActive ? "Revoke" : "Clear";
+
+  /* eslint-disable react-hooks/set-state-in-effect -- reset state when dialog closes */
+  useEffect(() => {
+    if (!open) {
+      setReason("");
+      setLoading(false);
+    }
+  }, [open]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    await onConfirm(reason.trim());
+    setLoading(false);
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div className="w-full max-w-md rounded-xl bg-card p-6 shadow-lg">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive mb-4">
+          <Ban className="h-6 w-6" strokeWidth={1.5} />
+        </div>
+        <h2 className="text-center text-lg font-semibold text-foreground mb-2">
+          {action} Assignment
+        </h2>
+        <p className="text-center text-sm text-muted-foreground mb-4">
+          {isActive
+            ? "This will immediately remove the badge from the user's leaderboard display."
+            : "This will clear the expired assignment, allowing the badge to be re-assigned to this user."}
+        </p>
+        <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">
+              Reason <span className="text-muted-foreground">(optional)</span>
+            </label>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none resize-none"
+              placeholder={isActive ? "Why is this badge being revoked?" : "Note for audit trail..."}
+              rows={2}
+            />
+          </div>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="flex-1 rounded-lg border border-border bg-secondary px-4 py-2.5 text-sm font-medium text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 rounded-lg bg-destructive px-4 py-2.5 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-50"
+            >
+              {loading ? "..." : action}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Badge Definition Row
 // ---------------------------------------------------------------------------
 
@@ -747,6 +832,12 @@ export default function AdminBadgesPage() {
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [statusFilter, setStatusFilter] = useState<AssignmentStatusFilter>("all");
 
+  // Revoke dialog state
+  const [revokeTarget, setRevokeTarget] = useState<{
+    assignmentId: string;
+    isActive: boolean;
+  } | null>(null);
+
   const { confirm, dialogProps } = useConfirm();
 
   // Load data
@@ -831,26 +922,30 @@ export default function AdminBadgesPage() {
   };
 
   const handleRevoke = async (assignmentId: string, isActive: boolean) => {
+    // Open the revoke dialog
+    setRevokeTarget({ assignmentId, isActive });
+  };
+
+  const handleRevokeConfirm = async (reason: string) => {
+    if (!revokeTarget) return;
+    const { assignmentId, isActive } = revokeTarget;
     const action = isActive ? "Revoke" : "Clear";
-    const confirmed = await confirm({
-      title: `${action} Assignment`,
-      description: isActive
-        ? "This will immediately remove the badge from the user's leaderboard display."
-        : "This will clear the expired assignment, allowing the badge to be re-assigned to this user.",
-      confirmText: action,
-      variant: "destructive",
-    });
-    if (!confirmed) return;
 
     try {
       const res = await fetch(
         `/api/admin/badges/assignments/${assignmentId}/revoke`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason: reason || undefined }),
+        },
       );
       if (!res.ok) throw new Error(`Failed to ${action.toLowerCase()} assignment`);
       await loadAssignments();
     } catch {
       setError(`Failed to ${action.toLowerCase()} assignment`);
+    } finally {
+      setRevokeTarget(null);
     }
   };
 
@@ -996,6 +1091,12 @@ export default function AdminBadgesPage() {
         badges={badges}
         onClose={() => setShowAssignDialog(false)}
         onAssigned={loadAssignments}
+      />
+      <RevokeDialog
+        open={revokeTarget !== null}
+        isActive={revokeTarget?.isActive ?? true}
+        onClose={() => setRevokeTarget(null)}
+        onConfirm={handleRevokeConfirm}
       />
       <ConfirmDialog {...dialogProps} />
     </div>
