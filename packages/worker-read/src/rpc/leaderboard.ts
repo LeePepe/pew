@@ -4,7 +4,30 @@
  * Handles leaderboard-related read queries.
  */
 
-import type { D1Database } from "@cloudflare/workers-types";
+import type { D1Database, KVNamespace } from "@cloudflare/workers-types";
+import { withCache, TTL_5M } from "../cache";
+
+// ---------------------------------------------------------------------------
+// Cache Keys
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate cache key for public global leaderboard.
+ * Key includes all filter parameters to ensure correct cache isolation.
+ */
+function cacheKeyGlobalLeaderboard(
+  fromDate: string | undefined,
+  source: string | undefined,
+  model: string | undefined,
+  limit: number,
+  offset: number
+): string {
+  // Use empty string for undefined values to create stable keys
+  const from = fromDate ?? "";
+  const src = source ?? "";
+  const mdl = model ?? "";
+  return `lb:global:${from}:${src}:${mdl}:${limit}:${offset}`;
+}
 
 // ---------------------------------------------------------------------------
 // Response Types
@@ -265,8 +288,13 @@ async function handleGetTeamRank(
 
 async function handleGetGlobalLeaderboard(
   req: GetGlobalLeaderboardRequest,
-  db: D1Database
+  db: D1Database,
+  kv: KVNamespace
 ): Promise<Response> {
+  // Check if request has private scope (team or org filter)
+  // These are membership-dependent and must NOT be cached
+  const hasPrivateScope = !!(req.teamId || req.orgId);
+
   const conditions: string[] = ["u.is_public = 1"];
   const params: unknown[] = [];
 
@@ -324,24 +352,49 @@ async function handleGetGlobalLeaderboard(
     LIMIT ? OFFSET ?
   `;
 
-  try {
-    const results = await db
-      .prepare(buildSql(true))
-      .bind(...params)
-      .all<GlobalLeaderboardRow>();
-    return Response.json({ result: results.results });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "";
-    if (!msg.includes("no such column") && !msg.includes("no such table")) {
-      throw err;
+  // Helper to fetch leaderboard from D1
+  const fetchLeaderboard = async () => {
+    try {
+      const results = await db
+        .prepare(buildSql(true))
+        .bind(...params)
+        .all<GlobalLeaderboardRow>();
+      return results.results;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (!msg.includes("no such column") && !msg.includes("no such table")) {
+        throw err;
+      }
+      // Retry without nickname
+      const results = await db
+        .prepare(buildSql(false))
+        .bind(...params)
+        .all<GlobalLeaderboardRow>();
+      return results.results;
     }
-    // Retry without nickname
-    const results = await db
-      .prepare(buildSql(false))
-      .bind(...params)
-      .all<GlobalLeaderboardRow>();
-    return Response.json({ result: results.results });
+  };
+
+  // Only cache public (non-scoped) requests
+  if (!hasPrivateScope) {
+    const cacheKey = cacheKeyGlobalLeaderboard(
+      req.fromDate,
+      req.source,
+      req.model,
+      req.limit,
+      offset
+    );
+    const { data, cached } = await withCache(
+      kv,
+      cacheKey,
+      fetchLeaderboard,
+      { ttlSeconds: TTL_5M }
+    );
+    return Response.json({ result: data, _cached: cached });
   }
+
+  // Private scope — skip cache
+  const data = await fetchLeaderboard();
+  return Response.json({ result: data, _cached: false });
 }
 
 async function handleGetUserTeams(
@@ -424,7 +477,8 @@ async function handleGetUserSessionStats(
 
 export async function handleLeaderboardRpc(
   request: LeaderboardRpcRequest,
-  db: D1Database
+  db: D1Database,
+  kv: KVNamespace
 ): Promise<Response> {
   switch (request.method) {
     case "leaderboard.getUsers":
@@ -436,7 +490,7 @@ export async function handleLeaderboardRpc(
     case "leaderboard.getTeamRank":
       return handleGetTeamRank(request, db);
     case "leaderboard.getGlobal":
-      return handleGetGlobalLeaderboard(request, db);
+      return handleGetGlobalLeaderboard(request, db, kv);
     case "leaderboard.getUserTeams":
       return handleGetUserTeams(request, db);
     case "leaderboard.getUserSessionStats":

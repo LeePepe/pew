@@ -13,7 +13,7 @@
 | 4 | Cache `pricing.listModelPricing` (24h TTL) | ✅ done |
 | 5 | Cache `seasons.getSnapshots` for frozen seasons (24h TTL) | ✅ done |
 | 6 | Cache `seasons.list` (5min TTL) | ✅ done |
-| 7 | Cache `leaderboard.getGlobal` — **public only** (5min TTL) | |
+| 7 | Cache `leaderboard.getGlobal` — **public only** (5min TTL) | ✅ done |
 | 8 | ~~Cache `achievements.getEarners`~~ — **deferred** (see Decision 3) | ⏭️ skipped |
 | 9 | Add `cache.*` RPC domain + DbRead interface methods | |
 | 10 | Add KV management card to Admin Storage page | |

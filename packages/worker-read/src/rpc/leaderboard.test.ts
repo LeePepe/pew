@@ -8,7 +8,7 @@ import {
   type GetGlobalLeaderboardRequest,
   type GetUserSessionStatsRequest,
 } from "./leaderboard";
-import type { D1Database } from "@cloudflare/workers-types";
+import type { D1Database, KVNamespace } from "@cloudflare/workers-types";
 
 // ---------------------------------------------------------------------------
 // Mock D1Database
@@ -28,11 +28,30 @@ function createMockDb() {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Mock KVNamespace
+// ---------------------------------------------------------------------------
+
+function createMockKv() {
+  return {
+    get: vi.fn().mockResolvedValue(null),
+    put: vi.fn().mockResolvedValue(undefined),
+    delete: vi.fn().mockResolvedValue(undefined),
+    list: vi.fn().mockResolvedValue({ keys: [], list_complete: true }),
+    getWithMetadata: vi.fn().mockResolvedValue({ value: null, metadata: null }),
+  } as unknown as KVNamespace & {
+    get: ReturnType<typeof vi.fn>;
+    put: ReturnType<typeof vi.fn>;
+  };
+}
+
 describe("leaderboard RPC handlers", () => {
   let db: ReturnType<typeof createMockDb>;
+  let kv: ReturnType<typeof createMockKv>;
 
   beforeEach(() => {
     db = createMockDb();
+    kv = createMockKv();
   });
 
   // -------------------------------------------------------------------------
@@ -51,7 +70,7 @@ describe("leaderboard RPC handlers", () => {
         method: "leaderboard.getUsers",
         seasonId: "season-1",
       };
-      const response = await handleLeaderboardRpc(request, db);
+      const response = await handleLeaderboardRpc(request, db, kv);
       const body = await response.json();
 
       expect(response.status).toBe(200);
@@ -67,7 +86,7 @@ describe("leaderboard RPC handlers", () => {
         limit: 10,
         offset: 20,
       };
-      await handleLeaderboardRpc(request, db);
+      await handleLeaderboardRpc(request, db, kv);
 
       expect(db.prepare).toHaveBeenCalled();
     });
@@ -77,7 +96,7 @@ describe("leaderboard RPC handlers", () => {
         method: "leaderboard.getUsers",
         seasonId: "",
       } as GetUserLeaderboardRequest;
-      const response = await handleLeaderboardRpc(request, db);
+      const response = await handleLeaderboardRpc(request, db, kv);
 
       expect(response.status).toBe(400);
     });
@@ -99,7 +118,7 @@ describe("leaderboard RPC handlers", () => {
         method: "leaderboard.getTeams",
         seasonId: "season-1",
       };
-      const response = await handleLeaderboardRpc(request, db);
+      const response = await handleLeaderboardRpc(request, db, kv);
       const body = await response.json();
 
       expect(response.status).toBe(200);
@@ -115,7 +134,7 @@ describe("leaderboard RPC handlers", () => {
         limit: 5,
         offset: 10,
       };
-      await handleLeaderboardRpc(request, db);
+      await handleLeaderboardRpc(request, db, kv);
 
       expect(db.prepare).toHaveBeenCalled();
     });
@@ -125,7 +144,7 @@ describe("leaderboard RPC handlers", () => {
         method: "leaderboard.getTeams",
         seasonId: "",
       } as GetTeamLeaderboardRequest;
-      const response = await handleLeaderboardRpc(request, db);
+      const response = await handleLeaderboardRpc(request, db, kv);
 
       expect(response.status).toBe(400);
     });
@@ -144,7 +163,7 @@ describe("leaderboard RPC handlers", () => {
         seasonId: "season-1",
         userId: "u1",
       };
-      const response = await handleLeaderboardRpc(request, db);
+      const response = await handleLeaderboardRpc(request, db, kv);
       const body = await response.json();
 
       expect(response.status).toBe(200);
@@ -159,7 +178,7 @@ describe("leaderboard RPC handlers", () => {
         seasonId: "season-1",
         userId: "u999",
       };
-      const response = await handleLeaderboardRpc(request, db);
+      const response = await handleLeaderboardRpc(request, db, kv);
       const body = await response.json();
 
       expect(response.status).toBe(200);
@@ -172,7 +191,7 @@ describe("leaderboard RPC handlers", () => {
         seasonId: "",
         userId: "u1",
       } as GetUserRankRequest;
-      const response = await handleLeaderboardRpc(request, db);
+      const response = await handleLeaderboardRpc(request, db, kv);
 
       expect(response.status).toBe(400);
     });
@@ -191,7 +210,7 @@ describe("leaderboard RPC handlers", () => {
         seasonId: "season-1",
         teamId: "t1",
       };
-      const response = await handleLeaderboardRpc(request, db);
+      const response = await handleLeaderboardRpc(request, db, kv);
       const body = await response.json();
 
       expect(response.status).toBe(200);
@@ -206,7 +225,7 @@ describe("leaderboard RPC handlers", () => {
         seasonId: "season-1",
         teamId: "t999",
       };
-      const response = await handleLeaderboardRpc(request, db);
+      const response = await handleLeaderboardRpc(request, db, kv);
       const body = await response.json();
 
       expect(response.status).toBe(200);
@@ -219,7 +238,7 @@ describe("leaderboard RPC handlers", () => {
         seasonId: "season-1",
         teamId: "",
       } as GetTeamRankRequest;
-      const response = await handleLeaderboardRpc(request, db);
+      const response = await handleLeaderboardRpc(request, db, kv);
 
       expect(response.status).toBe(400);
     });
@@ -234,23 +253,76 @@ describe("leaderboard RPC handlers", () => {
       { user_id: "u1", name: "alice", nickname: null, image: null, slug: "alice", total_tokens: 1000000, input_tokens: 600000, output_tokens: 400000, cached_input_tokens: 50000 },
     ];
 
-    it("should return global leaderboard without filters", async () => {
+    it("should cache public (non-scoped) leaderboard requests", async () => {
       db.all.mockResolvedValue({ results: mockRows });
 
       const request: GetGlobalLeaderboardRequest = {
         method: "leaderboard.getGlobal",
         limit: 20,
       };
-      const response = await handleLeaderboardRpc(request, db);
+      const response = await handleLeaderboardRpc(request, db, kv);
       const body = await response.json();
 
       expect(response.status).toBe(200);
-      expect(body).toEqual({ result: mockRows });
-      // Should bind limit and offset
-      expect(db.bind).toHaveBeenCalledWith(20, 0);
+      expect(body).toEqual({ result: mockRows, _cached: false });
+      expect(kv.get).toHaveBeenCalledWith("lb:global::::20:0", "json");
+      expect(kv.put).toHaveBeenCalledWith(
+        "lb:global::::20:0",
+        JSON.stringify(mockRows),
+        { expirationTtl: 300 }
+      );
     });
 
-    it("should include source filter in SQL when provided", async () => {
+    it("should return cached data on cache hit", async () => {
+      kv.get.mockResolvedValue(mockRows);
+
+      const request: GetGlobalLeaderboardRequest = {
+        method: "leaderboard.getGlobal",
+        limit: 20,
+      };
+      const response = await handleLeaderboardRpc(request, db, kv);
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body).toEqual({ result: mockRows, _cached: true });
+      expect(db.all).not.toHaveBeenCalled();
+    });
+
+    it("should NOT cache requests with teamId (private scope)", async () => {
+      db.all.mockResolvedValue({ results: mockRows });
+
+      const request: GetGlobalLeaderboardRequest = {
+        method: "leaderboard.getGlobal",
+        teamId: "team-123",
+        limit: 20,
+      };
+      const response = await handleLeaderboardRpc(request, db, kv);
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body).toEqual({ result: mockRows, _cached: false });
+      expect(kv.get).not.toHaveBeenCalled();
+      expect(kv.put).not.toHaveBeenCalled();
+    });
+
+    it("should NOT cache requests with orgId (private scope)", async () => {
+      db.all.mockResolvedValue({ results: mockRows });
+
+      const request: GetGlobalLeaderboardRequest = {
+        method: "leaderboard.getGlobal",
+        orgId: "org-456",
+        limit: 20,
+      };
+      const response = await handleLeaderboardRpc(request, db, kv);
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body).toEqual({ result: mockRows, _cached: false });
+      expect(kv.get).not.toHaveBeenCalled();
+      expect(kv.put).not.toHaveBeenCalled();
+    });
+
+    it("should include source filter in cache key", async () => {
       db.all.mockResolvedValue({ results: mockRows });
 
       const request: GetGlobalLeaderboardRequest = {
@@ -258,8 +330,9 @@ describe("leaderboard RPC handlers", () => {
         source: "claude-code",
         limit: 20,
       };
-      await handleLeaderboardRpc(request, db);
+      await handleLeaderboardRpc(request, db, kv);
 
+      expect(kv.get).toHaveBeenCalledWith("lb:global::claude-code::20:0", "json");
       // source param should be bound before limit and offset
       expect(db.bind).toHaveBeenCalledWith("claude-code", 20, 0);
       // SQL should contain source filter
@@ -267,7 +340,7 @@ describe("leaderboard RPC handlers", () => {
       expect(sql).toContain("ur.source = ?");
     });
 
-    it("should include model filter in SQL when provided", async () => {
+    it("should include model filter in cache key", async () => {
       db.all.mockResolvedValue({ results: mockRows });
 
       const request: GetGlobalLeaderboardRequest = {
@@ -275,14 +348,12 @@ describe("leaderboard RPC handlers", () => {
         model: "claude-sonnet-4-20250514",
         limit: 20,
       };
-      await handleLeaderboardRpc(request, db);
+      await handleLeaderboardRpc(request, db, kv);
 
-      expect(db.bind).toHaveBeenCalledWith("claude-sonnet-4-20250514", 20, 0);
-      const sql = db.prepare.mock.calls[0][0] as string;
-      expect(sql).toContain("ur.model = ?");
+      expect(kv.get).toHaveBeenCalledWith("lb:global:::claude-sonnet-4-20250514:20:0", "json");
     });
 
-    it("should combine source, model, and fromDate filters", async () => {
+    it("should combine fromDate, source, model in cache key", async () => {
       db.all.mockResolvedValue({ results: [] });
 
       const request: GetGlobalLeaderboardRequest = {
@@ -293,16 +364,12 @@ describe("leaderboard RPC handlers", () => {
         limit: 10,
         offset: 5,
       };
-      await handleLeaderboardRpc(request, db);
+      await handleLeaderboardRpc(request, db, kv);
 
-      // Params order: fromDate, source, model, limit, offset
-      expect(db.bind).toHaveBeenCalledWith(
-        "2026-01-01T00:00:00.000Z", "codex", "o3", 10, 5
+      expect(kv.get).toHaveBeenCalledWith(
+        "lb:global:2026-01-01T00:00:00.000Z:codex:o3:10:5",
+        "json"
       );
-      const sql = db.prepare.mock.calls[0][0] as string;
-      expect(sql).toContain("ur.hour_start >= ?");
-      expect(sql).toContain("ur.source = ?");
-      expect(sql).toContain("ur.model = ?");
     });
 
     it("should fall back to query without nickname on column error", async () => {
@@ -314,11 +381,11 @@ describe("leaderboard RPC handlers", () => {
         method: "leaderboard.getGlobal",
         limit: 20,
       };
-      const response = await handleLeaderboardRpc(request, db);
+      const response = await handleLeaderboardRpc(request, db, kv);
       const body = await response.json();
 
       expect(response.status).toBe(200);
-      expect(body).toEqual({ result: mockRows });
+      expect(body).toEqual({ result: mockRows, _cached: false });
       // Should have been called twice (first with nickname, then without)
       expect(db.prepare).toHaveBeenCalledTimes(2);
     });
@@ -339,7 +406,7 @@ describe("leaderboard RPC handlers", () => {
         method: "leaderboard.getUserSessionStats",
         userIds: ["u1"],
       };
-      const response = await handleLeaderboardRpc(request, db);
+      const response = await handleLeaderboardRpc(request, db, kv);
       const body = await response.json();
 
       expect(response.status).toBe(200);
@@ -352,7 +419,7 @@ describe("leaderboard RPC handlers", () => {
         method: "leaderboard.getUserSessionStats",
         userIds: [],
       };
-      const response = await handleLeaderboardRpc(request, db);
+      const response = await handleLeaderboardRpc(request, db, kv);
       const body = await response.json();
 
       expect(response.status).toBe(200);
@@ -369,7 +436,7 @@ describe("leaderboard RPC handlers", () => {
         userIds: ["u1", "u2"],
         fromDate: "2026-03-01T00:00:00.000Z",
       };
-      await handleLeaderboardRpc(request, db);
+      await handleLeaderboardRpc(request, db, kv);
 
       expect(db.bind).toHaveBeenCalledWith("u1", "u2", "2026-03-01T00:00:00.000Z");
       const sql = db.prepare.mock.calls[0][0] as string;
@@ -384,7 +451,7 @@ describe("leaderboard RPC handlers", () => {
         userIds: ["u1"],
         source: "claude-code",
       };
-      await handleLeaderboardRpc(request, db);
+      await handleLeaderboardRpc(request, db, kv);
 
       expect(db.bind).toHaveBeenCalledWith("u1", "claude-code");
       const sql = db.prepare.mock.calls[0][0] as string;
@@ -400,7 +467,7 @@ describe("leaderboard RPC handlers", () => {
         fromDate: "2026-01-01T00:00:00.000Z",
         source: "gemini-cli",
       };
-      await handleLeaderboardRpc(request, db);
+      await handleLeaderboardRpc(request, db, kv);
 
       // Params order: userIds, fromDate, source
       expect(db.bind).toHaveBeenCalledWith("u1", "2026-01-01T00:00:00.000Z", "gemini-cli");
@@ -416,7 +483,7 @@ describe("leaderboard RPC handlers", () => {
         method: "leaderboard.getUserSessionStats",
         userIds: ["u1"],
       };
-      const response = await handleLeaderboardRpc(request, db);
+      const response = await handleLeaderboardRpc(request, db, kv);
       const body = await response.json();
 
       expect(response.status).toBe(200);
@@ -431,7 +498,7 @@ describe("leaderboard RPC handlers", () => {
   describe("unknown method", () => {
     it("should return 400 for unknown method", async () => {
       const request = { method: "leaderboard.unknown" } as unknown as GetUserLeaderboardRequest;
-      const response = await handleLeaderboardRpc(request, db);
+      const response = await handleLeaderboardRpc(request, db, kv);
 
       expect(response.status).toBe(400);
       const body = (await response.json()) as { error: string };
