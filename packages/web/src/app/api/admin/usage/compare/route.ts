@@ -148,9 +148,11 @@ export async function GET(request: Request) {
 
     if (tzOffset !== 0) {
       const offsetStr = String(-tzOffset);
+      // Note: GROUP BY doesn't support parameterized ?, so we inline the offset
+      // The offset is validated (integer, abs <= 840) so this is safe
       dateExpr = "date(datetime(hour_start, ? || ' minutes'))";
-      groupByExpr = "date(datetime(hour_start, ? || ' minutes')), user_id, source, model";
-      tzParams.push(offsetStr, offsetStr);
+      groupByExpr = `date(datetime(hour_start, '${offsetStr} minutes')), user_id, source, model`;
+      tzParams.push(offsetStr);
     } else {
       dateExpr = "date(hour_start)";
       groupByExpr = "date(hour_start), user_id, source, model";
