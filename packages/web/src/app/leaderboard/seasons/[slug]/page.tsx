@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { cn, formatTokensFull } from "@/lib/utils";
 import { formatDuration } from "@/lib/date-helpers";
+import { getSeasonEndExclusiveISO } from "@/lib/season-helpers";
 import { teamColor, withAlpha } from "@/lib/palette";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -286,7 +287,7 @@ export default function SeasonLeaderboardPage() {
 
   // Compute exclusive end date for the dialog (end_date is inclusive at minute precision)
   const seasonEndExclusive = data?.season.end_date
-    ? new Date(new Date(data.season.end_date).getTime() + 60_000).toISOString()
+    ? getSeasonEndExclusiveISO(data.season.end_date)
     : undefined;
 
   return (
