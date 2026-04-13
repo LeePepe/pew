@@ -12,8 +12,6 @@
  * - Season status badge ("Active" vs "Ended")
  */
 
-import type { SeasonStatus } from "@pew/core";
-
 /**
  * Convert an ISO end_date to an exclusive upper bound timestamp (ms).
  *
@@ -39,24 +37,6 @@ export function getSeasonEndExclusiveISO(endDate: string): string {
 }
 
 /**
- * Check if a season is currently active (now is within the valid range).
- *
- * @param startDate - Season start date (ISO string)
- * @param endDate - Season end date (ISO string, inclusive at minute precision)
- * @param now - Optional current timestamp for testing
- */
-export function isSeasonActive(
-  startDate: string,
-  endDate: string,
-  now?: Date
-): boolean {
-  const nowMs = (now ?? new Date()).getTime();
-  const startMs = new Date(startDate).getTime();
-  const endExclusiveMs = getSeasonEndExclusive(endDate);
-  return nowMs >= startMs && nowMs < endExclusiveMs;
-}
-
-/**
  * Check if a season has ended (now is past the exclusive end boundary).
  *
  * @param endDate - Season end date (ISO string, inclusive at minute precision)
@@ -65,29 +45,4 @@ export function isSeasonActive(
 export function isSeasonEnded(endDate: string, now?: Date): boolean {
   const nowMs = (now ?? new Date()).getTime();
   return nowMs >= getSeasonEndExclusive(endDate);
-}
-
-/**
- * Derive season status from start/end ISO datetime strings compared to now.
- *
- * Uses the exclusive end boundary (end_date + 60_000ms) to ensure
- * consistency with API queries. This means:
- * - "active" status persists for the full final minute
- * - Countdown and status badge align with when data stops changing
- *
- * @param startDate - Season start date (ISO string)
- * @param endDate - Season end date (ISO string, inclusive at minute precision)
- * @param now - Optional current timestamp for testing
- */
-export function deriveSeasonStatusExclusive(
-  startDate: string,
-  endDate: string,
-  now?: Date
-): SeasonStatus {
-  const nowMs = (now ?? new Date()).getTime();
-  const startMs = new Date(startDate).getTime();
-
-  if (nowMs < startMs) return "upcoming";
-  if (isSeasonEnded(endDate, now)) return "ended";
-  return "active";
 }
