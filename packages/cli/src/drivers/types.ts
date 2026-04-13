@@ -65,8 +65,10 @@ export interface SyncContext {
 export interface DiscoverOpts {
   claudeDir?: string;
   codexSessionsDir?: string;
+  multicaCodexDirs?: string[];
   geminiDir?: string;
-  kosmosDataDirs?: string[];
+  kosmosDataDir?: string;
+  pmstudioDataDir?: string;
   openCodeMessageDir?: string;
   openCodeDbPath?: string;
   openclawDir?: string;
@@ -140,6 +142,8 @@ export interface VscodeCopilotResumeState {
   requestMeta: Record<number, { modelId: string; timestamp: number }>;
   /** Indices already emitted as records (skip on re-encounter) */
   processedRequestIndices: number[];
+  /** Request IDs already processed for v3 JSON files (string-based dedup) */
+  processedRequestIds: Set<string>;
 }
 
 /**

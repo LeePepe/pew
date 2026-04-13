@@ -42,6 +42,10 @@ export interface SessionSyncOptions {
   claudeDir?: string;
   /** Override: Codex CLI sessions directory (~/.codex/sessions) */
   codexSessionsDir?: string;
+  /** Override: Multica Codex extra session directories */
+  multicaCodexDirs?: string[];
+  /** Override: Copilot CLI logs directory (~/.copilot/logs) */
+  copilotCliLogsDir?: string;
   /** Override: Gemini data directory (~/.gemini) */
   geminiDir?: string;
   /** Override: OpenCode message directory (~/.local/share/opencode/storage/message) */
@@ -58,8 +62,10 @@ export interface SessionSyncOptions {
   openclawDir?: string;
   /** Override: Pi session directory (~/.pi/agent/sessions) */
   piSessionsDir?: string;
-  /** Override: Kosmos data directories (kosmos-app + pm-studio-app) */
-  kosmosDataDirs?: string[];
+  /** Override: Kosmos data directory (kosmos-app) */
+  kosmosDataDir?: string;
+  /** Override: PM Studio data directory (pm-studio-app) */
+  pmstudioDataDir?: string;
   /** Progress callback */
   onProgress?: (event: SessionProgressEvent) => void;
   /** Callback invoked when a corrupted JSONL line is found in the queue */
@@ -82,21 +88,29 @@ export interface SessionSyncResult {
   sources: {
     claude: number;
     codex: number;
+    copilotCli: number;
     gemini: number;
     kosmos: number;
     opencode: number;
     openclaw: number;
     pi: number;
+    pmstudio: number;
   };
   /** Total files/directories scanned per source */
   filesScanned: {
     claude: number;
     codex: number;
+    copilotCli: number;
     gemini: number;
     kosmos: number;
     opencode: number;
     openclaw: number;
     pi: number;
+    pmstudio: number;
+  };
+  /** Total SQLite databases scanned per source */
+  dbsScanned: {
+    opencode: number;
   };
 }
 
@@ -138,15 +152,21 @@ function toQueueRecord(snap: SessionSnapshot): SessionQueueRecord {
 function sourceKey(source: Source): keyof SessionSyncResult["sources"] | null {
   switch (source) {
     case "claude-code": return "claude";
+    case "codex": return "codex";
+    case "copilot-cli": return "copilotCli";
     case "gemini-cli": return "gemini";
     case "kosmos": return "kosmos";
     case "opencode": return "opencode";
     case "openclaw": return "openclaw";
-    case "codex": return "codex";
     case "pi": return "pi";
+    case "pmstudio": return "pmstudio";
     case "vscode-copilot": return null;
-    case "copilot-cli": return null;
     case "hermes": return null;
+    default: {
+      // Exhaustiveness check — if Source adds a new value, this will fail to compile
+      const _exhaustive: never = source;
+      throw new Error(`Unknown source: ${_exhaustive}`);
+    }
   }
 }
 
@@ -168,8 +188,9 @@ export async function executeSessionSync(
   const cursors = await cursorStore.load();
 
   const allSnapshots: SessionSnapshot[] = [];
-  const sourceCounts = { claude: 0, codex: 0, gemini: 0, kosmos: 0, opencode: 0, openclaw: 0, pi: 0 };
-  const filesScanned = { claude: 0, codex: 0, gemini: 0, kosmos: 0, opencode: 0, openclaw: 0, pi: 0 };
+  const sourceCounts = { claude: 0, codex: 0, copilotCli: 0, gemini: 0, kosmos: 0, opencode: 0, openclaw: 0, pi: 0, pmstudio: 0 };
+  const filesScanned = { claude: 0, codex: 0, copilotCli: 0, gemini: 0, kosmos: 0, opencode: 0, openclaw: 0, pi: 0, pmstudio: 0 };
+  const dbsScanned = { opencode: 0 };
 
   // Build driver sets from options
   const { fileDrivers, dbDrivers } = createSessionDrivers(opts);
@@ -178,8 +199,11 @@ export async function executeSessionSync(
   const discoverOpts = {
     claudeDir: opts.claudeDir,
     codexSessionsDir: opts.codexSessionsDir,
+    multicaCodexDirs: opts.multicaCodexDirs,
+    copilotCliLogsDir: opts.copilotCliLogsDir,
     geminiDir: opts.geminiDir,
-    kosmosDataDirs: opts.kosmosDataDirs,
+    kosmosDataDir: opts.kosmosDataDir,
+    pmstudioDataDir: opts.pmstudioDataDir,
     openCodeMessageDir: opts.openCodeMessageDir,
     openCodeDbPath: opts.openCodeDbPath,
     openclawDir: opts.openclawDir,
@@ -312,8 +336,8 @@ export async function executeSessionSync(
       message: "Checking OpenCode SQLite database for sessions...",
     });
 
-    // Count DB as 1 file scanned for the source
-    filesScanned[key] += 1;
+    // Count DB as 1 database scanned for the source
+    dbsScanned.opencode += 1;
 
     const prevCursor = cursors.openCodeSqlite as OpenCodeSqliteSessionCursor | undefined;
     const result = await driver.run(prevCursor, {});
@@ -374,5 +398,6 @@ export async function executeSessionSync(
     totalRecords: deduped.length,
     sources: sourceCounts,
     filesScanned,
+    dbsScanned,
   };
 }

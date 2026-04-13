@@ -107,14 +107,6 @@ const TIER_STYLES: Record<AchievementTier, {
   },
 };
 
-const TIER_RANK: Record<AchievementTier, number> = {
-  diamond: 4,
-  gold: 3,
-  silver: 2,
-  bronze: 1,
-  locked: 0,
-};
-
 // ---------------------------------------------------------------------------
 // TopAchievement Component
 // ---------------------------------------------------------------------------
@@ -126,8 +118,10 @@ export interface TopAchievementProps {
 }
 
 /**
- * Displays the user's highest-tier achievement with a link to view all.
- * Shows the single best achievement (by tier, then by progress).
+ * Displays the user's top achievements in a responsive grid.
+ * - Large screens (lg+): 3 cols × 2 rows = 6 max
+ * - Medium screens (sm+): 2 cols × 2 rows = 4 max
+ * - Small screens: 1 col × 2 rows = 2 max
  */
 export function TopAchievement({
   achievements,
@@ -137,35 +131,40 @@ export function TopAchievement({
   if (loading) {
     return (
       <div className={cn("space-y-3", className)}>
-        <div className="flex items-center gap-2">
-          <Trophy className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
-          <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Top Achievement
-          </span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Trophy className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
+            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Top Achievements
+            </span>
+          </div>
+          <div className="h-7 w-7 shrink-0" aria-hidden="true" />
         </div>
-        <Skeleton className="h-24 w-full rounded-xl" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 w-full rounded-xl" />
+          ))}
+        </div>
       </div>
     );
   }
 
-  // Find the highest-tier achievement
-  const sorted = [...achievements].sort((a, b) => {
-    const rankDiff = TIER_RANK[b.tier] - TIER_RANK[a.tier];
-    if (rankDiff !== 0) return rankDiff;
-    return b.progress - a.progress;
-  });
+  // Filter to only unlocked achievements (already sorted by tier/progress from API)
+  // Limit to 6 max (2 rows × 3 cols on large screens)
+  const unlocked = achievements.filter((a) => a.tier !== "locked").slice(0, 6);
 
-  const top = sorted[0];
-
-  // If no achievements or all locked, show placeholder
-  if (!top || top.tier === "locked") {
+  // If no achievements unlocked, show placeholder
+  if (unlocked.length === 0) {
     return (
       <div className={cn("space-y-3", className)}>
-        <div className="flex items-center gap-2">
-          <Trophy className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
-          <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Top Achievement
-          </span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Trophy className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
+            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Top Achievements
+            </span>
+          </div>
+          <div className="h-7 w-7 shrink-0" aria-hidden="true" />
         </div>
         <div className="rounded-xl bg-muted/30 p-4">
           <p className="text-sm text-muted-foreground">
@@ -183,60 +182,74 @@ export function TopAchievement({
     );
   }
 
-  const styles = TIER_STYLES[top.tier];
-  const Icon = ICON_MAP[top.icon] ?? Trophy;
-
   return (
-    <div className={cn("space-y-3", className)}>
-      <div className="flex items-center gap-2">
-        <Trophy className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
-        <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          Top Achievement
-        </span>
+    <div className={cn("flex flex-col", className)}>
+      {/* Section title — height matches Goal Tracker (h-7 placeholder for alignment) */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Trophy className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
+          <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Top Achievements
+          </span>
+        </div>
+        <div className="h-7 w-7 shrink-0" aria-hidden="true" />
       </div>
 
-      <Link
-        href="/leaderboard/achievements"
-        className="block rounded-xl bg-card/50 p-4 transition-colors hover:bg-card group"
-      >
-        <div className="flex items-center gap-3">
-          {/* Icon */}
-          <div className={cn(
-            "flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br",
-            styles.gradient,
-          )}>
-            <Icon className={cn("h-6 w-6", styles.iconColor)} strokeWidth={1.5} />
-          </div>
+      <div className="flex-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+        {unlocked.map((ach) => {
+          const styles = TIER_STYLES[ach.tier];
+          const Icon = ICON_MAP[ach.icon] ?? Trophy;
 
-          {/* Content */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-foreground truncate">
-                {top.name}
-              </span>
-              <span className={cn(
-                "shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider",
-                styles.badgeBg,
-                styles.badgeColor,
+          return (
+            <div
+              key={ach.id}
+              className="flex items-center gap-3 rounded-xl bg-card/50 p-3"
+            >
+              {/* Icon */}
+              <div className={cn(
+                "flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br",
+                styles.gradient,
               )}>
-                {top.tier}
-              </span>
+                <Icon className={cn("h-5 w-5", styles.iconColor)} strokeWidth={1.5} />
+              </div>
+
+              {/* Content — vertical stack for better readability */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-sm font-medium text-foreground">
+                    {ach.name}
+                  </span>
+                  <span className={cn(
+                    "shrink-0 px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider",
+                    styles.badgeBg,
+                    styles.badgeColor,
+                  )}>
+                    {ach.tier}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {ach.tier === "diamond"
+                    ? `${ach.displayValue} achieved!`
+                    : `${ach.displayValue} / ${ach.displayThreshold}`}
+                </p>
+              </div>
             </div>
-            <p className="mt-0.5 text-xs text-muted-foreground truncate">
-              {top.tier === "diamond"
-                ? `${top.displayValue} achieved!`
-                : `${top.displayValue} / ${top.displayThreshold}`}
-            </p>
-          </div>
-
-          {/* Arrow */}
-          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 transition-transform group-hover:translate-x-0.5" />
+          );
+        })}
         </div>
+      </div>
 
-        <p className="mt-3 text-xs text-primary">
-          View all achievements →
-        </p>
-      </Link>
+      {/* Footer — fixed height for alignment across cards */}
+      <div className="mt-auto flex h-10 items-center border-t border-border/50 pt-3">
+        <Link
+          href="/leaderboard/achievements"
+          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+        >
+          View all achievements
+          <ChevronRight className="h-3 w-3" />
+        </Link>
+      </div>
     </div>
   );
 }

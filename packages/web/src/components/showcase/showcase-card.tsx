@@ -6,6 +6,7 @@
 
 import Link from "next/link";
 import { ExternalLink, Github, Star, GitFork, Code, Scale } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ShowcaseImage } from "./showcase-image";
 import { UpvoteButton } from "./upvote-button";
 import type { Showcase } from "@/hooks/use-showcases";
@@ -22,20 +23,21 @@ interface ShowcaseCardProps {
   isLoggedIn: boolean;
   onLoginRequired?: () => void;
   onUpvoteChange?: () => void;
+  onUserClick?: (user: Showcase["user"]) => void;
 }
 
-export function ShowcaseCard({ showcase, isLoggedIn, onLoginRequired, onUpvoteChange }: ShowcaseCardProps) {
+export function ShowcaseCard({ showcase, isLoggedIn, onLoginRequired, onUpvoteChange, onUserClick }: ShowcaseCardProps) {
   const displayName = showcase.user.nickname || showcase.user.name || "Anonymous";
   const githubOwner = showcase.repo_key.split("/")[0];
 
   return (
-    <article className="group relative flex gap-4 rounded-xl bg-secondary p-4 transition-all hover:bg-secondary/80">
+    <article className="group relative flex flex-col sm:flex-row gap-4 rounded-[var(--radius-card)] bg-secondary p-4 transition-all hover:bg-secondary/80">
       {/* OG Image */}
       <Link
         href={showcase.github_url}
         target="_blank"
         rel="noopener noreferrer"
-        className="relative shrink-0 w-[180px] aspect-[1.91/1] rounded-lg overflow-hidden bg-accent/50"
+        className="relative shrink-0 w-full sm:w-[180px] aspect-[1.91/1] rounded-lg overflow-hidden bg-accent/50"
       >
         <ShowcaseImage
           url={showcase.og_image_url}
@@ -109,25 +111,23 @@ export function ShowcaseCard({ showcase, isLoggedIn, onLoginRequired, onUpvoteCh
         {/* Footer: Submitter + GitHub owner */}
         <div className="mt-2 flex items-center gap-3">
           {/* Pew user */}
-          <div className="flex items-center gap-1.5">
-            {showcase.user.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={showcase.user.image}
-                alt={displayName}
-                className="h-5 w-5 rounded-full"
-              />
-            ) : (
-              <div className="h-5 w-5 rounded-full bg-accent flex items-center justify-center">
-                <span className="text-[10px] font-medium text-muted-foreground">
-                  {displayName.charAt(0).toUpperCase()}
-                </span>
-              </div>
-            )}
-            <span className="text-xs text-muted-foreground truncate">
+          <button
+            type="button"
+            onClick={() => onUserClick?.(showcase.user)}
+            className="flex items-center gap-1.5 hover:opacity-80 transition-opacity cursor-pointer"
+          >
+            <Avatar className="h-5 w-5" size="sm">
+              {showcase.user.image && (
+                <AvatarImage src={showcase.user.image} alt={displayName} />
+              )}
+              <AvatarFallback className="text-[10px]">
+                {displayName.charAt(0).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <span className="text-xs text-muted-foreground truncate hover:text-foreground transition-colors">
               {displayName}
             </span>
-          </div>
+          </button>
 
           {/* GitHub owner */}
           <a
@@ -144,7 +144,7 @@ export function ShowcaseCard({ showcase, isLoggedIn, onLoginRequired, onUpvoteCh
       </div>
 
       {/* Upvote Button */}
-      <div className="shrink-0 self-center">
+      <div className="shrink-0 self-start sm:self-center">
         <UpvoteButton
           showcaseId={showcase.id}
           initialCount={showcase.upvote_count}

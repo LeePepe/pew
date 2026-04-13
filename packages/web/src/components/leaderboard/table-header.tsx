@@ -6,7 +6,7 @@
  * divider (Armory's Divider--thin--silver).
  *
  * Column widths must stay in sync with LeaderboardRow layout:
- *   Rank (w-8) | gap-3 | Avatar (w-8) + gap-3 + Name (flex-1) | Sessions (w-24 shrink-0) | Duration (w-24 shrink-0) | Total (w-[160px] sm:w-[280px])
+ *   Rank (w-8) | gap-3 | Avatar (w-8) + gap-3 + Name (flex-1) | Sessions (w-24 shrink-0) | Duration (w-24 shrink-0) | Total (w-[120px] sm:w-[280px])
  *
  * Responsive: Sessions/Duration columns are hidden on mobile (sm:), matching the
  * data rows that also hide these columns on narrow screens.
@@ -27,7 +27,7 @@ export function TableHeader() {
         {/* Duration — matches row's duration column */}
         <span className="hidden sm:block w-24 shrink-0 text-right">Duration</span>
         {/* Tokens — matches row's total column */}
-        <span className="w-[160px] sm:w-[280px] shrink-0 text-right">Tokens</span>
+        <span className="w-[120px] sm:w-[280px] shrink-0 text-right">Tokens</span>
       </div>
       {/* Thin divider — Armory's Divider--thin--silver */}
       <div className="h-px bg-border/50" />

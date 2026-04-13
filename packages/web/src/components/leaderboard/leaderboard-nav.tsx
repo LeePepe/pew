@@ -12,6 +12,8 @@ const TABS = [
   { href: "/leaderboard", label: "Individual" },
   { href: "/leaderboard/seasons", label: "Seasons" },
   { href: "/leaderboard/achievements", label: "Achievements" },
+  { href: "/leaderboard/agents", label: "Agents" },
+  { href: "/leaderboard/models", label: "Models" },
   { href: "/leaderboard/showcases", label: "Showcases" },
 ] as const;
 
@@ -31,7 +33,7 @@ export function LeaderboardNav() {
 
   return (
     <nav
-      className="relative flex gap-6 border-b border-border animate-fade-up"
+      className="relative flex gap-6 border-b border-border animate-fade-up overflow-x-auto scrollbar-hide"
       style={{ animationDelay: "120ms" }}
       aria-label="Leaderboard navigation"
     >
@@ -45,7 +47,7 @@ export function LeaderboardNav() {
             key={tab.href}
             href={tab.href}
             className={cn(
-              "relative pb-2.5 text-sm font-semibold uppercase tracking-wider transition-colors",
+              "relative shrink-0 whitespace-nowrap pb-2.5 text-sm font-semibold uppercase tracking-wider transition-colors",
               isActive
                 ? "text-foreground"
                 : "text-muted-foreground hover:text-foreground",

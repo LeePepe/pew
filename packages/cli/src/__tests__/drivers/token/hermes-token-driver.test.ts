@@ -7,6 +7,9 @@ import type { HermesSqliteCursor } from "@pew/core";
 import type { SyncContext } from "../../../drivers/types.js";
 import type { SessionRow } from "../../../parsers/hermes-sqlite.js";
 
+// Fixed timestamp for deterministic tests (2026-04-03T10:00:00Z)
+const testStartedAt = 1775210400;
+
 /** Helper: create mock sessions */
 function mockSessions(sessions: SessionRow[]): () => SessionRow[] {
   return () => sessions;
@@ -27,18 +30,30 @@ describe("hermesSqliteTokenDriver", () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  it("has correct kind and source", () => {
+  it("has correct kind, source, and dbKey", () => {
     const driver = createHermesSqliteTokenDriver({
       dbPath,
+      dbKey: "default",
       openHermesDb: () => null,
     });
     expect(driver.kind).toBe("db");
     expect(driver.source).toBe("hermes");
+    expect(driver.dbKey).toBe("default");
+  });
+
+  it("has correct dbKey for profile databases", () => {
+    const driver = createHermesSqliteTokenDriver({
+      dbPath,
+      dbKey: "profiles/tomato",
+      openHermesDb: () => null,
+    });
+    expect(driver.dbKey).toBe("profiles/tomato");
   });
 
   it("returns empty result when openHermesDb returns null", async () => {
     const driver = createHermesSqliteTokenDriver({
       dbPath,
+      dbKey: "default",
       openHermesDb: () => null,
     });
 
@@ -60,12 +75,14 @@ describe("hermesSqliteTokenDriver", () => {
         cache_read_tokens: 200,
         cache_write_tokens: 50,
         reasoning_tokens: 100,
+        started_at: testStartedAt,
       },
     ];
 
     let closeCalled = false;
     const driver = createHermesSqliteTokenDriver({
       dbPath,
+      dbKey: "default",
       openHermesDb: () => ({
         querySessions: mockSessions(sessions),
         close: () => { closeCalled = true; },
@@ -122,11 +139,13 @@ describe("hermesSqliteTokenDriver", () => {
         cache_read_tokens: 200,
         cache_write_tokens: 50,
         reasoning_tokens: 100,
+        started_at: testStartedAt,
       },
     ];
 
     const driver = createHermesSqliteTokenDriver({
       dbPath,
+      dbKey: "default",
       openHermesDb: () => ({
         querySessions: mockSessions(sessions),
         close: () => {},
@@ -172,11 +191,13 @@ describe("hermesSqliteTokenDriver", () => {
         cache_read_tokens: 0,
         cache_write_tokens: 0,
         reasoning_tokens: 0,
+        started_at: testStartedAt,
       },
     ];
 
     const driver = createHermesSqliteTokenDriver({
       dbPath,
+      dbKey: "default",
       openHermesDb: () => ({
         querySessions: mockSessions(sessions),
         close: () => {},
@@ -215,6 +236,7 @@ describe("hermesSqliteTokenDriver", () => {
         cache_read_tokens: 0,
         cache_write_tokens: 0,
         reasoning_tokens: 0,
+        started_at: testStartedAt,
       },
       {
         id: "session-2",
@@ -224,11 +246,13 @@ describe("hermesSqliteTokenDriver", () => {
         cache_read_tokens: 0,
         cache_write_tokens: 0,
         reasoning_tokens: 0,
+        started_at: testStartedAt + 3600,
       },
     ];
 
     const driver = createHermesSqliteTokenDriver({
       dbPath,
+      dbKey: "default",
       openHermesDb: () => ({
         querySessions: mockSessions(sessions),
         close: () => {},

@@ -7,15 +7,23 @@ import {
   sourceLabel,
 } from "@/hooks/use-usage-data";
 import type { UsageRow } from "@/hooks/use-usage-data";
-import { RecentBarChart } from "@/components/dashboard/recent-bar-chart";
-import type { HalfHourPoint } from "@/components/dashboard/recent-bar-chart";
+import { useDeviceData } from "@/hooks/use-device-data";
+import { TimelineInOutChart } from "@/components/dashboard/timeline-inout-chart";
+import { TimelineDeviceChart } from "@/components/dashboard/timeline-device-chart";
+import { TimelineAgentChart } from "@/components/dashboard/timeline-agent-chart";
+import { TimelineModelChart } from "@/components/dashboard/timeline-model-chart";
+import type { HalfHourPoint } from "@/components/dashboard/timeline-inout-chart";
+import { HourlyAgentChart } from "@/components/dashboard/hourly-agent-chart";
+import { HourlyModelChart } from "@/components/dashboard/hourly-model-chart";
+import { HourlyDeviceChart } from "@/components/dashboard/hourly-device-chart";
+import { DashboardSegment } from "@/components/dashboard/dashboard-segment";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatTokens } from "@/lib/utils";
-import { groupByDate } from "@/lib/usage-helpers";
+import { groupByDate, toHourlyByAgent, toHourlyByModel, toHourlyByDevice } from "@/lib/usage-helpers";
 import type { DailyGroup } from "@/lib/usage-helpers";
 import { usePricingMap, lookupPricing, estimateCost, formatCost } from "@/hooks/use-pricing";
 import type { PricingMap } from "@/hooks/use-pricing";
-import { formatDate } from "@/lib/date-helpers";
+import { formatDate, getLocalToday } from "@/lib/date-helpers";
 
 // ---------------------------------------------------------------------------
 // Transform UsageRow[] → HalfHourPoint[] (zero-filled 144 slots)
@@ -231,59 +239,93 @@ function DayRow({
 // Skeleton
 // ---------------------------------------------------------------------------
 
+function ChartSkeleton() {
+  return (
+    <div className="rounded-[var(--radius-card)] bg-secondary p-4 md:p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <Skeleton className="h-3 w-20" />
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-2 w-2 rounded-full" />
+          <Skeleton className="h-2 w-12" />
+        </div>
+      </div>
+      <Skeleton className="h-[200px] w-full rounded-lg" />
+    </div>
+  );
+}
+
+function CompactChartSkeleton() {
+  return (
+    <div className="rounded-[var(--radius-card)] bg-secondary p-4 md:p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <Skeleton className="h-3 w-20" />
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-2 w-2 rounded-full" />
+          <Skeleton className="h-2 w-12" />
+        </div>
+      </div>
+      <Skeleton className="h-[160px] w-full rounded-lg" />
+    </div>
+  );
+}
+
 function RecentSkeleton() {
   return (
-    <div className="space-y-4">
-      <Skeleton className="h-[280px] w-full rounded-xl" />
-      <div className="rounded-xl bg-secondary p-1 overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-border">
-              <th className="px-4 py-3 text-left">
-                <Skeleton className="h-3 w-16" />
-              </th>
-              <th className="px-4 py-3 text-right">
-                <Skeleton className="h-3 w-12 ml-auto" />
-              </th>
-              <th className="px-4 py-3 text-right">
-                <Skeleton className="h-3 w-12 ml-auto" />
-              </th>
-              <th className="px-4 py-3 text-right hidden md:table-cell">
-                <Skeleton className="h-3 w-12 ml-auto" />
-              </th>
-              <th className="px-4 py-3 text-right">
-                <Skeleton className="h-3 w-12 ml-auto" />
-              </th>
-              <th className="px-4 py-3 text-right hidden sm:table-cell">
-                <Skeleton className="h-3 w-12 ml-auto" />
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {Array.from({ length: 3 }).map((_, i) => (
-              <tr key={i} className="border-b border-border/50">
-                <td className="px-4 py-3">
-                  <Skeleton className="h-4 w-28" />
-                </td>
-                <td className="px-4 py-3">
-                  <Skeleton className="h-4 w-14 ml-auto" />
-                </td>
-                <td className="px-4 py-3">
-                  <Skeleton className="h-4 w-14 ml-auto" />
-                </td>
-                <td className="px-4 py-3 hidden md:table-cell">
-                  <Skeleton className="h-4 w-14 ml-auto" />
-                </td>
-                <td className="px-4 py-3">
-                  <Skeleton className="h-4 w-14 ml-auto" />
-                </td>
-                <td className="px-4 py-3 hidden sm:table-cell">
-                  <Skeleton className="h-4 w-14 ml-auto" />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <div className="grid gap-4 md:gap-6 xl:grid-cols-4">
+      {/* Left column skeleton: 4 charts + table */}
+      <div className="xl:col-span-3 space-y-4 md:space-y-6">
+        <div className="rounded-[var(--radius-card)] border border-secondary bg-background p-4 md:p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Skeleton className="h-4 w-32" />
+          </div>
+          <div className="space-y-4">
+            <ChartSkeleton />
+            <ChartSkeleton />
+            <ChartSkeleton />
+            <ChartSkeleton />
+          </div>
+          {/* Table skeleton */}
+          <div className="mt-6 rounded-xl bg-background/50 p-1 overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="px-4 py-3 text-left"><Skeleton className="h-3 w-12" /></th>
+                  <th className="px-4 py-3 text-right"><Skeleton className="h-3 w-10 ml-auto" /></th>
+                  <th className="px-4 py-3 text-right"><Skeleton className="h-3 w-10 ml-auto" /></th>
+                  <th className="px-4 py-3 text-right hidden md:table-cell"><Skeleton className="h-3 w-10 ml-auto" /></th>
+                  <th className="px-4 py-3 text-right"><Skeleton className="h-3 w-10 ml-auto" /></th>
+                  <th className="px-4 py-3 text-right hidden sm:table-cell"><Skeleton className="h-3 w-10 ml-auto" /></th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <tr key={i} className="border-b border-border/50">
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-12 ml-auto" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-12 ml-auto" /></td>
+                    <td className="px-4 py-3 hidden md:table-cell"><Skeleton className="h-4 w-12 ml-auto" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-12 ml-auto" /></td>
+                    <td className="px-4 py-3 hidden sm:table-cell"><Skeleton className="h-4 w-12 ml-auto" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Right column skeleton: 3 pattern charts */}
+      <div className="xl:col-span-1 space-y-4 md:space-y-6">
+        <div className="rounded-[var(--radius-card)] border border-secondary bg-background p-4 md:p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Skeleton className="h-4 w-28" />
+          </div>
+          <div className="space-y-4">
+            <CompactChartSkeleton />
+            <CompactChartSkeleton />
+            <CompactChartSkeleton />
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -306,15 +348,53 @@ export default function RecentPage() {
     return new Date().toISOString();
   }, []);
 
-  const { data, loading, error } = useUsageData({
+  const { data, loading: usageLoading, error } = useUsageData({
     from: recentFrom,
     to: recentTo,
     granularity: "half-hour",
   });
 
-  const { pricingMap } = usePricingMap();
+  // Fetch device timeline with half-hour granularity for the main chart
+  const { data: recentDeviceData, loading: deviceLoading } = useDeviceData({
+    from: recentFrom.slice(0, 10), // API expects date string
+    to: recentTo.slice(0, 10),
+    granularity: "half-hour",
+  });
 
+  // Wait for both data sources before showing content to avoid double animation
+  const loading = usageLoading || deviceLoading;
+
+  // For hourly pattern charts, fetch last 30 days of half-hour data
   const tzOffset = useMemo(() => new Date().getTimezoneOffset(), []);
+  const { patternFrom, patternTo } = useMemo(() => {
+    const today = getLocalToday(tzOffset);
+    const fromDate = new Date(today + "T00:00:00Z");
+    fromDate.setUTCDate(fromDate.getUTCDate() - 30);
+    return {
+      patternFrom: fromDate.toISOString().slice(0, 10),
+      patternTo: today,
+    };
+  }, [tzOffset]);
+
+  const { data: patternData, loading: patternLoading } = useUsageData({
+    from: patternFrom,
+    to: patternTo,
+    granularity: "half-hour",
+  });
+
+  // Fetch device data for the same period (day granularity for pattern charts)
+  const { data: deviceData, loading: patternDeviceLoading } = useDeviceData({
+    from: patternFrom,
+    to: patternTo,
+  });
+
+  // Pattern charts wait for both data sources to avoid double animation
+  const patternChartsLoading = patternLoading || patternDeviceLoading;
+
+  // Wait for ALL data before showing content to avoid staggered animations
+  const allLoading = loading || patternChartsLoading;
+
+  const { pricingMap } = usePricingMap();
 
   const halfHourPoints = useMemo(() => {
     return data
@@ -326,6 +406,44 @@ export default function RecentPage() {
     () => (data ? groupByDate(data.records, pricingMap, tzOffset) : []),
     [data, pricingMap, tzOffset],
   );
+
+  // Compute hourly breakdowns from 30-day data
+  const dateRange = useMemo(
+    () => ({ from: patternFrom, to: patternTo }),
+    [patternFrom, patternTo],
+  );
+
+  const hourlyByAgent = useMemo(
+    () =>
+      patternData
+        ? toHourlyByAgent(patternData.records, dateRange, tzOffset)
+        : [],
+    [patternData, dateRange, tzOffset],
+  );
+
+  const hourlyByModel = useMemo(
+    () =>
+      patternData
+        ? toHourlyByModel(patternData.records, dateRange, tzOffset, 5)
+        : [],
+    [patternData, dateRange, tzOffset],
+  );
+
+  const hourlyByDevice = useMemo(
+    () =>
+      patternData && deviceData
+        ? toHourlyByDevice(
+            patternData.records,
+            deviceData.deviceDetails,
+            dateRange,
+            tzOffset,
+          )
+        : [],
+    [patternData, deviceData, dateRange, tzOffset],
+  );
+
+  // Device details for labels
+  const devices = useMemo(() => deviceData?.devices ?? [], [deviceData]);
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -347,55 +465,100 @@ export default function RecentPage() {
       )}
 
       {/* Loading */}
-      {loading && <RecentSkeleton />}
+      {allLoading && <RecentSkeleton />}
 
       {/* Content */}
-      {!loading && data && (
+      {!allLoading && data && (
         <>
           {data.summary.total_tokens > 0 ? (
-            <>
-              {/* Half-hour bar chart */}
-              <RecentBarChart data={halfHourPoints} />
+            <div className="grid gap-4 md:gap-6 xl:grid-cols-4">
+              {/* Left column: Timeline charts + Detail table (3/4) */}
+              <div className="xl:col-span-3 space-y-4 md:space-y-6">
+                <DashboardSegment title="72-Hour Timeline">
+                  <div className="space-y-4">
+                    {/* Input / Output */}
+                    <TimelineInOutChart data={halfHourPoints} />
 
-              {/* Per-day detail table */}
-              {dailyGroups.length > 0 && (
-                <div className="rounded-xl bg-secondary p-1 overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-border">
-                        <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
-                          Date
-                        </th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">
-                          Input
-                        </th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">
-                          Output
-                        </th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground hidden md:table-cell">
-                          Cached
-                        </th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">
-                          Total
-                        </th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground hidden sm:table-cell">
-                          Est. Cost
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dailyGroups.map((group) => (
-                        <DayRow
-                          key={group.date}
-                          group={group}
-                          pricingMap={pricingMap}
-                        />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </>
+                    {/* By Device */}
+                    {recentDeviceData?.timeline && recentDeviceData?.devices && (
+                      <TimelineDeviceChart
+                        deviceTimeline={recentDeviceData.timeline}
+                        devices={recentDeviceData.devices}
+                      />
+                    )}
+
+                    {/* By Agent */}
+                    <TimelineAgentChart
+                      records={data.records}
+                      tzOffset={tzOffset}
+                      fromISO={recentFrom}
+                      toISO={recentTo}
+                    />
+
+                    {/* By Model */}
+                    <TimelineModelChart
+                      records={data.records}
+                      tzOffset={tzOffset}
+                      fromISO={recentFrom}
+                      toISO={recentTo}
+                      topN={5}
+                    />
+                  </div>
+
+                  {/* Per-day detail table */}
+                  {dailyGroups.length > 0 && (
+                    <div className="mt-6 rounded-xl bg-background/50 p-1 overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-border">
+                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
+                              Date
+                            </th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">
+                              Input
+                            </th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">
+                              Output
+                            </th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground hidden md:table-cell">
+                              Cached
+                            </th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">
+                              Total
+                            </th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground hidden sm:table-cell">
+                              Est. Cost
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dailyGroups.map((group) => (
+                            <DayRow
+                              key={group.date}
+                              group={group}
+                              pricingMap={pricingMap}
+                            />
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </DashboardSegment>
+              </div>
+
+              {/* Right column: Hourly pattern charts (1/4) */}
+              <div className="xl:col-span-1 space-y-4 md:space-y-6">
+                <DashboardSegment title="Hourly Patterns">
+                  <div className="space-y-4">
+                    <HourlyAgentChart data={hourlyByAgent} compact />
+                    <HourlyModelChart data={hourlyByModel} compact />
+                    {devices.length > 0 && (
+                      <HourlyDeviceChart data={hourlyByDevice} deviceDetails={devices} compact />
+                    )}
+                  </div>
+                </DashboardSegment>
+              </div>
+            </div>
           ) : (
             <div className="rounded-[var(--radius-card)] bg-secondary p-8 text-center text-sm text-muted-foreground">
               No usage data in the last 72 hours.

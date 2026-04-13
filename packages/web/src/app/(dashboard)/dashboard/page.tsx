@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Zap,
   ArrowDownToLine,
@@ -15,7 +15,7 @@ import { useAchievements } from "@/hooks/use-achievements";
 import { formatTokens, cn } from "@/lib/utils";
 import { usePricingMap, formatCost } from "@/hooks/use-pricing";
 import { computeTotalCost, toDailyCostPoints, computeCacheSavings, forecastMonthlyCost, toDailyCacheRates } from "@/lib/cost-helpers";
-import { compareWeekdayWeekend, computeMoMGrowth, computeWoWGrowth, computeStreak, toLocalDailyBuckets, toHourlyWeekdayWeekend } from "@/lib/usage-helpers";
+import { compareWeekdayWeekend, computeMoMGrowth, computeWoWGrowth, toHourlyWeekdayWeekend } from "@/lib/usage-helpers";
 import { StatCard, StatGrid } from "@/components/dashboard/stat-card";
 import { UsageTrendChart } from "@/components/dashboard/usage-trend-chart";
 import { CostTrendChart } from "@/components/dashboard/cost-trend-chart";
@@ -65,11 +65,27 @@ export default function DashboardPage() {
 
   // Fixed 62-day window for MoM comparison (ensures both months are present)
   const momData = useUsageData({ days: 62, granularity: "half-hour" });
-  // Half-hour granularity for streak (needs 365 days of data)
-  const yearHalfHourData = useUsageData({ days: 365, granularity: "half-hour" });
+
+  // Responsive achievements limit: 9 on large screens, 6 on medium, 3 on small
+  const [achievementsLimit, setAchievementsLimit] = useState<3 | 6 | 9>(9);
+  useEffect(() => {
+    const updateLimit = () => {
+      // These breakpoints match the TopAchievement grid layout
+      if (window.innerWidth >= 768) {
+        setAchievementsLimit(9); // 3x3 grid
+      } else if (window.innerWidth >= 480) {
+        setAchievementsLimit(6); // 2x3 grid
+      } else {
+        setAchievementsLimit(3); // 1x3 grid
+      }
+    };
+    updateLimit();
+    window.addEventListener("resize", updateLimit);
+    return () => window.removeEventListener("resize", updateLimit);
+  }, []);
 
   // Server-side achievements
-  const { data: achievementsData, loading: achievementsLoading } = useAchievements();
+  const { data: achievementsData, loading: achievementsLoading } = useAchievements({ limit: achievementsLimit });
 
   const currentYear = new Date().getFullYear();
   const heatmapData = toHeatmapData(yearData.daily);
@@ -148,28 +164,15 @@ export default function DashboardPage() {
     return toHourlyWeekdayWeekend(halfHourData.data.records, { from, to: toStr }, tzOffset);
   }, [halfHourData.data, from, to, tzOffset]);
 
-  // Streak data for HeatmapHero (from server-side achievements or fallback)
+  // Streak data for HeatmapHero (from server-side achievements)
   const currentStreak = achievementsData?.summary.currentStreak ?? 0;
-
-  // Longest streak computed client-side with UTC to match server-side currentStreak
-  const todayUtc = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const longestStreak = useMemo(() => {
-    if (!yearHalfHourData.data) return 0;
-    // Use tzOffset=0 (UTC) to match server-side streak calculation
-    return computeStreak(yearHalfHourData.data.records, todayUtc, 0).longestStreak;
-  }, [yearHalfHourData.data, todayUtc]);
-
-  // Active days count for HeatmapHero (UTC-based to match streak)
-  const activeDays = useMemo(() => {
-    if (!yearHalfHourData.data) return 0;
-    // Use tzOffset=0 (UTC) to match server-side day boundaries
-    return toLocalDailyBuckets(yearHalfHourData.data.records, 0).length;
-  }, [yearHalfHourData.data]);
+  const longestStreak = achievementsData?.summary.longestStreak ?? 0;
+  const activeDays = achievementsData?.summary.activeDays ?? 0;
 
   // Year total tokens for HeatmapHero
   const yearTotalTokens = yearData.data?.summary.total_tokens ?? 0;
 
-  const showForecast = (period === "month" || period === "all") && costForecast !== null;
+  const showForecast = costForecast !== null;
 
   const subtitle = periodLabel(period);
 
@@ -217,12 +220,12 @@ export default function DashboardPage() {
             longestStreak={longestStreak}
             activeDays={activeDays}
             achievements={achievementsData?.achievements ?? []}
-            loading={yearData.loading || yearHalfHourData.loading || achievementsLoading}
+            loading={yearData.loading || achievementsLoading}
           />
 
           {/* ── Overview ────────────────────────────────────── */}
           <DashboardSegment title="Overview" action={<PeriodSelector value={period} onChange={setPeriod} />}>
-            {/* Row 1 — Core metrics (always 4 columns) */}
+            {/* Row 1 — Token metrics: Total, Input, Output, Cache */}
             <StatGrid columns={4}>
               <StatCard
                 title="Total Tokens"
@@ -232,15 +235,16 @@ export default function DashboardPage() {
                 iconColor="text-primary"
                 variant="primary"
                 accentColor="bg-gradient-to-r from-primary to-chart-8"
+                trendsLayout="side"
                 trends={[
                   ...(wow && wow.previousWeekSameDay.tokens > 0 && wow.previousWeekSameDay.tokens !== wow.previousWeek.tokens
-                    ? [{ value: Math.round(wow.sameDayTokenGrowth), label: "vs last week to-date" }]
+                    ? [{ value: Math.round(wow.sameDayTokenGrowth), label: "vs week TD" }]
                     : []),
                   ...(wow && wow.previousWeek.tokens > 0
                     ? [{ value: Math.round(wow.tokenGrowth), label: "vs last week" }]
                     : []),
                   ...(mom && mom.previousMonthSameDate.tokens > 0 && mom.previousMonthSameDate.tokens !== mom.previousMonth.tokens
-                    ? [{ value: Math.round(mom.sameDateTokenGrowth), label: "vs last month to-date" }]
+                    ? [{ value: Math.round(mom.sameDateTokenGrowth), label: "vs month TD" }]
                     : []),
                   ...(mom && mom.previousMonth.tokens > 0
                     ? [{ value: Math.round(mom.tokenGrowth), label: "vs last month" }]
@@ -262,40 +266,6 @@ export default function DashboardPage() {
                 accentColor="bg-chart-5"
               />
               <StatCard
-                title="Est. Cost"
-                value={formatCost(estimatedCost)}
-                subtitle="Based on public pricing"
-                icon={DollarSign}
-                iconColor="text-chart-6"
-                variant="primary"
-                accentColor="bg-chart-6"
-                trends={[
-                  ...(wow && wow.previousWeekSameDay.cost > 0 && wow.previousWeekSameDay.cost !== wow.previousWeek.cost
-                    ? [{ value: -Math.round(wow.sameDayCostGrowth), label: "vs last week to-date" }]
-                    : []),
-                  ...(wow && wow.previousWeek.cost > 0
-                    ? [{ value: -Math.round(wow.costGrowth), label: "vs last week" }]
-                    : []),
-                  ...(mom && mom.previousMonthSameDate.cost > 0 && mom.previousMonthSameDate.cost !== mom.previousMonth.cost
-                    ? [{ value: -Math.round(mom.sameDateCostGrowth), label: "vs last month to-date" }]
-                    : []),
-                  ...(mom && mom.previousMonth.cost > 0
-                    ? [{ value: -Math.round(mom.costGrowth), label: "vs last month" }]
-                    : []),
-                ]}
-              />
-            </StatGrid>
-
-            {/* Row 2 — Economy metrics (4 cols with forecast, 2 cols without) */}
-            <StatGrid columns={showForecast ? 4 : 2}>
-              <StatCard
-                title="Cache Savings"
-                value={formatCost(cacheSavings.netSavings)}
-                subtitle={`${Math.round(cacheSavings.savingsPercent)}% vs full input price`}
-                icon={PiggyBank}
-                iconColor="text-success"
-              />
-              <StatCard
                 title="Cached Tokens"
                 value={formatTokens(data.summary.cached_input_tokens)}
                 subtitle={
@@ -304,7 +274,41 @@ export default function DashboardPage() {
                     : "0% hit rate"
                 }
                 icon={Database}
-                iconColor="text-muted-foreground"
+                accentColor="bg-chart-2"
+              />
+            </StatGrid>
+
+            {/* Row 2 — Cost metrics: Est. Cost, Cache Savings, Monthly, Daily */}
+            <StatGrid columns={showForecast ? 4 : 2}>
+              <StatCard
+                title="Est. Cost"
+                value={formatCost(estimatedCost)}
+                subtitle="Based on public pricing"
+                icon={DollarSign}
+                iconColor="text-chart-6"
+                variant="primary"
+                trendsLayout="side"
+                trends={[
+                  ...(wow && wow.previousWeekSameDay.cost > 0 && wow.previousWeekSameDay.cost !== wow.previousWeek.cost
+                    ? [{ value: -Math.round(wow.sameDayCostGrowth), label: "vs week TD" }]
+                    : []),
+                  ...(wow && wow.previousWeek.cost > 0
+                    ? [{ value: -Math.round(wow.costGrowth), label: "vs last week" }]
+                    : []),
+                  ...(mom && mom.previousMonthSameDate.cost > 0 && mom.previousMonthSameDate.cost !== mom.previousMonth.cost
+                    ? [{ value: -Math.round(mom.sameDateCostGrowth), label: "vs month TD" }]
+                    : []),
+                  ...(mom && mom.previousMonth.cost > 0
+                    ? [{ value: -Math.round(mom.costGrowth), label: "vs last month" }]
+                    : []),
+                ]}
+              />
+              <StatCard
+                title="Cache Savings"
+                value={formatCost(cacheSavings.netSavings)}
+                subtitle={`${Math.round(cacheSavings.savingsPercent)}% vs full input price`}
+                icon={PiggyBank}
+                iconColor="text-success"
               />
               {showForecast && (
                 <StatCard

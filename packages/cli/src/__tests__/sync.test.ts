@@ -2347,10 +2347,13 @@ describe("executeSync", () => {
 
   // ===== Hermes SQLite integration =====
 
+  // Fixed timestamp for deterministic tests (2026-04-03T10:00:00Z)
+  const hermesTestStartedAt = 1775210400;
+
   /**
    * Helper: create a mock openHermesDb factory that returns rows from an in-memory array.
    */
-  function mockOpenHermesDb(rows: Array<{ id: string; model: string | null; input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_write_tokens: number; reasoning_tokens: number }>) {
+  function mockOpenHermesDb(rows: Array<{ id: string; model: string | null; input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_write_tokens: number; reasoning_tokens: number; started_at: number }>) {
     return (_dbPath: string) => ({
       querySessions: () => rows,
       close: () => {},
@@ -2359,7 +2362,7 @@ describe("executeSync", () => {
 
   it("should sync Hermes SQLite data to queue", async () => {
     const rows = [
-      { id: "ses-h1", model: "claude-sonnet-4", input_tokens: 5000, output_tokens: 800, cache_read_tokens: 100, cache_write_tokens: 50, reasoning_tokens: 0 },
+      { id: "ses-h1", model: "claude-sonnet-4", input_tokens: 5000, output_tokens: 800, cache_read_tokens: 100, cache_write_tokens: 50, reasoning_tokens: 0, started_at: hermesTestStartedAt },
     ];
 
     const dbDir = join(dataDir, "hermes");
@@ -2380,7 +2383,7 @@ describe("executeSync", () => {
 
   it("should be incremental for Hermes SQLite (second sync with same data)", async () => {
     const rows = [
-      { id: "ses-h1", model: "claude-sonnet-4", input_tokens: 5000, output_tokens: 800, cache_read_tokens: 0, cache_write_tokens: 0, reasoning_tokens: 0 },
+      { id: "ses-h1", model: "claude-sonnet-4", input_tokens: 5000, output_tokens: 800, cache_read_tokens: 0, cache_write_tokens: 0, reasoning_tokens: 0, started_at: hermesTestStartedAt },
     ];
 
     const dbDir = join(dataDir, "hermes");
@@ -2463,7 +2466,7 @@ describe("executeSync", () => {
 
   it("should detect Hermes DB cursor loss and restart full scan", async () => {
     const rows = [
-      { id: "ses-h1", model: "claude-sonnet-4", input_tokens: 5000, output_tokens: 800, cache_read_tokens: 0, cache_write_tokens: 0, reasoning_tokens: 0 },
+      { id: "ses-h1", model: "claude-sonnet-4", input_tokens: 5000, output_tokens: 800, cache_read_tokens: 0, cache_write_tokens: 0, reasoning_tokens: 0, started_at: hermesTestStartedAt },
     ];
 
     // Need a file-based source to make initialCursorEmpty = false after cursor corruption
@@ -2512,7 +2515,7 @@ describe("executeSync", () => {
 
   it("should detect Hermes DB inode change and restart full scan", async () => {
     const rows = [
-      { id: "ses-h1", model: "claude-sonnet-4", input_tokens: 5000, output_tokens: 800, cache_read_tokens: 0, cache_write_tokens: 0, reasoning_tokens: 0 },
+      { id: "ses-h1", model: "claude-sonnet-4", input_tokens: 5000, output_tokens: 800, cache_read_tokens: 0, cache_write_tokens: 0, reasoning_tokens: 0, started_at: hermesTestStartedAt },
     ];
 
     // Need a file-based source to make initialCursorEmpty = false
@@ -2537,12 +2540,12 @@ describe("executeSync", () => {
     });
     expect(r1.totalDeltas).toBe(2);
 
-    // Tamper cursor: change the hermesSqlite inode to force mismatch
+    // Tamper cursor: change the hermesSqlite.default inode to force mismatch
     const { CursorStore } = await import("../storage/cursor-store.js");
     const cursorStore = new CursorStore(stateDir);
     const cursors = await cursorStore.load();
-    const hermesCursor = (cursors as Record<string, unknown>).hermesSqlite as Record<string, unknown>;
-    hermesCursor.inode = 999999; // fake inode
+    const hermesCursors = (cursors as Record<string, unknown>).hermesSqlite as Record<string, Record<string, unknown>>;
+    hermesCursors["default"]!.inode = 999999; // fake inode
     await cursorStore.save(cursors);
 
     const events: Array<{ source: string; phase: string; message?: string }> = [];

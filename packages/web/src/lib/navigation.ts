@@ -44,10 +44,10 @@ export const BASE_NAV_GROUPS: NavGroupDef[] = [
       { href: "/hourly-usage", label: "Hourly Usage", icon: "Clock" },
       { href: "/daily-usage", label: "Daily Usage", icon: "CalendarDays" },
       { href: "/sessions", label: "Sessions", icon: "MessagesSquare" },
-      { href: "/projects", label: "Projects", icon: "FolderGit2" },
+      { href: "/devices", label: "By Device", icon: "Monitor" },
       { href: "/agents", label: "By Agent", icon: "AppWindow" },
       { href: "/models", label: "By Model", icon: "Cpu" },
-      { href: "/devices", label: "By Device", icon: "Monitor" },
+      { href: "/projects", label: "By Project", icon: "FolderGit2" },
     ],
   },
   {
@@ -57,7 +57,7 @@ export const BASE_NAV_GROUPS: NavGroupDef[] = [
       { href: "/teams", label: "Teams", icon: "Users" },
       { href: "/manage-projects", label: "Projects", icon: "FolderKanban" },
       { href: "/manage-devices", label: "Devices", icon: "MonitorSmartphone" },
-      { href: "/settings/organizations", label: "Organizations", icon: "Globe2" },
+      { href: "/settings/organizations", label: "Organizations", icon: "Building2" },
       { href: "/settings/showcases", label: "Showcases", icon: "Star" },
       { href: "/settings/general", label: "General", icon: "Settings" },
     ],
@@ -72,8 +72,10 @@ export const ADMIN_NAV_GROUP: NavGroupDef = {
     { href: "/admin/invites", label: "Invite Codes", icon: "Ticket" },
     { href: "/admin/organizations", label: "Organizations", icon: "Building2" },
     { href: "/admin/seasons", label: "Seasons", icon: "Trophy" },
+    { href: "/admin/badges", label: "Badges", icon: "Medal" },
     { href: "/admin/showcases", label: "Showcases", icon: "Star" },
     { href: "/admin/storage", label: "Storage", icon: "Database" },
+    { href: "/admin/compare", label: "Compare Users", icon: "GitCompareArrows" },
   ],
 };
 
@@ -90,7 +92,7 @@ export const ROUTE_LABELS: Record<string, string> = {
   settings: "Settings",
   general: "General",
   teams: "Teams",
-  projects: "Projects",
+  projects: "By Project",
   "manage-projects": "Projects",
   "hourly-usage": "Hourly Usage",
   "daily-usage": "Daily Usage",
@@ -103,9 +105,12 @@ export const ROUTE_LABELS: Record<string, string> = {
   organizations: "Organizations",
   admin: "Admin",
   seasons: "Seasons",
+  badges: "Badges",
   storage: "Storage",
   pricing: "Token Pricing",
   invites: "Invite Codes",
+  compare: "Compare Users",
+  result: "Results",
 };
 
 /**

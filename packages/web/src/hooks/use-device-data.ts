@@ -12,6 +12,8 @@ interface UseDeviceDataOptions {
   from?: string;
   /** Explicit end date (ISO date string). Defaults to today. */
   to?: string;
+  /** Timeline granularity: "half-hour" or "day" (default: "day") */
+  granularity?: "half-hour" | "day";
 }
 
 interface UseDeviceDataResult {
@@ -28,12 +30,12 @@ interface UseDeviceDataResult {
 export function useDeviceData(
   options: UseDeviceDataOptions = {}
 ): UseDeviceDataResult {
-  const { from: fromDate, to: toDate } = options;
+  const { from: fromDate, to: toDate, granularity } = options;
   const [data, setData] = useState<ByDeviceResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     setError(null);
 
@@ -41,10 +43,14 @@ export function useDeviceData(
       const params = new URLSearchParams();
       if (fromDate) params.set("from", fromDate);
       if (toDate) params.set("to", toDate);
+      if (granularity) params.set("granularity", granularity);
+      params.set("tzOffset", String(new Date().getTimezoneOffset()));
 
       const qs = params.toString();
       const url = `/api/usage/by-device${qs ? `?${qs}` : ""}`;
-      const res = await fetch(url);
+      const res = await fetch(url, signal ? { signal } : undefined);
+
+      if (signal?.aborted) return;
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -54,17 +60,32 @@ export function useDeviceData(
       }
 
       const json = (await res.json()) as ByDeviceResponse;
+
+      if (signal?.aborted) return;
+
       setData(json);
     } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return;
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
     }
-  }, [fromDate, toDate]);
+  }, [fromDate, toDate, granularity]);
 
   useEffect(() => {
-    fetchData();
+    const controller = new AbortController();
+
+    // Clear data on filter change to avoid stale data
+    setData(null);
+
+    fetchData(controller.signal);
+
+    return () => {
+      controller.abort();
+    };
   }, [fetchData]);
 
-  return { data, loading, error, refetch: fetchData };
+  return { data, loading, error, refetch: () => fetchData() };
 }

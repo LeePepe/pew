@@ -26,7 +26,7 @@ import { codexTokenDriver } from "./token/codex-token-driver.js";
 import { vscodeCopilotTokenDriver } from "./token/vscode-copilot-token-driver.js";
 import { copilotCliTokenDriver } from "./token/copilot-cli-token-driver.js";
 import { piTokenDriver } from "./token/pi-token-driver.js";
-import { kosmosTokenDriver } from "./token/kosmos-token-driver.js";
+import { kosmosTokenDriver, pmstudioTokenDriver } from "./token/kosmos-token-driver.js";
 import {
   createOpenCodeSqliteTokenDriver,
   type OpenCodeSqliteTokenDriverOpts,
@@ -38,12 +38,13 @@ import {
 
 // -- Session driver singletons --
 import { claudeSessionDriver } from "./session/claude-session-driver.js";
+import { codexSessionDriver } from "./session/codex-session-driver.js";
+import { copilotCliSessionDriver } from "./session/copilot-cli-session-driver.js";
 import { geminiSessionDriver } from "./session/gemini-session-driver.js";
 import { openCodeJsonSessionDriver } from "./session/opencode-json-session-driver.js";
 import { openClawSessionDriver } from "./session/openclaw-session-driver.js";
-import { codexSessionDriver } from "./session/codex-session-driver.js";
 import { piSessionDriver } from "./session/pi-session-driver.js";
-import { kosmosSessionDriver } from "./session/kosmos-session-driver.js";
+import { kosmosSessionDriver, pmstudioSessionDriver } from "./session/kosmos-session-driver.js";
 import {
   createOpenCodeSqliteSessionDriver,
   type OpenCodeSqliteSessionDriverOpts,
@@ -62,7 +63,8 @@ import {
 export interface TokenDriverRegistryOpts {
   claudeDir?: string;
   geminiDir?: string;
-  kosmosDataDirs?: string[];
+  kosmosDataDir?: string;
+  pmstudioDataDir?: string;
   openCodeMessageDir?: string;
   openclawDir?: string;
   codexSessionsDir?: string;
@@ -71,7 +73,10 @@ export interface TokenDriverRegistryOpts {
   copilotCliLogsDir?: string;
   openCodeDbPath?: string;
   openMessageDb?: OpenCodeSqliteTokenDriverOpts["openMessageDb"];
+  /** Default Hermes DB path (~/.hermes/state.db) */
   hermesDbPath?: string;
+  /** Additional Hermes profile DBs (e.g. ~/.hermes/profiles/<name>/state.db) */
+  hermesProfileDbPaths?: Array<{ dbPath: string; dbKey: string }>;
   openHermesDb?: HermesSqliteTokenDriverOpts["openHermesDb"];
 }
 
@@ -104,7 +109,7 @@ export function createTokenDrivers(opts: TokenDriverRegistryOpts): TokenDriverSe
   if (opts.geminiDir) {
     fileDrivers.push(geminiTokenDriver);
   }
-  if (opts.kosmosDataDirs && opts.kosmosDataDirs.length > 0) {
+  if (opts.kosmosDataDir) {
     fileDrivers.push(kosmosTokenDriver);
   }
   if (opts.openCodeMessageDir) {
@@ -116,18 +121,38 @@ export function createTokenDrivers(opts: TokenDriverRegistryOpts): TokenDriverSe
   if (opts.piSessionsDir) {
     fileDrivers.push(piTokenDriver);
   }
+  if (opts.pmstudioDataDir) {
+    fileDrivers.push(pmstudioTokenDriver);
+  }
   if (opts.vscodeCopilotDirs && opts.vscodeCopilotDirs.length > 0) {
     fileDrivers.push(vscodeCopilotTokenDriver);
   }
 
   // DB drivers (alphabetical by source)
-  if (opts.hermesDbPath && opts.openHermesDb) {
-    dbDrivers.push(
-      createHermesSqliteTokenDriver({
-        dbPath: opts.hermesDbPath,
-        openHermesDb: opts.openHermesDb,
-      }),
-    );
+  // Hermes: create driver for default DB + all profile DBs
+  if (opts.openHermesDb) {
+    // Default DB at ~/.hermes/state.db (or $HERMES_HOME/state.db)
+    if (opts.hermesDbPath) {
+      dbDrivers.push(
+        createHermesSqliteTokenDriver({
+          dbPath: opts.hermesDbPath,
+          dbKey: "default",
+          openHermesDb: opts.openHermesDb,
+        }),
+      );
+    }
+    // Profile DBs at ~/.hermes/profiles/<name>/state.db
+    if (opts.hermesProfileDbPaths) {
+      for (const { dbPath, dbKey } of opts.hermesProfileDbPaths) {
+        dbDrivers.push(
+          createHermesSqliteTokenDriver({
+            dbPath,
+            dbKey,
+            openHermesDb: opts.openHermesDb,
+          }),
+        );
+      }
+    }
   }
   if (opts.openCodeDbPath && opts.openMessageDb) {
     dbDrivers.push(
@@ -151,10 +176,12 @@ export function createTokenDrivers(opts: TokenDriverRegistryOpts): TokenDriverSe
 export interface SessionDriverRegistryOpts {
   claudeDir?: string;
   geminiDir?: string;
-  kosmosDataDirs?: string[];
+  kosmosDataDir?: string;
+  pmstudioDataDir?: string;
   openCodeMessageDir?: string;
   openclawDir?: string;
   codexSessionsDir?: string;
+  copilotCliLogsDir?: string;
   piSessionsDir?: string;
   openCodeDbPath?: string;
   openSessionDb?: OpenCodeSqliteSessionDriverOpts["openSessionDb"];
@@ -180,10 +207,13 @@ export function createSessionDrivers(opts: SessionDriverRegistryOpts): SessionDr
   if (opts.codexSessionsDir) {
     fileDrivers.push(codexSessionDriver);
   }
+  if (opts.copilotCliLogsDir) {
+    fileDrivers.push(copilotCliSessionDriver);
+  }
   if (opts.geminiDir) {
     fileDrivers.push(geminiSessionDriver);
   }
-  if (opts.kosmosDataDirs && opts.kosmosDataDirs.length > 0) {
+  if (opts.kosmosDataDir) {
     fileDrivers.push(kosmosSessionDriver);
   }
   if (opts.openCodeMessageDir) {
@@ -194,6 +224,9 @@ export function createSessionDrivers(opts: SessionDriverRegistryOpts): SessionDr
   }
   if (opts.piSessionsDir) {
     fileDrivers.push(piSessionDriver);
+  }
+  if (opts.pmstudioDataDir) {
+    fileDrivers.push(pmstudioSessionDriver);
   }
   if (opts.openCodeDbPath && opts.openSessionDb) {
     dbDrivers.push(

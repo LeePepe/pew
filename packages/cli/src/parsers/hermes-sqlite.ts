@@ -22,6 +22,8 @@ export interface SessionRow {
   cache_read_tokens: number;
   cache_write_tokens: number;
   reasoning_tokens: number;
+  /** Unix timestamp (seconds since epoch) when session started */
+  started_at: number;
 }
 
 /**
@@ -103,11 +105,17 @@ export async function parseHermesDatabase(
     // Skip zero deltas
     if (isAllZero(delta)) continue;
 
+    // Use session's started_at as timestamp for idempotent uploads.
+    // Hermes stores started_at as Unix timestamp (seconds since epoch).
+    // This ensures reset && sync produces the same hour_start, enabling
+    // proper ON CONFLICT deduplication in D1.
+    const sessionTimestamp = new Date(row.started_at * 1000).toISOString();
+
     // Emit delta
     deltas.push({
       source: "hermes",
       model: row.model || "unknown",
-      timestamp: syncTime, // Use sync time (not session time)
+      timestamp: sessionTimestamp,
       tokens: delta,
     });
 

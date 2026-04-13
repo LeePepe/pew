@@ -5,6 +5,7 @@
  *   from  — ISO date string (default: 30 days ago)
  *   to    — ISO date string (default: now)
  *   source — filter by source (optional)
+ *   deviceId — filter by device (optional)
  *   granularity — "half-hour" | "day" (default: "half-hour")
  *
  * Returns { records, summary }.
@@ -28,27 +29,13 @@ const VALID_SOURCES = new Set([
   "opencode",
   "openclaw",
   "pi",
+  "pmstudio",
   "vscode-copilot",
 ]);
 
 const VALID_GRANULARITIES = new Set(["half-hour", "day"]);
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}/;
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface UsageRow {
-  source: string;
-  model: string;
-  hour_start: string;
-  input_tokens: number;
-  cached_input_tokens: number;
-  output_tokens: number;
-  reasoning_output_tokens: number;
-  total_tokens: number;
-}
 
 // ---------------------------------------------------------------------------
 // Route handler
@@ -65,9 +52,12 @@ export async function GET(request: Request) {
   // 2. Parse query params
   const url = new URL(request.url);
   const sourceFilter = url.searchParams.get("source");
+  const deviceIdFilter = url.searchParams.get("deviceId");
   const granularity = url.searchParams.get("granularity") ?? "half-hour";
   const fromParam = url.searchParams.get("from");
   const toParam = url.searchParams.get("to");
+  const tzOffsetParam = url.searchParams.get("tzOffset");
+  const tzOffset = tzOffsetParam !== null ? parseInt(tzOffsetParam, 10) : 0;
 
   // Validate source filter
   if (sourceFilter && !VALID_SOURCES.has(sourceFilter)) {
@@ -81,6 +71,14 @@ export async function GET(request: Request) {
   if (!VALID_GRANULARITIES.has(granularity)) {
     return NextResponse.json(
       { error: `Invalid granularity: "${granularity}"` },
+      { status: 400 }
+    );
+  }
+
+  // Validate tzOffset
+  if (!Number.isFinite(tzOffset) || Math.abs(tzOffset) > 840) {
+    return NextResponse.json(
+      { error: "Invalid tzOffset value" },
       { status: 400 }
     );
   }
@@ -121,47 +119,16 @@ export async function GET(request: Request) {
     toDate = new Date().toISOString();
   }
 
-  // 3. Build query
-  const timeColumn =
-    granularity === "day"
-      ? "date(hour_start) AS hour_start"
-      : "hour_start";
-
-  const conditions = ["user_id = ?", "hour_start >= ?", "hour_start < ?"];
-  const params: unknown[] = [userId, fromDate, toDate];
-
-  if (sourceFilter) {
-    conditions.push("source = ?");
-    params.push(sourceFilter);
-  }
-
-  const groupBy =
-    granularity === "day"
-      ? "date(hour_start), source, model"
-      : "hour_start, source, model";
-
-  const sql = `
-    SELECT
-      source,
-      model,
-      ${timeColumn},
-      SUM(input_tokens) AS input_tokens,
-      SUM(cached_input_tokens) AS cached_input_tokens,
-      SUM(output_tokens) AS output_tokens,
-      SUM(reasoning_output_tokens) AS reasoning_output_tokens,
-      SUM(total_tokens) AS total_tokens
-    FROM usage_records
-    WHERE ${conditions.join(" AND ")}
-    GROUP BY ${groupBy}
-    ORDER BY hour_start ASC, source, model
-  `;
-
-  // 4. Execute
+  // 3. Execute query via RPC
   const db = await getDbRead();
 
   try {
-    const result = await db.query<UsageRow>(sql, params);
-    const records = result.results;
+    const records = await db.getUsageRecords(userId, fromDate, toDate, {
+      ...(sourceFilter && { source: sourceFilter }),
+      ...(deviceIdFilter && { deviceId: deviceIdFilter }),
+      granularity: granularity as "half-hour" | "day",
+      tzOffset,
+    });
 
     // Compute summary
     const summary = records.reduce(

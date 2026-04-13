@@ -19,9 +19,49 @@
 | 9 | `d114bb9` | Fix: resolve worker-read typecheck errors + add to root lint | ✅ done |
 | 10 | `fd1176b` | Fix: sanitize 'ok' from read worker /live error messages | ✅ done |
 | 11 | `764796e` | Refactor: change worker routes to /api/live and /api/query | ✅ done |
-| 12 | | Phase 3: E2E validation against dev Worker | ⏳ pending deploy |
+| 12 | | Phase 3: E2E validation against dev Worker | ✅ done |
 | 13 | | Phase 4: delete `RestDbRead` + REST-only env vars | ✅ done |
-| 14 | | docs: retrospective | |
+| 14 | | Phase 5: typed RPC for complex queries | ✅ done |
+| 15 | | docs: retrospective | ✅ done |
+
+### Phase 5 — Typed RPC for Complex Queries (Completed)
+
+> **Decision (2026-04-10)**: Phase 5 originally aimed to replace ALL raw SQL
+> with typed RPC. After evaluation, this approach was **abandoned** as overly
+> aggressive. The revised strategy:
+>
+> - **Keep `query<T>()` / `firstOrNull<T>()`** for simple, stable CRUD queries
+> - **Use typed RPC** only for complex business logic (aggregations, multi-table
+>   joins, leaderboard computations, etc.)
+>
+> This hybrid approach retains the flexibility of raw SQL for straightforward
+> queries while benefiting from type-safe RPC for complex domain operations.
+
+#### Migrated to RPC (high-complexity queries)
+
+| File | Type | Commit | Reason |
+|------|------|--------|--------|
+| `/api/leaderboard` | RPC | `66eee88` | Multi-table aggregation with ranking |
+| `/api/achievements` | RPC | (pre-existing) | Complex badge computation logic |
+| `/api/achievements/[id]/members` | RPC | `b5844f4` | Filtered member listing |
+| `/api/seasons/[seasonId]/leaderboard` | RPC | `750df4f` | Season-scoped ranking with team joins |
+| `/api/projects` GET | RPC | `e366fd4` | Multi-query aggregation (projects + aliases + tags + unassigned) |
+
+#### Remaining Raw SQL (intentionally kept)
+
+Simple CRUD queries that don't benefit from RPC abstraction:
+
+| Category | Files | Call Sites |
+|----------|-------|------------|
+| Projects CRUD | `projects/route.ts` (POST only), `projects/[id]/route.ts` | 7 |
+| Organizations admin | `admin/organizations/*/route.ts` | 16 |
+| Showcases | `admin/showcases/route.ts`, `showcases/[id]/refresh/route.ts` | 4 |
+| Auth/Settings libs | `invite.ts`, `rate-limit.ts`, `auto-register.ts` | 6 |
+| Season roster | `season-roster.ts` | 7 |
+| **Total** | 12 files | **40 call sites** |
+
+These queries are simple SELECTs or single-row lookups — migrating them to RPC
+would add complexity without meaningful type-safety benefit
 
 ## Problem
 
@@ -743,3 +783,47 @@ absent = REST fallback.
   `CF_D1_DATABASE_ID` be removed.
 - **Edge caching**: add Cloudflare Cache API in the read Worker for
   frequently-accessed queries (leaderboard, public profiles).
+
+---
+
+## Retrospective
+
+### What Went Well
+
+1. **Worker-based read path works** — Latency dropped from ~50-150ms (REST API)
+   to ~15-30ms (Worker native binding). The `/api/live` health check + shared
+   secret auth pattern is simple and effective.
+
+2. **`DbRead` / `DbWrite` abstraction** — Clean separation allows swapping
+   the read backend without touching write code. The feature-flag pattern
+   (`WORKER_READ_URL` presence) enables instant rollback.
+
+3. **Typed RPC for complex queries** — Leaderboard and achievements computations
+   benefit from explicit method signatures (`leaderboard.getSeasonRanking()`)
+   rather than ad-hoc SQL strings.
+
+### What Was Over-Engineered
+
+1. **Phase 5 scope creep** — The original goal to "eliminate all raw SQL"
+   was too aggressive. Simple queries like `SELECT * FROM users WHERE id = ?`
+   don't benefit from RPC abstraction — they're already type-safe via the
+   `query<T>()` generic. The revised hybrid approach (RPC for complex queries,
+   raw SQL for simple CRUD) is more pragmatic.
+
+2. **Priority matrix was premature** — Listing 16 pending migrations created
+   artificial urgency. Most of those files are stable CRUD routes that
+   haven't changed in months — migrating them would be churn without value.
+
+### Lessons Learned
+
+1. **"Kill all raw SQL" is not a goal** — It's a tactic. The actual goals
+   are type safety, maintainability, and performance. Raw SQL with generics
+   (`query<T>()`) already provides good type safety for simple queries.
+
+2. **RPC shines for business logic, not data access** — Use RPC when there's
+   domain logic (ranking algorithms, badge computation, snapshot rollups).
+   Use raw SQL when you're just moving rows between D1 and the API response.
+
+3. **Start with the complex queries** — The high-value migrations (leaderboard,
+   achievements, seasons) were done first. The remaining 41 call sites are
+   low-complexity and can stay as raw SQL indefinitely.

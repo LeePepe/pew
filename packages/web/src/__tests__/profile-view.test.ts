@@ -1,34 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("react", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("react")>();
-  return {
-    ...actual,
-    useMemo: (factory: () => unknown) => factory(),
-  };
-});
-
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
 }));
 
-vi.mock("@/hooks/use-public-profile", () => ({
-  usePublicProfile: vi.fn(),
+vi.mock("@/hooks/use-user-profile", () => ({
+  useUserProfile: vi.fn(),
 }));
 
-vi.mock("@/hooks/use-pricing", () => ({
-  usePricingMap: vi.fn(),
-  formatCost: (v: number) => `$${v.toFixed(2)}`,
+vi.mock("@/components/profile/profile-content", () => ({
+  ProfileContent: () => null,
+}));
+
+vi.mock("@/lib/date-helpers", () => ({
+  formatMemberSince: (d: string) => d,
 }));
 
 import { PublicProfileView } from "@/app/u/[slug]/profile-view";
 import { useSession } from "next-auth/react";
-import { usePublicProfile } from "@/hooks/use-public-profile";
-import { usePricingMap } from "@/hooks/use-pricing";
+import { useUserProfile } from "@/hooks/use-user-profile";
 
 const mockedUseSession = vi.mocked(useSession);
-const mockedUsePublicProfile = vi.mocked(usePublicProfile);
-const mockedUsePricingMap = vi.mocked(usePricingMap);
+const mockedUseUserProfile = vi.mocked(useUserProfile);
 
 function collectByHref(node: unknown, href: string, out: unknown[] = []): unknown[] {
   if (!node) return out;
@@ -56,31 +49,25 @@ describe("PublicProfileView Compare CTA", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    mockedUsePricingMap.mockReturnValue({
-      pricingMap: {
-        models: {},
-        prefixes: [],
-        sourceDefaults: {},
-        fallback: { input: 0, output: 0, cached: 0 },
-      },
-      loading: false,
-      error: null,
-      refetch: vi.fn(),
-    });
-
-    mockedUsePublicProfile.mockImplementation(() => ({
+    mockedUseUserProfile.mockReturnValue({
       user: {
         name: "Viewed User",
+        nickname: null,
         image: null,
         slug: "alice",
         created_at: "2026-01-01T00:00:00Z",
+        first_seen: null,
+        badges: [],
       },
       data: {
         user: {
           name: "Viewed User",
+          nickname: null,
           image: null,
           slug: "alice",
           created_at: "2026-01-01T00:00:00Z",
+          first_seen: null,
+          badges: [],
         },
         viewed_user_id: "viewed-id",
         records: [],
@@ -91,7 +78,7 @@ describe("PublicProfileView Compare CTA", () => {
           reasoning_output_tokens: 0,
           total_tokens: 0,
         },
-      },
+      } as any,
       daily: [],
       sources: [],
       models: [],
@@ -100,7 +87,7 @@ describe("PublicProfileView Compare CTA", () => {
       error: null,
       notFound: false,
       refetch: vi.fn(),
-    }));
+    });
   });
 
   it("shows Compare button linking to /u/[slug]/compare only for signed-in non-self viewers", () => {

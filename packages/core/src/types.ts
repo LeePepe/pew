@@ -10,7 +10,7 @@
 // Source: Supported AI coding tools
 // ---------------------------------------------------------------------------
 
-/** The 10 supported AI coding tools */
+/** The 11 supported AI coding tools */
 export type Source =
   | "claude-code"
   | "codex"
@@ -21,6 +21,7 @@ export type Source =
   | "opencode"
   | "openclaw"
   | "pi"
+  | "pmstudio"
   | "vscode-copilot";
 
 // ---------------------------------------------------------------------------
@@ -136,6 +137,8 @@ export interface VscodeCopilotCursor extends FileCursorBase {
   processedRequestIndices: number[];
   /** Index → metadata mapping for correlating kind=1 results with request info */
   requestMeta: Record<number, { modelId: string; timestamp: number }>;
+  /** Request IDs already processed for v3 JSON files (string-based dedup) */
+  processedRequestIds?: string[];
 }
 
 /** Cursor for OpenCode SQLite database (incremental by time_created) */
@@ -207,8 +210,18 @@ export interface CursorState {
    * rescan needed for the upgrade path since the DB cursor itself is valid.
    */
   knownDbSources?: Record<string, true>;
-  /** Hermes Agent SQLite database cursor (separate from per-file cursors) */
-  hermesSqlite?: HermesSqliteCursor;
+  /**
+   * Hermes Agent SQLite database cursors, keyed by DB path identifier.
+   *
+   * Keys are path identifiers:
+   *   - "default" for ~/.hermes/state.db (or $HERMES_HOME/state.db)
+   *   - "profiles/<name>" for ~/.hermes/profiles/<name>/state.db
+   *
+   * Migration: Old cursors.json files (pre-multi-profile) have hermesSqlite
+   * as a flat HermesSqliteCursor object. sync.ts detects this and migrates
+   * to { "default": oldCursor } on first access.
+   */
+  hermesSqlite?: Record<string, HermesSqliteCursor>;
   /** ISO 8601 timestamp of last cursor update */
   updatedAt: string | null;
 }
@@ -356,10 +369,23 @@ export interface DeviceTimelinePoint {
   cached_input_tokens: number;
 }
 
+/** Per-(device, source, model) cost detail row for drill-down charts */
+export interface DeviceCostDetail {
+  device_id: string;
+  source: string;
+  model: string;
+  total_tokens: number;
+  input_tokens: number;
+  output_tokens: number;
+  cached_input_tokens: number;
+}
+
 /** Response from GET /api/usage/by-device */
 export interface ByDeviceResponse {
   devices: DeviceAggregate[];
   timeline: DeviceTimelinePoint[];
+  /** Raw cost-detail rows for agent × model drill-down charts */
+  deviceDetails: DeviceCostDetail[];
 }
 
 /** Device summary returned by GET /api/devices (management endpoint) */
@@ -425,6 +451,7 @@ export interface SyncCycleResult {
     totalDeltas: number;
     totalRecords: number;
     filesScanned: Record<string, number>;
+    dbsScanned?: Record<string, number>;
     sources: Record<string, number>;
   };
   /** Error from token sync phase, if it failed */
@@ -435,6 +462,7 @@ export interface SyncCycleResult {
     totalSnapshots: number;
     totalRecords: number;
     filesScanned: Record<string, number>;
+    dbsScanned?: Record<string, number>;
     sources: Record<string, number>;
   };
   /** Error from session sync phase, if it failed */
@@ -636,4 +664,102 @@ export interface OrganizationSummary {
   name: string;
   slug: string;
   logoUrl: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Badge system (admin-assigned awards)
+// ---------------------------------------------------------------------------
+
+/** Badge icon options (Lucide icon names) */
+export type BadgeIconType =
+  | "shield"
+  | "star"
+  | "hexagon"
+  | "circle"
+  | "diamond"
+  | "crown"
+  | "flame"
+  | "zap"
+  | "heart"
+  | "sparkles";
+
+/** Badge color palette names */
+export type BadgeColorPalette =
+  | "ocean"
+  | "forest"
+  | "sunset"
+  | "royal"
+  | "crimson"
+  | "gold";
+
+/** Badge definition (admin-created template) */
+export interface Badge {
+  id: string;
+  /** 1-3 characters displayed on the badge */
+  text: string;
+  /** Icon type (Lucide icon name) */
+  icon: BadgeIconType;
+  /** Background color hex (e.g. "#3B82F6") */
+  colorBg: string;
+  /** Text color hex (e.g. "#FFFFFF") */
+  colorText: string;
+  /** Admin notes (not shown to users) */
+  description: string | null;
+  /** Whether badge is hidden from assignment UI */
+  isArchived: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Assignment status derived at read time.
+ *
+ * - active: visible on leaderboard/profile
+ * - expired: ran full 7 days, not yet cleared
+ * - revoked_early: admin terminated before expiry
+ * - revoked_post_expiry: admin cleared after natural expiry (for re-assignment)
+ */
+export type BadgeAssignmentStatus =
+  | "active"
+  | "expired"
+  | "revoked_early"
+  | "revoked_post_expiry";
+
+/** Badge assignment (user-badge link with snapshot) */
+export interface BadgeAssignment {
+  id: string;
+  badgeId: string;
+  userId: string;
+  /** Snapshot of badge appearance at assignment time */
+  snapshotText: string;
+  snapshotIcon: BadgeIconType;
+  snapshotBg: string;
+  snapshotFg: string;
+  /** ISO 8601 timestamp */
+  assignedAt: string;
+  /** ISO 8601 timestamp (assignedAt + 7 days) */
+  expiresAt: string;
+  /** Admin user ID who assigned */
+  assignedBy: string;
+  /** Admin note for this assignment */
+  note: string | null;
+  /** ISO 8601 timestamp when revoked (null if not revoked) */
+  revokedAt: string | null;
+  /** Admin user ID who revoked (null if not revoked) */
+  revokedBy: string | null;
+  /** Reason for revocation */
+  revokeReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Active badge for display (uses snapshot fields) */
+export interface ActiveBadge {
+  id: string;
+  text: string;
+  icon: BadgeIconType;
+  colorBg: string;
+  colorText: string;
+  assignedAt: string;
+  expiresAt: string;
 }

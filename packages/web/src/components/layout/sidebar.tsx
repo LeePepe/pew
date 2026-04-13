@@ -27,8 +27,9 @@ import {
   FolderGit2,
   Database,
   Star,
-  Globe2,
   Building2,
+  Medal,
+  GitCompareArrows,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { APP_VERSION } from "@/lib/version";
@@ -71,8 +72,9 @@ const ICON_MAP: Record<string, ElementType> = {
   FolderGit2,
   Database,
   Star,
-  Globe2,
   Building2,
+  Medal,
+  GitCompareArrows,
 };
 
 interface NavItem {

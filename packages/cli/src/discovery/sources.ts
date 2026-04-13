@@ -157,13 +157,32 @@ export async function discoverPiFiles(
 /**
  * Discover Codex CLI rollout files.
  * Path pattern: ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl
+ *
+ * @param codexSessionsDir Primary Codex sessions directory (~/.codex/sessions)
+ * @param extraDirs Additional directories to scan (e.g. Multica codex-home/sessions/)
  */
 export async function discoverCodexFiles(
   codexSessionsDir: string,
+  extraDirs?: string[],
 ): Promise<string[]> {
-  return collectFiles(codexSessionsDir, (name) =>
-    name.startsWith("rollout-") && name.endsWith(".jsonl"),
-  );
+  const predicate = (name: string) =>
+    name.startsWith("rollout-") && name.endsWith(".jsonl");
+
+  const results: string[] = [];
+
+  // Primary directory
+  const primaryFiles = await collectFiles(codexSessionsDir, predicate);
+  results.push(...primaryFiles);
+
+  // Extra directories (e.g. Multica Codex sessions)
+  if (extraDirs && extraDirs.length > 0) {
+    for (const extraDir of extraDirs) {
+      const extraFiles = await collectFiles(extraDir, predicate);
+      results.push(...extraFiles);
+    }
+  }
+
+  return results.sort();
 }
 
 /**
@@ -218,7 +237,7 @@ export async function discoverVscodeCopilotFiles(
   const results: string[] = [];
 
   for (const baseDir of baseDirs) {
-    // 1. globalStorage/emptyWindowChatSessions/*.jsonl
+    // 1. globalStorage/emptyWindowChatSessions/*.jsonl + *.json
     const globalChatDir = join(baseDir, "globalStorage", "emptyWindowChatSessions");
     let globalEntries: import("node:fs").Dirent[];
     try {
@@ -227,7 +246,7 @@ export async function discoverVscodeCopilotFiles(
       globalEntries = [];
     }
     for (const entry of globalEntries) {
-      if (entry.isFile() && entry.name.endsWith(".jsonl")) {
+      if (entry.isFile() && (entry.name.endsWith(".jsonl") || entry.name.endsWith(".json"))) {
         results.push(join(globalChatDir, entry.name));
       }
     }
@@ -251,7 +270,7 @@ export async function discoverVscodeCopilotFiles(
         continue;
       }
       for (const chatEntry of chatEntries) {
-        if (chatEntry.isFile() && chatEntry.name.endsWith(".jsonl")) {
+        if (chatEntry.isFile() && (chatEntry.name.endsWith(".jsonl") || chatEntry.name.endsWith(".json"))) {
           results.push(join(chatSessionsDir, chatEntry.name));
         }
       }

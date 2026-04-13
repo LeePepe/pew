@@ -12,6 +12,10 @@ binding = "DB"
 database_name = "pew-db"
 database_id = "5c00ebbf-a0ed-49d9-a64f-5712c272e96f"
 
+[[kv_namespaces]]
+binding = "CACHE"
+id = "5df59e90f9e34c5da40fd312eb83e4ee"
+
 # ---------- Test environment ----------
 [env.test]
 name = "pew-test"
@@ -24,3 +28,7 @@ database_id = "aa08a894-6a65-4baf-b756-2e611dff437d"
 [[env.test.routes]]
 pattern = "pew-test.worker.hexly.ai"
 custom_domain = true
+
+[[env.test.kv_namespaces]]
+binding = "CACHE"
+id = "d5d3f97da82241da83ba91eea3cd3a6c"

@@ -24,38 +24,6 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
-interface UsageAggregates {
-  total_tokens: number;
-  input_tokens: number;
-  output_tokens: number;
-  cached_input_tokens: number;
-  reasoning_output_tokens: number;
-}
-
-interface DailyUsageRow {
-  day: string;
-  total_tokens: number;
-}
-
-interface DiversityRow {
-  source_count: number;
-  model_count: number;
-  device_count: number;
-}
-
-interface SessionAggregates {
-  total_sessions: number;
-  quick_sessions: number; // duration < 5 min
-  marathon_sessions: number; // duration > 2 hours
-  max_messages: number;
-  automated_sessions: number;
-}
-
-interface HourlyUsageRow {
-  hour_start: string;
-  total_tokens: number;
-}
-
 interface EarnedByUser {
   id: string;
   name: string;
@@ -127,6 +95,36 @@ function computeStreak(activeDays: Set<string>, today: string): number {
 }
 
 /**
+ * Compute the longest streak of consecutive active days.
+ */
+function computeLongestStreak(activeDays: Set<string>): number {
+  if (activeDays.size === 0) return 0;
+
+  const sortedDays = Array.from(activeDays).sort();
+  let longest = 1;
+  let current = 1;
+
+  for (let i = 1; i < sortedDays.length; i++) {
+    const prevDay = sortedDays[i - 1];
+    const currDay = sortedDays[i];
+    if (!prevDay || !currDay) continue;
+
+    const prevDate = new Date(prevDay);
+    const currDate = new Date(currDay);
+    const diffDays = (currDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24);
+
+    if (diffDays === 1) {
+      current++;
+      longest = Math.max(longest, current);
+    } else {
+      current = 1;
+    }
+  }
+
+  return longest;
+}
+
+/**
  * Check if a UTC hour_start falls within local weekend (Saturday or Sunday).
  */
 function isLocalWeekend(hourStart: string, tzOffset: number): boolean {
@@ -170,58 +168,37 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const tzOffsetParam = url.searchParams.get("tzOffset");
   const tzOffset = tzOffsetParam ? parseInt(tzOffsetParam, 10) : 0;
+  const limitParam = url.searchParams.get("limit");
+  const limit = limitParam ? parseInt(limitParam, 10) : null; // null = full mode (all achievements + earnedBy)
 
-  // 3. Query data
+  // 3. Query data (parallel fetch for performance)
   const db = await getDbRead();
   const pricingMap = getDefaultPricingMap();
   const today = new Date().toISOString().slice(0, 10);
 
   try {
-    // ---- Usage aggregates ----
-    const usageAgg = await db.firstOrNull<UsageAggregates>(
-      `SELECT
-        COALESCE(SUM(total_tokens), 0) AS total_tokens,
-        COALESCE(SUM(input_tokens), 0) AS input_tokens,
-        COALESCE(SUM(output_tokens), 0) AS output_tokens,
-        COALESCE(SUM(cached_input_tokens), 0) AS cached_input_tokens,
-        COALESCE(SUM(reasoning_output_tokens), 0) AS reasoning_output_tokens
-      FROM usage_records
-      WHERE user_id = ?`,
-      [userId]
-    );
-
-    // ---- Daily usage (for streak, big-day, veteran) ----
-    const dailyUsage = await db.query<DailyUsageRow>(
-      `SELECT DATE(hour_start) AS day, SUM(total_tokens) AS total_tokens
-      FROM usage_records
-      WHERE user_id = ?
-      GROUP BY DATE(hour_start)
-      ORDER BY day`,
-      [userId]
-    );
-
-    // ---- Daily cost (for daily-burn) ----
-    const costByModelSourceDay = await db.query<{
-      day: string;
-      model: string;
-      source: string | null;
-      input_tokens: number;
-      output_tokens: number;
-      cached_input_tokens: number;
-    }>(
-      `SELECT DATE(hour_start) AS day, model, source,
-              SUM(input_tokens) AS input_tokens,
-              SUM(output_tokens) AS output_tokens,
-              SUM(cached_input_tokens) AS cached_input_tokens
-      FROM usage_records
-      WHERE user_id = ?
-      GROUP BY DATE(hour_start), model, source`,
-      [userId]
-    );
+    // ---- Parallel fetch all base data ----
+    const [
+      usageAgg,
+      dailyUsage,
+      costByModelSourceDay,
+      diversity,
+      sessionAgg,
+      hourlyUsage,
+      costByModelSource,
+    ] = await Promise.all([
+      db.getAchievementUsageAggregates(userId),
+      db.getAchievementDailyUsage(userId),
+      db.getAchievementDailyCostBreakdown(userId),
+      db.getAchievementDiversityCounts(userId),
+      db.getAchievementSessionAggregates(userId),
+      db.getAchievementHourlyUsage(userId),
+      db.getAchievementCostByModelSource(userId),
+    ]);
 
     // Aggregate cost by day
     const dailyCostMap = new Map<string, number>();
-    for (const row of costByModelSourceDay.results) {
+    for (const row of costByModelSourceDay) {
       const cost = computeCost(
         row.model,
         row.source,
@@ -233,59 +210,8 @@ export async function GET(request: Request) {
       dailyCostMap.set(row.day, (dailyCostMap.get(row.day) ?? 0) + cost);
     }
 
-    // ---- Diversity counts ----
-    const diversity = await db.firstOrNull<DiversityRow>(
-      `SELECT
-        COUNT(DISTINCT source) AS source_count,
-        COUNT(DISTINCT model) AS model_count,
-        COUNT(DISTINCT device_id) AS device_count
-      FROM usage_records
-      WHERE user_id = ?`,
-      [userId]
-    );
-
-    // ---- Session aggregates ----
-    const sessionAgg = await db.firstOrNull<SessionAggregates>(
-      `SELECT
-        COUNT(*) AS total_sessions,
-        SUM(CASE WHEN duration_seconds < 300 THEN 1 ELSE 0 END) AS quick_sessions,
-        SUM(CASE WHEN duration_seconds > 7200 THEN 1 ELSE 0 END) AS marathon_sessions,
-        MAX(total_messages) AS max_messages,
-        SUM(CASE WHEN kind = 'automated' THEN 1 ELSE 0 END) AS automated_sessions
-      FROM session_records
-      WHERE user_id = ?`,
-      [userId]
-    );
-
-    // ---- Hourly usage for timezone-dependent achievements ----
-    const hourlyUsage = await db.query<HourlyUsageRow>(
-      `SELECT hour_start, SUM(total_tokens) AS total_tokens
-      FROM usage_records
-      WHERE user_id = ?
-      GROUP BY hour_start`,
-      [userId]
-    );
-
-    // ---- Total cost by model+source (for big-spender) ----
-    const costByModelSource = await db.query<{
-      model: string;
-      source: string | null;
-      input_tokens: number;
-      output_tokens: number;
-      cached_input_tokens: number;
-    }>(
-      `SELECT model, source,
-              SUM(input_tokens) AS input_tokens,
-              SUM(output_tokens) AS output_tokens,
-              SUM(cached_input_tokens) AS cached_input_tokens
-      FROM usage_records
-      WHERE user_id = ?
-      GROUP BY model, source`,
-      [userId]
-    );
-
     let totalCost = 0;
-    for (const row of costByModelSource.results) {
+    for (const row of costByModelSource) {
       totalCost += computeCost(
         row.model,
         row.source,
@@ -297,9 +223,9 @@ export async function GET(request: Request) {
     }
 
     // 4. Compute achievement values
-    const activeDays = new Set(dailyUsage.results.map((r) => r.day));
+    const activeDays = new Set(dailyUsage.map((r) => r.day));
     const streak = computeStreak(activeDays, today);
-    const biggestDay = dailyUsage.results.reduce(
+    const biggestDay = dailyUsage.reduce(
       (max, r) => Math.max(max, r.total_tokens),
       0
     );
@@ -313,7 +239,7 @@ export async function GET(request: Request) {
     const seenNightOwlHours = new Set<string>();
     const seenEarlyBirdHours = new Set<string>();
 
-    for (const row of hourlyUsage.results) {
+    for (const row of hourlyUsage) {
       if (row.total_tokens > 0) {
         // Weekend warrior: count unique local weekend days
         if (isLocalWeekend(row.hour_start, tzOffset)) {
@@ -394,45 +320,40 @@ export async function GET(request: Request) {
       billionaire: usageAgg?.total_tokens ?? 0,
     };
 
-    // 5. Query earnedBy data for non-timezone-dependent achievements
+    // 5. Query earnedBy data for non-timezone-dependent achievements (skip in limit mode)
     const earnedByMap = new Map<string, EarnedByUser[]>();
     const totalEarnedMap = new Map<string, number>();
 
-    // For each non-timezone-dependent achievement, query top 5 earners
-    const socialAchievements = ACHIEVEMENT_DEFS.filter(
-      (d) => !TIMEZONE_DEPENDANT_IDS.has(d.id)
-    );
+    if (limit === null) {
+      // For each non-timezone-dependent achievement, query top 5 earners
+      const socialAchievements = ACHIEVEMENT_DEFS.filter(
+        (d) => !TIMEZONE_DEPENDANT_IDS.has(d.id)
+      );
 
-    // Helper to run earnedBy query for an achievement
-    async function queryEarnedBy(
-      def: typeof ACHIEVEMENT_DEFS[number],
-      sql: string,
-      countSql: string,
-      threshold: number
-    ) {
-      const earners = await db.query<{
-        id: string;
-        name: string | null;
-        image: string | null;
-        slug: string | null;
-        value: number;
-      }>(sql, [threshold, 5, 0]);
+      // Helper to run earnedBy query for an achievement
+      async function queryEarnedBy(
+        def: typeof ACHIEVEMENT_DEFS[number],
+        sql: string,
+        countSql: string,
+        threshold: number
+      ) {
+        const earners = await db.getAchievementEarners(def.id, sql, [threshold, 5, 0]);
 
-      const users: EarnedByUser[] = earners.results.map((r) => {
-        const { tier } = computeTierProgress(r.value, def.tiers);
-        return {
-          id: r.id,
-          name: r.name ?? "Anonymous",
-          image: r.image,
-          slug: r.slug,
-          tier: tier === "locked" ? "bronze" : tier,
-        };
-      });
+        const users: EarnedByUser[] = earners.map((r) => {
+          const { tier } = computeTierProgress(r.value, def.tiers);
+          return {
+            id: r.id,
+            name: r.name ?? "Anonymous",
+            image: r.image,
+            slug: r.slug,
+            tier: tier === "locked" ? "bronze" : tier,
+          };
+        });
 
       earnedByMap.set(def.id, users);
 
-      const countResult = await db.firstOrNull<{ count: number }>(countSql, [threshold]);
-      totalEarnedMap.set(def.id, countResult?.count ?? 0);
+      const count = await db.getAchievementEarnersCount(def.id, countSql, [threshold]);
+      totalEarnedMap.set(def.id, count);
     }
 
     for (const def of socialAchievements) {
@@ -632,9 +553,10 @@ export async function GET(request: Request) {
       }
       // big-spender, daily-burn, streak: Skip - require runtime pricing lookup or complex date logic
     }
+    } // end if (limit === null)
 
     // 6. Build response
-    const achievements: AchievementResponse[] = ACHIEVEMENT_DEFS.map((def) => {
+    let achievements: AchievementResponse[] = ACHIEVEMENT_DEFS.map((def) => {
       const currentValue = values[def.id] ?? 0;
       const { tier, progress, nextThreshold } = computeTierProgress(
         currentValue,
@@ -661,9 +583,33 @@ export async function GET(request: Request) {
       };
     });
 
-    // Compute summary
-    const totalUnlocked = achievements.filter((a) => a.tier !== "locked").length;
-    const diamondCount = achievements.filter((a) => a.tier === "diamond").length;
+    // Apply limit if specified: sort by tier (highest first), then progress, and take top N
+    if (limit !== null && limit > 0) {
+      const tierRank: Record<AchievementTier, number> = {
+        diamond: 4,
+        gold: 3,
+        silver: 2,
+        bronze: 1,
+        locked: 0,
+      };
+      achievements = [...achievements]
+        .sort((a, b) => {
+          const rankDiff = tierRank[b.tier] - tierRank[a.tier];
+          if (rankDiff !== 0) return rankDiff;
+          return b.progress - a.progress;
+        })
+        .slice(0, limit);
+    }
+
+    // Compute summary (based on full data, not limited)
+    const allAchievements = ACHIEVEMENT_DEFS.map((def) => {
+      const currentValue = values[def.id] ?? 0;
+      const { tier } = computeTierProgress(currentValue, def.tiers);
+      return { tier };
+    });
+    const totalUnlocked = allAchievements.filter((a) => a.tier !== "locked").length;
+    const diamondCount = allAchievements.filter((a) => a.tier === "diamond").length;
+    const longestStreak = computeLongestStreak(activeDays);
 
     return NextResponse.json({
       achievements,
@@ -672,6 +618,8 @@ export async function GET(request: Request) {
         totalAchievements: ACHIEVEMENT_DEFS.length,
         diamondCount,
         currentStreak: streak,
+        longestStreak,
+        activeDays: activeDays.size,
       },
     });
   } catch (err) {

@@ -359,9 +359,8 @@ describe("parseCopilotCliFile", () => {
     expect(result.deltas[0]!.model).toBe("unknown");
   });
 
-  it("uses current time fallback when created_at is missing", async () => {
+  it("skips events when created_at is missing (idempotent uploads require original timestamp)", async () => {
     const filePath = join(tempDir, "process-notime.log");
-    const before = new Date();
     const content = [
       `2026-03-16T10:40:00.959Z [INFO] [Telemetry] cli.telemetry:`,
       `{`,
@@ -383,11 +382,10 @@ describe("parseCopilotCliFile", () => {
     await writeFile(filePath, content);
 
     const result = await parseCopilotCliFile({ filePath, startOffset: 0 });
-    expect(result.deltas).toHaveLength(1);
-    // Timestamp should be a valid ISO date close to now
-    const ts = new Date(result.deltas[0]!.timestamp);
-    expect(ts.getTime()).toBeGreaterThanOrEqual(before.getTime());
-    expect(ts.getTime()).toBeLessThanOrEqual(Date.now());
+    // Event without created_at should be skipped to preserve idempotency
+    expect(result.deltas).toHaveLength(0);
+    // endOffset should still advance past the content
+    expect(result.endOffset).toBe(Buffer.byteLength(content, "utf8"));
   });
 
   it("recovers from malformed JSON and parses subsequent valid blocks", async () => {

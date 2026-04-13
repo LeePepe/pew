@@ -127,6 +127,7 @@ describe("vscodeCopilotTokenDriver", () => {
         startOffset: 0,
         requestMeta: {},
         processedRequestIndices: [],
+        processedRequestIds: new Set<string>(),
       });
     });
 
@@ -147,6 +148,7 @@ describe("vscodeCopilotTokenDriver", () => {
         startOffset: 500,
         requestMeta: meta,
         processedRequestIndices: [0],
+        processedRequestIds: new Set<string>(),
       });
     });
 
@@ -166,6 +168,7 @@ describe("vscodeCopilotTokenDriver", () => {
         startOffset: 0,
         requestMeta: {},
         processedRequestIndices: [],
+        processedRequestIds: new Set<string>(),
       });
     });
 
@@ -185,7 +188,23 @@ describe("vscodeCopilotTokenDriver", () => {
         startOffset: 0,
         requestMeta: {},
         processedRequestIndices: [],
+        processedRequestIds: new Set<string>(),
       });
+    });
+
+    it("restores processedRequestIds from cursor when inode matches", () => {
+      const cursor: VscodeCopilotCursor = {
+        inode: 100,
+        mtimeMs: 1709827200000,
+        size: 4096,
+        offset: 500,
+        processedRequestIndices: [],
+        requestMeta: {},
+        processedRequestIds: ["req_1", "req_2"],
+        updatedAt: "2026-01-01T00:00:00Z",
+      };
+      const state = vscodeCopilotTokenDriver.resumeState(cursor, fingerprint);
+      expect(state.processedRequestIds).toEqual(new Set(["req_1", "req_2"]));
     });
   });
 

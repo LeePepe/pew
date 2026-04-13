@@ -7,17 +7,26 @@ import {
   toDailyPoints,
   sourceLabel,
 } from "@/hooks/use-usage-data";
+import { useDeviceData } from "@/hooks/use-device-data";
 import { formatTokens, cn } from "@/lib/utils";
 import { usePricingMap, lookupPricing, estimateCost, formatCost } from "@/hooks/use-pricing";
 import type { PricingMap } from "@/hooks/use-pricing";
 import { UsageTrendChart } from "@/components/dashboard/usage-trend-chart";
+import { DeviceAreaChart } from "@/components/dashboard/device-area-chart";
+import { SourceAreaChart } from "@/components/dashboard/source-area-chart";
+import { ModelAreaChart } from "@/components/dashboard/model-area-chart";
+import {
+  DeviceDonutChart,
+  AgentDonutChart,
+  ModelDonutChart,
+} from "@/components/dashboard/compact-donut-charts";
+import { DashboardSegment } from "@/components/dashboard/dashboard-segment";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FilterDropdown } from "@/components/dashboard/filter-dropdown";
 import {
   groupByDate,
-  extractSources,
-  extractModels,
+  toSourceTrendPoints,
 } from "@/lib/usage-helpers";
+import { toModelEvolutionPoints } from "@/lib/model-helpers";
 import type { DailyGroup } from "@/lib/usage-helpers";
 import { getMonthRange, formatMonth, formatDate } from "@/lib/date-helpers";
 
@@ -151,59 +160,100 @@ function DayRow({ group, pricingMap }: { group: DailyGroup; pricingMap: PricingM
 // Skeleton
 // ---------------------------------------------------------------------------
 
-function DetailsSkeleton() {
+function ChartSkeleton() {
   return (
-    <div className="space-y-4">
-      <Skeleton className="h-[280px] w-full rounded-xl" />
-      <div className="rounded-xl bg-secondary p-1 overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-border">
-              <th className="px-4 py-3 text-left">
-                <Skeleton className="h-3 w-16" />
-              </th>
-              <th className="px-4 py-3 text-right">
-                <Skeleton className="h-3 w-12 ml-auto" />
-              </th>
-              <th className="px-4 py-3 text-right">
-                <Skeleton className="h-3 w-12 ml-auto" />
-              </th>
-              <th className="px-4 py-3 text-right hidden md:table-cell">
-                <Skeleton className="h-3 w-12 ml-auto" />
-              </th>
-              <th className="px-4 py-3 text-right">
-                <Skeleton className="h-3 w-12 ml-auto" />
-              </th>
-              <th className="px-4 py-3 text-right hidden sm:table-cell">
-                <Skeleton className="h-3 w-12 ml-auto" />
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {Array.from({ length: 7 }).map((_, i) => (
-              <tr key={i} className="border-b border-border/50">
-                <td className="px-4 py-3">
-                  <Skeleton className="h-4 w-28" />
-                </td>
-                <td className="px-4 py-3">
-                  <Skeleton className="h-4 w-14 ml-auto" />
-                </td>
-                <td className="px-4 py-3">
-                  <Skeleton className="h-4 w-14 ml-auto" />
-                </td>
-                <td className="px-4 py-3 hidden md:table-cell">
-                  <Skeleton className="h-4 w-14 ml-auto" />
-                </td>
-                <td className="px-4 py-3">
-                  <Skeleton className="h-4 w-14 ml-auto" />
-                </td>
-                <td className="px-4 py-3 hidden sm:table-cell">
-                  <Skeleton className="h-4 w-14 ml-auto" />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <div className="rounded-[var(--radius-card)] bg-secondary p-4 md:p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <Skeleton className="h-3 w-20" />
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-2 w-2 rounded-full" />
+          <Skeleton className="h-2 w-12" />
+        </div>
+      </div>
+      <Skeleton className="h-[200px] w-full rounded-lg" />
+    </div>
+  );
+}
+
+function DonutSkeleton() {
+  return (
+    <div className="rounded-[var(--radius-card)] bg-secondary p-3">
+      <Skeleton className="h-3 w-16 mb-2" />
+      <div className="flex items-center gap-3">
+        {/* Donut placeholder */}
+        <Skeleton className="w-[80px] h-[80px] rounded-full shrink-0" />
+        {/* Legend */}
+        <div className="flex-1 space-y-1">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <Skeleton className="h-2 w-2 rounded-full shrink-0" />
+              <Skeleton className="h-3 flex-1" />
+              <Skeleton className="h-3 w-8 shrink-0" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DailySkeleton() {
+  return (
+    <div className="grid gap-4 md:gap-6 xl:grid-cols-4">
+      {/* Left column skeleton: 4 charts + table */}
+      <div className="xl:col-span-3 space-y-4 md:space-y-6">
+        <div className="rounded-[var(--radius-card)] border border-secondary bg-background p-4 md:p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Skeleton className="h-4 w-32" />
+          </div>
+          <div className="space-y-4">
+            <ChartSkeleton />
+            <ChartSkeleton />
+            <ChartSkeleton />
+            <ChartSkeleton />
+          </div>
+          {/* Table skeleton */}
+          <div className="mt-6 rounded-xl bg-background/50 p-1 overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="px-4 py-3 text-left"><Skeleton className="h-3 w-12" /></th>
+                  <th className="px-4 py-3 text-right"><Skeleton className="h-3 w-10 ml-auto" /></th>
+                  <th className="px-4 py-3 text-right"><Skeleton className="h-3 w-10 ml-auto" /></th>
+                  <th className="px-4 py-3 text-right hidden md:table-cell"><Skeleton className="h-3 w-10 ml-auto" /></th>
+                  <th className="px-4 py-3 text-right"><Skeleton className="h-3 w-10 ml-auto" /></th>
+                  <th className="px-4 py-3 text-right hidden sm:table-cell"><Skeleton className="h-3 w-10 ml-auto" /></th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="border-b border-border/50">
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-12 ml-auto" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-12 ml-auto" /></td>
+                    <td className="px-4 py-3 hidden md:table-cell"><Skeleton className="h-4 w-12 ml-auto" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-4 w-12 ml-auto" /></td>
+                    <td className="px-4 py-3 hidden sm:table-cell"><Skeleton className="h-4 w-12 ml-auto" /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Right column skeleton: 3 donut charts */}
+      <div className="xl:col-span-1 space-y-4 md:space-y-6">
+        <div className="rounded-[var(--radius-card)] border border-secondary bg-background p-4 md:p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Skeleton className="h-4 w-32" />
+          </div>
+          <div className="space-y-4">
+            <DonutSkeleton />
+            <DonutSkeleton />
+            <DonutSkeleton />
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -213,37 +263,30 @@ function DetailsSkeleton() {
 // Page
 // ---------------------------------------------------------------------------
 
-export default function DetailsPage() {
+export default function DailyUsagePage() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
-  const [sourceFilter, setSourceFilter] = useState("");
-  const [modelFilter, setModelFilter] = useState("");
 
   const { from, to } = getMonthRange(year, month);
 
-  const { data, loading, error } = useUsageData({
-    from,
-    to,
-    ...(sourceFilter ? { source: sourceFilter } : {}),
-  });
+  const { data, loading: usageLoading, error } = useUsageData({ from, to });
+
+  // Fetch device data for the same period
+  const { data: deviceData, loading: deviceLoading } = useDeviceData({ from, to });
+
+  // Wait for all data before showing content
+  const loading = usageLoading || deviceLoading;
 
   const { pricingMap } = usePricingMap();
 
   const tzOffset = useMemo(() => new Date().getTimezoneOffset(), []);
 
-  // Filter records client-side for model filter (API only supports source filter)
-  const filteredRecords = useMemo(() => {
-    if (!data) return [];
-    if (!modelFilter) return data.records;
-    return data.records.filter((r) => r.model === modelFilter);
-  }, [data, modelFilter]);
-
+  // Daily points for the main chart (padded to full month)
   const daily = useMemo(() => {
-    const raw = toDailyPoints(filteredRecords, tzOffset);
-    // Build a map for quick lookup
+    if (!data) return [];
+    const raw = toDailyPoints(data.records, tzOffset);
     const byDate = new Map(raw.map((d) => [d.date, d]));
-    // Pad to full month: 1st to last day
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const padded: typeof raw = [];
     for (let d = 1; d <= daysInMonth; d++) {
@@ -260,21 +303,30 @@ export default function DetailsPage() {
       );
     }
     return padded;
-  }, [filteredRecords, year, month, tzOffset]);
+  }, [data, year, month, tzOffset]);
 
+  // Last day of month for chart padding
+  const lastDayOfMonth = useMemo(() => {
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    return `${year}-${String(month + 1).padStart(2, "0")}-${String(daysInMonth).padStart(2, "0")}`;
+  }, [year, month]);
+
+  // Source trend data
+  const sourceTrend = useMemo(
+    () => (data ? toSourceTrendPoints(data.records, tzOffset) : []),
+    [data, tzOffset]
+  );
+
+  // Model evolution data (without "Other" category)
+  const modelEvolution = useMemo(
+    () => (data ? toModelEvolutionPoints(data.records, 5, tzOffset, false) : []),
+    [data, tzOffset]
+  );
+
+  // Daily groups for the table
   const dailyGroups = useMemo(
-    () => groupByDate(filteredRecords, pricingMap, tzOffset),
-    [filteredRecords, pricingMap, tzOffset]
-  );
-
-  // Extract available sources/models from unfiltered data for filter dropdowns
-  const availableSources = useMemo(
-    () => (data ? extractSources(data.records) : []),
-    [data]
-  );
-  const availableModels = useMemo(
-    () => (data ? extractModels(data.records) : []),
-    [data]
+    () => (data ? groupByDate(data.records, pricingMap, tzOffset) : []),
+    [data, pricingMap, tzOffset]
   );
 
   const isCurrentMonth =
@@ -304,10 +356,11 @@ export default function DetailsPage() {
       {/* Header + month nav */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl md:text-3xl font-semibold font-display tracking-tight">Daily Usage</h1>
+          <h1 className="text-2xl md:text-3xl font-semibold font-display tracking-tight">
+            Daily Usage
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Token usage broken down by day. Click a row to see per-model
-            details.
+            Token usage for {formatMonth(year, month)}.
           </p>
         </div>
         {/* Month pagination */}
@@ -338,25 +391,6 @@ export default function DetailsPage() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <FilterDropdown
-          label="Source"
-          value={sourceFilter}
-          onChange={setSourceFilter}
-          options={availableSources.map((s) => ({
-            value: s,
-            label: sourceLabel(s),
-          }))}
-        />
-        <FilterDropdown
-          label="Model"
-          value={modelFilter}
-          onChange={setModelFilter}
-          options={availableModels.map((m) => ({ value: m, label: m }))}
-        />
-      </div>
-
       {/* Error */}
       {error && (
         <div className="rounded-[var(--radius-card)] bg-destructive/10 p-4 text-sm text-destructive">
@@ -365,49 +399,102 @@ export default function DetailsPage() {
       )}
 
       {/* Loading */}
-      {loading && <DetailsSkeleton />}
+      {loading && <DailySkeleton />}
 
       {/* Content */}
       {!loading && data && (
         <>
-          {/* Usage trend chart at top */}
-          <UsageTrendChart data={daily} />
+          {data.summary.total_tokens > 0 ? (
+            <div className="grid gap-4 md:gap-6 xl:grid-cols-4">
+              {/* Left column: Daily charts + Detail table (3/4) */}
+              <div className="xl:col-span-3 space-y-4 md:space-y-6">
+                <DashboardSegment title="Monthly Timeline">
+                  <div className="space-y-4">
+                    {/* Input / Output */}
+                    <UsageTrendChart data={daily} />
 
-          {dailyGroups.length === 0 ? (
-            <div className="rounded-[var(--radius-card)] bg-secondary p-8 text-center text-sm text-muted-foreground">
-              No usage data for {formatMonth(year, month)}.
+                    {/* By Device */}
+                    {deviceData?.timeline && deviceData?.devices && (
+                      <DeviceAreaChart
+                        timeline={deviceData.timeline}
+                        devices={deviceData.devices}
+                        padToDate={lastDayOfMonth}
+                      />
+                    )}
+
+                    {/* By Agent */}
+                    <SourceAreaChart data={sourceTrend} padToDate={lastDayOfMonth} />
+
+                    {/* By Model */}
+                    <ModelAreaChart data={modelEvolution} padToDate={lastDayOfMonth} />
+                  </div>
+
+                  {/* Per-day detail table */}
+                  {dailyGroups.length > 0 && (
+                    <div className="mt-6 rounded-xl bg-background/50 p-1 overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-border">
+                            <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
+                              Date
+                            </th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">
+                              Input
+                            </th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">
+                              Output
+                            </th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground hidden md:table-cell">
+                              Cached
+                            </th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">
+                              Total
+                            </th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground hidden sm:table-cell">
+                              Est. Cost
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dailyGroups.map((group) => (
+                            <DayRow
+                              key={group.date}
+                              group={group}
+                              pricingMap={pricingMap}
+                            />
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </DashboardSegment>
+              </div>
+
+              {/* Right column: Monthly breakdown donut charts (1/4) */}
+              <div className="xl:col-span-1 space-y-4 md:space-y-6">
+                <DashboardSegment title="Monthly Breakdown">
+                  <div className="space-y-4">
+                    {/* Device donut chart */}
+                    {deviceData?.devices && deviceData.devices.length > 0 && (
+                      <DeviceDonutChart devices={deviceData.devices} />
+                    )}
+
+                    {/* Agent donut chart */}
+                    {sourceTrend.length > 0 && (
+                      <AgentDonutChart sourceTrend={sourceTrend} />
+                    )}
+
+                    {/* Model donut chart */}
+                    {modelEvolution.length > 0 && (
+                      <ModelDonutChart modelEvolution={modelEvolution} />
+                    )}
+                  </div>
+                </DashboardSegment>
+              </div>
             </div>
           ) : (
-            <div className="rounded-xl bg-secondary p-1 overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
-                      Date
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">
-                      Input
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">
-                      Output
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground hidden md:table-cell">
-                      Cached
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">
-                      Total
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground hidden sm:table-cell">
-                      Est. Cost
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dailyGroups.map((group) => (
-                    <DayRow key={group.date} group={group} pricingMap={pricingMap} />
-                  ))}
-                </tbody>
-              </table>
+            <div className="rounded-[var(--radius-card)] bg-secondary p-8 text-center text-sm text-muted-foreground">
+              No usage data for {formatMonth(year, month)}.
             </div>
           )}
         </>

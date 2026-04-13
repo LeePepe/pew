@@ -14,6 +14,8 @@ import {
 export interface NotifyOptions extends SyncOptions {
   source: Source;
   fileHint?: string | null;
+  /** Override: Multica Codex extra session directories */
+  multicaCodexDirs?: string[];
   /** Factory for opening the OpenCode SQLite DB for sessions (DI for testability) */
   openSessionDb?: SessionSyncOptions["openSessionDb"];
   /** CLI version string for run log */
@@ -38,12 +40,15 @@ export async function executeNotify(
           deviceId: opts.deviceId,
           claudeDir: opts.claudeDir,
           codexSessionsDir: opts.codexSessionsDir,
+          multicaCodexDirs: opts.multicaCodexDirs,
           geminiDir: opts.geminiDir,
-          kosmosDataDirs: opts.kosmosDataDirs,
+          kosmosDataDir: opts.kosmosDataDir,
+          pmstudioDataDir: opts.pmstudioDataDir,
           openCodeMessageDir: opts.openCodeMessageDir,
           openCodeDbPath: opts.openCodeDbPath,
           openMessageDb: opts.openMessageDb,
           hermesDbPath: opts.hermesDbPath,
+          hermesProfileDbPaths: opts.hermesProfileDbPaths,
           openHermesDb: opts.openHermesDb,
           openclawDir: opts.openclawDir,
           piSessionsDir: opts.piSessionsDir,
@@ -54,6 +59,7 @@ export async function executeNotify(
           totalDeltas: tokenResult.totalDeltas,
           totalRecords: tokenResult.totalRecords,
           filesScanned: tokenResult.filesScanned,
+          dbsScanned: tokenResult.dbsScanned,
           sources: tokenResult.sources,
         };
       } catch (err) {
@@ -66,8 +72,10 @@ export async function executeNotify(
           stateDir: opts.stateDir,
           claudeDir: opts.claudeDir,
           codexSessionsDir: opts.codexSessionsDir,
+          multicaCodexDirs: opts.multicaCodexDirs,
           geminiDir: opts.geminiDir,
-          kosmosDataDirs: opts.kosmosDataDirs,
+          kosmosDataDir: opts.kosmosDataDir,
+          pmstudioDataDir: opts.pmstudioDataDir,
           openCodeMessageDir: opts.openCodeMessageDir,
           openCodeDbPath: opts.openCodeDbPath,
           openSessionDb: opts.openSessionDb,
@@ -78,6 +86,7 @@ export async function executeNotify(
           totalSnapshots: sessionResult.totalSnapshots,
           totalRecords: sessionResult.totalRecords,
           filesScanned: sessionResult.filesScanned,
+          dbsScanned: sessionResult.dbsScanned,
           sources: sessionResult.sources,
         };
       } catch (err) {

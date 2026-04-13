@@ -116,7 +116,7 @@ export function HourlyChart({ data, className }: HourlyChartProps) {
       )}
     >
       {/* Header */}
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Clock className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
           <p className="text-xs md:text-sm text-muted-foreground">
@@ -129,14 +129,14 @@ export function HourlyChart({ data, className }: HourlyChartProps) {
               className="h-2 w-2 rounded-full"
               style={{ background: chart.violet }}
             />
-            <span className="text-[10px] text-muted-foreground">Weekday</span>
+            <span className="text-xs text-muted-foreground">Weekday</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div
               className="h-2 w-2 rounded-full"
               style={{ background: chartMuted, opacity: 0.6 }}
             />
-            <span className="text-[10px] text-muted-foreground">Weekend</span>
+            <span className="text-xs text-muted-foreground">Weekend</span>
           </div>
         </div>
       </div>
@@ -158,14 +158,14 @@ export function HourlyChart({ data, className }: HourlyChartProps) {
             <XAxis
               dataKey="hour"
               tickFormatter={fmtHour}
-              tick={{ fill: chartAxis, fontSize: 9 }}
+              tick={{ fill: chartAxis, fontSize: 11 }}
               axisLine={false}
               tickLine={false}
               interval={2}
             />
             <YAxis
               tickFormatter={formatTokens}
-              tick={{ fill: chartAxis, fontSize: 10 }}
+              tick={{ fill: chartAxis, fontSize: 11 }}
               axisLine={false}
               tickLine={false}
               width={48}

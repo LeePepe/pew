@@ -9,12 +9,14 @@ import { executeSync } from "./commands/sync.js";
 import { executeSessionSync } from "./commands/session-sync.js";
 import { executeStatus } from "./commands/status.js";
 import { executeLogin, resolveHost } from "./commands/login.js";
+import { executeLogout } from "./commands/logout.js";
 import { executeUpload } from "./commands/upload.js";
 import { executeSessionUpload } from "./commands/session-upload.js";
 import { executeNotify } from "./commands/notify.js";
 import { executeInit } from "./commands/init.js";
 import { executeUninstall } from "./commands/uninstall.js";
 import { executeReset } from "./commands/reset.js";
+import { isSSHSession } from "./utils/ssh.js";
 import { executeUpdate } from "./commands/update.js";
 import { resolveNotifierPaths } from "./notifier/paths.js";
 import { statusAll } from "./notifier/registry.js";
@@ -48,6 +50,7 @@ function isSource(value: string): value is Source {
     "opencode",
     "openclaw",
     "pi",
+    "pmstudio",
     "vscode-copilot",
     "copilot-cli",
     "hermes",
@@ -139,6 +142,59 @@ function logSessionSyncProgress(event: {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Scanned summary formatter — builds a compact "Scanned: ..." line
+// showing both file-based and DB-based source counts.
+// ---------------------------------------------------------------------------
+
+/** Display name mapping for source keys */
+const SOURCE_LABELS: Record<string, string> = {
+  claude: "Claude",
+  codex: "Codex",
+  gemini: "Gemini",
+  kosmos: "Kosmos",
+  opencode: "OpenCode",
+  openclaw: "OpenClaw",
+  pi: "Pi",
+  pmstudio: "PM Studio",
+  vscodeCopilot: "VSCode Copilot",
+  copilotCli: "Copilot CLI",
+  hermes: "Hermes",
+};
+
+/**
+ * Format a unified "Scanned:" line combining file counts and DB counts.
+ * File-based sources show just the number, DB-based sources show "N db(s)".
+ * Sources with 0 files AND 0 dbs are omitted.
+ */
+function formatScannedLine(
+  filesScanned: Record<string, number>,
+  dbsScanned?: Record<string, number>,
+): string {
+  const parts: string[] = [];
+
+  // Collect all unique source keys (union of files + dbs)
+  const allKeys = new Set([
+    ...Object.keys(filesScanned),
+    ...Object.keys(dbsScanned ?? {}),
+  ]);
+
+  for (const key of allKeys) {
+    const fileCount = filesScanned[key] ?? 0;
+    const dbCount = dbsScanned?.[key] ?? 0;
+    if (fileCount === 0 && dbCount === 0) continue;
+
+    const label = SOURCE_LABELS[key] ?? key;
+    const segments: string[] = [];
+    if (fileCount > 0) segments.push(String(fileCount));
+    if (dbCount > 0) segments.push(`${dbCount} db${dbCount > 1 ? "s" : ""}`);
+    parts.push(`${label}: ${segments.join(" + ")}`);
+  }
+
+  if (parts.length === 0) return pc.dim("Scanned: (none)");
+  return `Scanned: ${pc.dim(parts.join("  "))}`;
+}
+
 const syncCommand = defineCommand({
   meta: {
     name: "sync",
@@ -158,7 +214,7 @@ const syncCommand = defineCommand({
   },
   async run({ args }) {
     const paths = resolveDefaultPaths();
-    log.start("Syncing token usage from AI coding tools...");
+    log.start("Syncing token usage...");
     log.blank();
 
     // Dynamic import: opencode-sqlite-db.ts uses platform SQLite bindings
@@ -189,12 +245,15 @@ const syncCommand = defineCommand({
       deviceId,
       claudeDir: paths.claudeDir,
       codexSessionsDir: paths.codexSessionsDir,
+      multicaCodexDirs: paths.multicaCodexDirs,
       geminiDir: paths.geminiDir,
-      kosmosDataDirs: paths.kosmosDataDirs,
+      kosmosDataDir: paths.kosmosDataDir,
+      pmstudioDataDir: paths.pmstudioDataDir,
       openCodeMessageDir: paths.openCodeMessageDir,
       openCodeDbPath: paths.openCodeDbPath,
       openMessageDb,
       hermesDbPath: paths.hermesDbPath,
+      hermesProfileDbPaths: paths.hermesProfileDbPaths,
       openHermesDb,
       openclawDir: paths.openclawDir,
       piSessionsDir: paths.piSessionsDir,
@@ -223,42 +282,32 @@ const syncCommand = defineCommand({
       if (result.sources.opencode > 0) deltaParts.push(`OpenCode: ${result.sources.opencode}`);
       if (result.sources.openclaw > 0) deltaParts.push(`OpenClaw: ${result.sources.openclaw}`);
       if (result.sources.pi > 0) deltaParts.push(`Pi: ${result.sources.pi}`);
+      if (result.sources.pmstudio > 0) deltaParts.push(`PM Studio: ${result.sources.pmstudio}`);
       if (result.sources.vscodeCopilot > 0) deltaParts.push(`VSCode Copilot: ${result.sources.vscodeCopilot}`);
       if (result.sources.copilotCli > 0) deltaParts.push(`Copilot CLI: ${result.sources.copilotCli}`);
       if (result.sources.hermes > 0) deltaParts.push(`Hermes: ${result.sources.hermes}`);
       if (deltaParts.length > 0) {
-        log.text(pc.dim(deltaParts.join("  |  ")));
+        log.text(pc.dim(deltaParts.join("  ")));
       }
     }
 
-    // Always show files scanned
-    const fs = result.filesScanned;
-    const scanParts: string[] = [];
-    if (fs.claude > 0) scanParts.push(`Claude: ${fs.claude}`);
-    if (fs.codex > 0) scanParts.push(`Codex: ${fs.codex}`);
-    if (fs.gemini > 0) scanParts.push(`Gemini: ${fs.gemini}`);
-    if (fs.kosmos > 0) scanParts.push(`Kosmos: ${fs.kosmos}`);
-    if (fs.opencode > 0) scanParts.push(`OpenCode: ${fs.opencode}`);
-    if (fs.openclaw > 0) scanParts.push(`OpenClaw: ${fs.openclaw}`);
-    if (fs.pi > 0) scanParts.push(`Pi: ${fs.pi}`);
-    if (fs.vscodeCopilot > 0) scanParts.push(`VSCode Copilot: ${fs.vscodeCopilot}`);
-    if (fs.copilotCli > 0) scanParts.push(`Copilot CLI: ${fs.copilotCli}`);
-    if (fs.hermes > 0) scanParts.push(`Hermes: ${fs.hermes}`);
-    if (scanParts.length > 0) {
-      log.text(`Files scanned: ${pc.dim(scanParts.join("  |  "))}`);
-    }
+    // Always show scanned summary (files + dbs on one line)
+    log.text(formatScannedLine(result.filesScanned, result.dbsScanned));
 
     // ---------- Session sync ----------
     log.blank();
-    log.start("Syncing session statistics...");
+    log.start("Syncing sessions...");
     log.blank();
 
     const sessionResult = await executeSessionSync({
       stateDir: paths.stateDir,
       claudeDir: paths.claudeDir,
       codexSessionsDir: paths.codexSessionsDir,
+      multicaCodexDirs: paths.multicaCodexDirs,
+      copilotCliLogsDir: paths.copilotCliLogsDir,
       geminiDir: paths.geminiDir,
-      kosmosDataDirs: paths.kosmosDataDirs,
+      kosmosDataDir: paths.kosmosDataDir,
+      pmstudioDataDir: paths.pmstudioDataDir,
       openCodeMessageDir: paths.openCodeMessageDir,
       openCodeDbPath: paths.openCodeDbPath,
       openSessionDb,
@@ -281,29 +330,20 @@ const syncCommand = defineCommand({
       const sessParts: string[] = [];
       if (sessionResult.sources.claude > 0) sessParts.push(`Claude: ${sessionResult.sources.claude}`);
       if (sessionResult.sources.codex > 0) sessParts.push(`Codex: ${sessionResult.sources.codex}`);
+      if (sessionResult.sources.copilotCli > 0) sessParts.push(`Copilot CLI: ${sessionResult.sources.copilotCli}`);
       if (sessionResult.sources.gemini > 0) sessParts.push(`Gemini: ${sessionResult.sources.gemini}`);
       if (sessionResult.sources.kosmos > 0) sessParts.push(`Kosmos: ${sessionResult.sources.kosmos}`);
       if (sessionResult.sources.opencode > 0) sessParts.push(`OpenCode: ${sessionResult.sources.opencode}`);
       if (sessionResult.sources.openclaw > 0) sessParts.push(`OpenClaw: ${sessionResult.sources.openclaw}`);
       if (sessionResult.sources.pi > 0) sessParts.push(`Pi: ${sessionResult.sources.pi}`);
+      if (sessionResult.sources.pmstudio > 0) sessParts.push(`PM Studio: ${sessionResult.sources.pmstudio}`);
       if (sessParts.length > 0) {
-        log.text(pc.dim(sessParts.join("  |  ")));
+        log.text(pc.dim(sessParts.join("  ")));
       }
     }
 
-    // Always show session files scanned
-    const sfs = sessionResult.filesScanned;
-    const sessScanParts: string[] = [];
-    if (sfs.claude > 0) sessScanParts.push(`Claude: ${sfs.claude}`);
-    if (sfs.codex > 0) sessScanParts.push(`Codex: ${sfs.codex}`);
-    if (sfs.gemini > 0) sessScanParts.push(`Gemini: ${sfs.gemini}`);
-    if (sfs.kosmos > 0) sessScanParts.push(`Kosmos: ${sfs.kosmos}`);
-    if (sfs.opencode > 0) sessScanParts.push(`OpenCode: ${sfs.opencode}`);
-    if (sfs.openclaw > 0) sessScanParts.push(`OpenClaw: ${sfs.openclaw}`);
-    if (sfs.pi > 0) sessScanParts.push(`Pi: ${sfs.pi}`);
-    if (sessScanParts.length > 0) {
-      log.text(`Files scanned: ${pc.dim(sessScanParts.join("  |  "))}`);
-    }
+    // Always show scanned summary (files + dbs on one line)
+    log.text(formatScannedLine(sessionResult.filesScanned, sessionResult.dbsScanned));
 
     // Auto-upload if logged in
     if (args.upload) {
@@ -330,12 +370,14 @@ const statusCommand = defineCommand({
         claudeDir: paths.claudeDir,
         codexSessionsDir: paths.codexSessionsDir,
         geminiDir: paths.geminiDir,
-        kosmosDataDirs: paths.kosmosDataDirs,
+        kosmosDataDir: paths.kosmosDataDir,
+      pmstudioDataDir: paths.pmstudioDataDir,
         openCodeMessageDir: paths.openCodeMessageDir,
         openclawDir: paths.openclawDir,
         piSessionsDir: paths.piSessionsDir,
         vscodeCopilotDirs: paths.vscodeCopilotDirs,
         copilotCliLogsDir: paths.copilotCliLogsDir,
+        multicaCodexDirs: paths.multicaCodexDirs,
       },
       notifierStatuses,
       onCorruptLine: handleCorruptLine,
@@ -379,6 +421,75 @@ const statusCommand = defineCommand({
   },
 });
 
+// ---------------------------------------------------------------------------
+// SSH/headless detection helpers for login
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a headless-aware openBrowser wrapper.
+ *
+ * - SSH session: skip the browser attempt entirely, print the login URL and
+ *   `--code` instructions, then throw so cli-base still waits for the timeout
+ *   (port-forwarding power users can still use the URL).
+ * - Non-SSH browser failure: add a `--code` hint beneath the URL that
+ *   cli-base already printed.
+ */
+function buildOpenBrowserFn(
+  host: string,
+  env: NodeJS.ProcessEnv = process.env,
+): (url: string) => Promise<void> {
+  const ssh = isSSHSession(env);
+
+  return async (url: string) => {
+    if (ssh) {
+      // Print the URL (in lieu of opening a browser)
+      log.text(`  ${pc.dim(url)}`);
+      log.blank();
+      // Print actionable SSH guidance
+      log.text(pc.bold("SSH session detected — browser login is unavailable."));
+      log.blank();
+      log.text(pc.bold("Recommended: use the one-time code flow"));
+      log.text(`  1. Open ${pc.cyan(host + "/manage-devices")} in your local browser`);
+      log.text(`  2. Click ${pc.bold("CLI Login Code")} to generate a code`);
+      log.text(`  3. Run: ${pc.cyan("pew login --code XXXX-XXXX")}`);
+      log.blank();
+      log.text(pc.dim("Alternative — SSH port forwarding:"));
+      // Extract port from the callback URL so we can show the exact command
+      try {
+        const cb = new URL(new URL(url).searchParams.get("callback") ?? "");
+        const port = cb.port;
+        log.text(pc.dim(`  ssh -L ${port}:localhost:${port} user@host`));
+        log.text(pc.dim("  Then open the URL above in your local browser."));
+      } catch {
+        log.text(pc.dim("  Forward the callback port with: ssh -L PORT:localhost:PORT user@host"));
+      }
+      log.blank();
+      // Throw so cli-base does NOT additionally try to open a browser and shows
+      // "Could not open browser" — we already displayed everything useful.
+      throw new Error("SSH session — browser unavailable");
+    }
+
+    // Non-SSH: attempt real browser open
+    try {
+      await openBrowser(url);
+    } catch (err) {
+      // cli-base will print "Could not open browser. Open this URL manually: ..."
+      // We append the --code hint after it resolves
+      // Note: cli-base's log callback runs synchronously before the timeout, so
+      // printing here may appear before cli-base's message. We add a small guard.
+      setTimeout(() => {
+        log.blank();
+        log.text(pc.bold("Tip: On a headless server? Use the code flow instead:"));
+        log.text(`  1. Open ${pc.cyan(host + "/manage-devices")} in your browser`);
+        log.text(`  2. Click ${pc.bold("CLI Login Code")} to generate a code`);
+        log.text(`  3. Run: ${pc.cyan("pew login --code XXXX-XXXX")}`);
+        log.blank();
+      }, 50);
+      throw err;
+    }
+  };
+}
+
 const loginCommand = defineCommand({
   meta: {
     name: "login",
@@ -408,17 +519,26 @@ const loginCommand = defineCommand({
 
     if (args.code) {
       log.start("Verifying authentication code...");
+    } else if (isSSHSession()) {
+      log.start("SSH session detected — preparing headless login...");
     } else {
       log.start("Opening browser for authentication...");
     }
+
+    // In SSH mode, suppress cli-base's "Could not open browser" fallback message
+    // since buildOpenBrowserFn already printed more helpful SSH guidance.
+    const loginLog = isSSHSession()
+      ? (msg: string) => { if (!msg.startsWith("Could not open browser")) console.log(msg); }
+      : undefined;
 
     const result = await executeLogin({
       configDir: paths.stateDir,
       apiUrl: host,
       dev,
       force: args.force,
-      openBrowser,
+      openBrowser: buildOpenBrowserFn(host),
       code: args.code,
+      log: loginLog,
     });
 
     if (result.alreadyLoggedIn) {
@@ -437,6 +557,41 @@ const loginCommand = defineCommand({
       );
     } else {
       log.error(`Login failed: ${result.error}`);
+      process.exitCode = 1;
+    }
+  },
+});
+
+const logoutCommand = defineCommand({
+  meta: {
+    name: "logout",
+    description: "Disconnect your CLI from the pew dashboard",
+  },
+  args: {
+    dev: {
+      type: "boolean",
+      description: "Use the dev host (pew.dev.hexly.ai)",
+      default: false,
+    },
+  },
+  async run() {
+    const paths = resolveDefaultPaths();
+    const dev = isDevMode();
+
+    const result = await executeLogout({
+      configDir: paths.stateDir,
+      dev,
+    });
+
+    if (result.alreadyLoggedOut) {
+      log.info("Not logged in.");
+      return;
+    }
+
+    if (result.success) {
+      log.success("Logged out successfully.");
+    } else {
+      log.error(`Logout failed: ${result.error}`);
       process.exitCode = 1;
     }
   },
@@ -498,12 +653,15 @@ const notifyCommand = defineCommand({
       deviceId: notifyDeviceId,
       claudeDir: paths.claudeDir,
       codexSessionsDir: paths.codexSessionsDir,
+      multicaCodexDirs: paths.multicaCodexDirs,
       geminiDir: paths.geminiDir,
-      kosmosDataDirs: paths.kosmosDataDirs,
+      kosmosDataDir: paths.kosmosDataDir,
+      pmstudioDataDir: paths.pmstudioDataDir,
       openCodeMessageDir: paths.openCodeMessageDir,
       openCodeDbPath: paths.openCodeDbPath,
       openMessageDb: openMessageDb2,
       hermesDbPath: paths.hermesDbPath,
+      hermesProfileDbPaths: paths.hermesProfileDbPaths,
       openHermesDb: openHermesDb2,
       openSessionDb: openSessionDb2,
       openclawDir: paths.openclawDir,
@@ -637,7 +795,7 @@ const uninstallCommand = defineCommand({
 
 async function runUpload(stateDir: string, apiUrl: string, dev: boolean): Promise<void> {
   log.blank();
-  log.start("Uploading tokens to dashboard...");
+  log.start("Uploading tokens...");
 
   const uploadResult = await executeUpload({
     stateDir,
@@ -679,7 +837,7 @@ async function runUpload(stateDir: string, apiUrl: string, dev: boolean): Promis
 
 async function runSessionUpload(stateDir: string, apiUrl: string, dev: boolean): Promise<void> {
   log.blank();
-  log.start("Uploading sessions to dashboard...");
+  log.start("Uploading sessions...");
 
   const uploadResult = await executeSessionUpload({
     stateDir,
@@ -782,6 +940,7 @@ export const main = defineCommand({
     sync: syncCommand,
     status: statusCommand,
     login: loginCommand,
+    logout: logoutCommand,
     notify: notifyCommand,
     init: initCommand,
     uninstall: uninstallCommand,

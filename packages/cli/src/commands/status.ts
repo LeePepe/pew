@@ -8,12 +8,14 @@ export interface SourceDirs {
   claudeDir: string;
   codexSessionsDir: string;
   geminiDir: string;
-  kosmosDataDirs: string[];
+  kosmosDataDir: string;
+  pmstudioDataDir: string;
   openCodeMessageDir: string;
   openclawDir: string;
   piSessionsDir: string;
   vscodeCopilotDirs: string[];
   copilotCliLogsDir: string;
+  multicaCodexDirs: string[];
 }
 
 /** Status summary for display */
@@ -39,10 +41,13 @@ export interface StatusResult {
 function classifySource(filePath: string, dirs: SourceDirs): string {
   if (filePath.startsWith(dirs.claudeDir)) return "claude-code";
   if (filePath.startsWith(dirs.codexSessionsDir)) return "codex";
-  if (filePath.startsWith(dirs.geminiDir)) return "gemini-cli";
-  for (const dir of dirs.kosmosDataDirs) {
-    if (filePath.startsWith(dir)) return "kosmos";
+  // Multica Codex extra dirs
+  for (const dir of dirs.multicaCodexDirs) {
+    if (filePath.startsWith(dir)) return "codex";
   }
+  if (filePath.startsWith(dirs.geminiDir)) return "gemini-cli";
+  if (filePath.startsWith(dirs.kosmosDataDir)) return "kosmos";
+  if (filePath.startsWith(dirs.pmstudioDataDir)) return "pmstudio";
   if (filePath.startsWith(dirs.openCodeMessageDir)) return "opencode";
   if (filePath.startsWith(dirs.openclawDir)) return "openclaw";
   if (filePath.startsWith(dirs.piSessionsDir)) return "pi";

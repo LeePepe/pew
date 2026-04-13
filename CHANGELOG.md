@@ -1,5 +1,680 @@
 # Changelog
 
+## v2.20.3
+
+### Added
+- Add logout command
+- Add season-helpers module for time boundary consistency
+
+### Changed
+- Extract shared status config
+- Rename to .ts and fix hydration flash
+- Eliminate redundant fetches and eager mounts
+- Extract shared page shell and scope hook
+- Update subcommand count for logout command
+
+### Fixed
+- Improve pew login UX for SSH/headless sessions
+- Inline tzOffset in compare route GROUP BY clause
+- Inline tzOffset in GROUP BY clause
+- Pass tzOffset to admin compare API
+- Expand E2E cleanup to cover all FK-dependent tables
+- Apply tzOffset to admin usage compare route
+- Apply tzOffset to day-granularity SQL for correct local date bucketing
+- Assorted consistency cleanups
+- Add AbortController to 8 data-fetching hooks
+- Count cacheRead+cacheWrite in inputTokens
+- Restore keyboard accessibility for achievement avatars
+- Check response.ok before marking orgs as loaded
+- Eliminate render-time setState in logo components
+- Use consistent end-time boundary across season surfaces
+- Reset scope on sign-out and prevent API failure from wiping saved scope
+- Achievements page bugs - profile key, nested interactive, empty states
+- Resolve stale closure in useSeasons and useSeasonLeaderboard
+
+### Removed
+- Remove unused season-helper exports
+
+## v2.20.2
+
+### Added
+- Add summary cards and fix table header in Storage page
+
+### Changed
+- Ignore .claude directory
+- Redesign Storage page with two-column layout
+- Split Compare Users into selection + result pages
+- Add CI monitoring reminder after release
+- Add railway up bypass warning to retrospective
+
+### Fixed
+- Improve Compare Users validation and accessibility
+- Add Medal and GitCompareArrows icons to sidebar icon map
+- Storage page color hierarchy and scroll behavior
+- Improve Compare Users checkbox with purple checkmark
+- Add lockfile sync check to pre-commit (G0 gate)
+- Add @pew/core dependency for type imports
+
+## v2.20.1
+
+### Added
+- Display badges on user profiles
+- Integrate badges into leaderboard
+- Add admin badges management page
+- Add admin badges API routes
+- Add badge icon component
+- Add badges domain RPC handlers
+- Add badge system type definitions
+- Add badges and badge_assignments tables
+
+### Changed
+- Update badge-icon tests for shape→icon rename
+- Refine badge icon design and limit text to 3 chars
+- Rename shape to icon, upgrade to CSS-based design
+- Mark badge system phases 1-3 as complete
+- Sync all privacy references to canBypassPublic model
+- Badge API uses canBypassPublic() like profile route
+- Four-state assignment model for clean audit semantics
+- Clean up assignment states and privacy semantics
+- Clarify immutability and unique constraint semantics
+- Fix badge system design issues
+- Add badge system design (doc 39)
+
+### Fixed
+- Restore full session listing in sessions page
+- Restore full invite code listing in admin page
+- Sync cleared status type across db abstraction layer
+- Add cleared status filter for badge assignments
+- Profile popup shows fresh badges, revoke dialog collects reason
+
+## v2.20.0
+
+### Added
+- Add KV cache management UI to admin storage page
+- Add cache.* RPC domain for admin management
+- Cache leaderboard.getGlobal for public requests
+- Cache seasons.list and getSnapshots
+- Cache pricing.listModelPricing with 24h TTL
+- Add KV cache helper with tests
+- Add test KV namespace binding
+- Add user profile dialog on username click
+
+### Changed
+- Complete KV cache implementation retrospective
+- Mark KV cache steps 10-11 complete
+- Add Cloudflare KV cache design (doc 38)
+
+## v2.19.1
+
+### Added
+- Add user profile dialog on username click
+
+### Changed
+- Add Cloudflare KV cache design (doc 38)
+
+## v2.19.0
+
+### Added
+- Daily Usage left stacked area charts, right donut charts
+- Add 4 timeline charts to Hourly Usage left column
+
+### Changed
+- Redesign Daily Usage page with 2-column layout
+- Re-enable animation for first 3 timeline charts
+- Fix Hourly Usage page animation jank
+- Hourly Usage page to 2-column layout (3:1)
+
+## v2.18.8
+
+### Added
+- Add copilot-cli session driver for session counting
+
+## v2.18.7
+
+### Fixed
+- Make hermes and copilot-cli token uploads idempotent
+
+## v2.18.6
+
+### Added
+- Reorder period selector, default to This Week
+
+### Changed
+- Restore period selector order and default to All Time
+- Fix StatCard side layout text overlap
+- Unify footer text size across hero cards
+- Align hero card headers with fixed h-14 height
+- Align hero card footers with fixed height
+- Align hero card headers with h-7 placeholder
+- Unify hero cards spacing and typography
+
+### Fixed
+- Show forecast cards for all periods
+- TopAchievement max 2 rows (6 items on lg, 4 on sm)
+- TopAchievement responsive grid with 4 rows max
+- Limit TopAchievement grid to 2 columns max
+- Improve TopAchievement readability on medium screens
+- Update LeaderboardSkeleton to match row structure
+- Update DashboardSkeleton to match current page structure
+
+### Removed
+- Remove interactive confirmation prompt
+
+## v2.18.5
+
+### Changed
+- Trigger workflow to test 6DQ secrets configuration
+- Add full 6DQ quality gate coverage
+- Add members route error handling coverage
+- Add join route error handling coverage
+- Add leave route error handling coverage
+- Add mine route error handling coverage
+- Cover private profile bypass paths
+- Extend profile route coverage
+- Add logo route coverage
+- Add preview route coverage
+- Add route coverage
+- Restore unrelated hook changes
+- Add route edge-case coverage
+
+### Fixed
+- Fix Hermes profile discovery and Multica Codex status classification (#53)
+- Hide scope dropdown on small screens in leaderboard pages
+- Make leaderboard nav tabs horizontally scrollable on mobile
+- Prevent double chart animation on hourly-usage page
+- Correct gitleaks-action SHA
+
+### Removed
+- Remove L3 Playwright job (tests need fixing)
+- Drop unrelated hook-generated tests
+
+## v2.18.4
+
+### Changed
+- Trigger workflow to test 6DQ secrets configuration
+- Add full 6DQ quality gate coverage
+- Add members route error handling coverage
+- Add join route error handling coverage
+- Add leave route error handling coverage
+- Add mine route error handling coverage
+- Cover private profile bypass paths
+- Extend profile route coverage
+- Add logo route coverage
+- Add preview route coverage
+- Add route coverage
+- Restore unrelated hook changes
+- Add route edge-case coverage
+
+### Fixed
+- Fix Hermes profile discovery and Multica Codex status classification (#53)
+- Hide scope dropdown on small screens in leaderboard pages
+- Make leaderboard nav tabs horizontally scrollable on mobile
+- Prevent double chart animation on hourly-usage page
+- Correct gitleaks-action SHA
+
+### Removed
+- Remove L3 Playwright job (tests need fixing)
+- Drop unrelated hook-generated tests
+
+## v2.18.3
+
+### Added
+- Add centralized chart config constants
+
+### Changed
+- Add retrospective for CLI build before npm publish
+
+### Fixed
+- Align showcase-card border radius with design system
+- Unify header margin to mb-4 in hourly-chart
+- Unify legend text size to text-xs across charts
+- Unify chart axis fontSize to 11 across all components
+
+## v2.18.2
+
+## v2.18.1
+
+### Added
+- Support Multica Codex extra session dirs in discovery
+- Add view mode selector to 30-min usage chart
+- Add hourly pattern charts to Hourly Usage page
+- Add hourly chart components for device, model, and agent breakdowns
+- Add hourly aggregation helpers for device, model, and agent breakdowns
+
+### Changed
+- Extract fmtHour to shared date-helpers
+- Add tests for hourly aggregation helpers
+
+### Fixed
+- Upgrade Next.js to 16.2.3 for security fix
+- Limit Hourly By Device chart to 50% width
+- Add spacing between dropdown menu options
+- Reduce dropdown menu gap in agent/model selectors
+
+## v2.18.0
+
+### Added
+- Add Models leaderboard page
+- Add Agents leaderboard page
+- Add Agents and Models tabs to leaderboard nav
+- Add source/model options to useLeaderboard hook
+- Pipe source/model filters through db layer and API route
+- Add source/model filters to global leaderboard RPC
+- Add trend charts and section dividers to devices page
+- Add DeviceModelTrendChart component
+- Add DeviceAgentTrendChart component
+- Add deviceId filter to usage API route and hook
+- Add deviceId to DB abstraction and worker adapter
+- Add deviceId filter to usage.get RPC
+- Add agent × model drill-down charts to By Devices page
+
+### Changed
+- Add technical spec for leaderboard Agents & Models tabs
+- Extract shared leaderboard components (ScopeDropdown, LeaderboardRow, PeriodTabs)
+- Add leaderboard API tests for source/model params and cache policy
+- Add tests for leaderboard.getGlobal and getUserSessionStats filters
+- Add retro for worker-read RPC deploy requirement
+
+### Fixed
+- Update Models leaderboard dropdown to reflect actual usage
+- Make agent/model selection derive from URL, not local state
+
+## v2.17.0
+
+### Added
+- Add Models leaderboard page
+- Add Agents leaderboard page
+- Add Agents and Models tabs to leaderboard nav
+- Add source/model options to useLeaderboard hook
+- Pipe source/model filters through db layer and API route
+- Add source/model filters to global leaderboard RPC
+- Add trend charts and section dividers to devices page
+- Add DeviceModelTrendChart component
+- Add DeviceAgentTrendChart component
+- Add deviceId filter to usage API route and hook
+- Add deviceId to DB abstraction and worker adapter
+- Add deviceId filter to usage.get RPC
+- Add agent × model drill-down charts to By Devices page
+
+### Changed
+- Add technical spec for leaderboard Agents & Models tabs
+- Extract shared leaderboard components (ScopeDropdown, LeaderboardRow, PeriodTabs)
+- Add leaderboard API tests for source/model params and cache policy
+- Add tests for leaderboard.getGlobal and getUserSessionStats filters
+- Add retro for worker-read RPC deploy requirement
+
+### Fixed
+- Update Models leaderboard dropdown to reflect actual usage
+- Make agent/model selection derive from URL, not local state
+
+## v2.16.4
+
+### Added
+- Use in-page dialog for leaderboard user profiles
+
+### Changed
+- Unify profile content into shared ProfileContent component
+
+### Fixed
+- Widen profile dialog to match leaderboard and pass active tab
+
+## v2.16.3
+
+### Added
+- Use in-page dialog for leaderboard user profiles
+
+### Changed
+- Unify profile content into shared ProfileContent component
+
+### Fixed
+- Widen profile dialog to match leaderboard and pass active tab
+
+## v2.16.2
+
+### Added
+- Add Goal Tracker heatmap card
+- Add longestStreak and activeDays to achievements summary
+- Upgrade projects RPC with full session stats
+
+### Changed
+- Update supported tools list to 11 sources (add PM Studio)
+- Split Activity and Achievements into two cards
+- Undo 3-row Overview split, keep card style changes
+- Undo Overview card layout changes
+- Split Overview into 3 rows with hero metrics
+- Adjust Overview card layout
+- Add limit mode and parallelize RPC queries
+- Reorganize Overview card layout
+- Update worker-read migration progress
+- Migrate api/projects from raw SQL to RPC
+- Sync ProjectAliasStatsRow with worker-read
+
+### Fixed
+- Remove default accent bar, fix divider position
+
+## v2.16.1
+
+### Added
+- Add Goal Tracker heatmap card
+- Add longestStreak and activeDays to achievements summary
+- Upgrade projects RPC with full session stats
+
+### Changed
+- Update supported tools list to 11 sources (add PM Studio)
+- Split Activity and Achievements into two cards
+- Undo 3-row Overview split, keep card style changes
+- Undo Overview card layout changes
+- Split Overview into 3 rows with hero metrics
+- Adjust Overview card layout
+- Add limit mode and parallelize RPC queries
+- Reorganize Overview card layout
+- Update worker-read migration progress
+- Migrate api/projects from raw SQL to RPC
+- Sync ProjectAliasStatsRow with worker-read
+
+### Fixed
+- Remove default accent bar, fix divider position
+
+## v2.16.0
+
+### Added
+- Split kosmos into kosmos + pmstudio as separate sources (#48)
+- Split kosmos into kosmos + pmstudio as separate sources
+- Support v3 JSON session format (#42)
+- Add admin compare users page
+- Add admin usage compare API endpoint
+
+### Fixed
+- Only mark request as processed after successful delta
+- Pass hermesProfileDbPaths through notify command
+- Prevent token inflation on v3 incremental sync
+- Add missing db source counts and clean up sync output (#47)
+- Support hermes multi-profile token syncing (#45)
+- Avoid non-null assertion in compare route
+
+## v2.15.0
+
+### Added
+- Split kosmos into kosmos + pmstudio as separate sources (#48)
+- Split kosmos into kosmos + pmstudio as separate sources
+- Support v3 JSON session format (#42)
+- Add admin compare users page
+- Add admin usage compare API endpoint
+
+### Fixed
+- Only mark request as processed after successful delta
+- Pass hermesProfileDbPaths through notify command
+- Prevent token inflation on v3 incremental sync
+- Add missing db source counts and clean up sync output (#47)
+- Support hermes multi-profile token syncing (#45)
+- Avoid non-null assertion in compare route
+
+## v2.14.1
+
+## v2.14.0
+
+### Added
+- Implement server-side pagination for leaderboard
+- Migrate /api/seasons/[seasonId]/leaderboard to RPC
+- Migrate /api/achievements/[id]/members to RPC
+- Migrate Projects domain to typed RPC methods
+- Migrate Organizations admin routes to typed RPC (Batch 8)
+- Migrate Settings domain to typed RPC methods (Batch 7)
+- Migrate Auth domain to typed RPC methods (Batch 6)
+- Migrate Devices domain to typed RPC methods (Batch 5)
+- Migrate Showcases domain to typed RPC methods (Batch 4)
+- Migrate Teams domain to typed RPC methods (Batch 1)
+- Add unified ChartTooltip component for Recharts
+- Add organizations RPC methods for member count and admin
+- Add Organizations + Showcases + Teams RPC to DbRead interface
+- Add P3 RPC handlers for pricing, admin, live
+- Add P2 RPC handlers for organizations, showcases, settings, auth, sessions, leaderboard
+- Add seasons, usage, achievements, devices RPC handlers
+- Add projects and teams RPC handlers
+- Migrate users domain to typed RPC
+- Add GitHub issue link for org requests on settings page
+- Add week-over-week comparison and disambiguate period labels
+- Add Kosmos / PM Studio as 10th source for token + session tracking
+
+### Changed
+- Consolidate leaderboard pagination state into hook
+- Main into feature/phase2-rpc-handlers
+- Use batch size 20 to match frontend page size
+- Fix test assertions and improve coverage
+- Update worker-read migration progress with Phase 5 tracking
+- Migrate /api/leaderboard to RPC
+- Migrate /api/users/[slug]/achievements to RPC
+- Migrate /api/achievements to RPC
+- Migrate /api/admin/storage to RPC
+- Migrate /api/users/[slug] to RPC
+- Migrate /api/sessions to RPC
+- Migrate /api/usage to RPC
+- Migrate by-device queries to RPC
+- Migrate pricing query to listModelPricing RPC
+- Migrate timeline query to RPC
+- Migrate db.query to db.ping() RPC
+- Migrate pricing and seasons list routes to typed RPC
+- Migrate Users domain routes to typed RPC (Batch 2)
+- Migrate Auth & Seasons remaining routes to typed RPC
+- Migrate Seasons domain to typed RPC (Batch 3)
+- Migrate admin/pricing to typed RPC methods
+- Reorganize Phase 3 migration to batch approach
+- Migrate all chart tooltips to unified ChartTooltip
+- Migrate admin/pricing GET to listModelPricing RPC
+- Migrate auth/cli to getUserApiKey RPC
+- Migrate admin/check to getUserEmail RPC
+- Migrate admin/users to searchUsers RPC
+- Update Radix Tooltip to match chart tooltip style
+- Migrate organizations list to listOrganizationsWithCount RPC
+- Migrate organizations/mine to listUserOrganizations RPC
+- Migrate organizations/leave to RPC methods
+- Migrate organizations/join to RPC methods
+- Update Phase 3 migration progress (M023,M027,M029-M031,M084-M085)
+- Update Phase 3 migration checklist progress
+- M023+M027+M031 migrate membership checks to RPC
+- M030 migrate teams/[teamId] member count to RPC
+- Update supported tools count to 10 (add Pi + Kosmos)
+- Update doc 37 with Phase 3 migration checklist
+- More branch coverage — achievement-helpers, admin-organizations, auto-register cleanup, openclaw parser, admin-members, admin-invites
+- Branch coverage quick wins — coordinator ENOENT, registry non-Error, showcases, settings, invite, parsers, seasons, cost-helpers, auth, profile, by-device
+- Cover error handling branches in admin-invites, verify-invite, and more routes
+- Cover file cursor loss replay path with progress events
+- Cover error handling branches in notifier hooks and handlers
+- Cover error handling branches in showcases, teams, and season registration routes
+- Cover edge case branches in gemini-session and opencode-session
+- Cover undefined cursor field fallback branches in all token drivers
+- Cover Hermes SQLite pre-check and DB driver loop branches
+- Cover uncovered branches in multiple routes
+- Cover uncovered branches in login and other routes
+- Cover uncovered branches in multiple API routes
+- Cover uncovered branches in teams/[teamId] route
+- Cover uncovered branches in routes and notifier
+- Cover vscode-copilot parser uncovered branches
+- Add parser branch coverage for session collectors
+- Cover non-Error instance branches in admin settings and pricing
+- Cover non-Error instance branches in leaderboard, teams, teams-join
+- Cover pi parser branches for non-string timestamp/model, non-object usage
+- Cover non-Error instance branches in usage, settings, teams
+- Cover error handling branches in seasons, invites, and by-device routes
+- Cover pi-session parser branches and admin showcases nulls
+- Cover admin showcases/seasons error & null branches
+- Cover canBypassPublic branches and date validation in public profile
+- Cover error handling branches in org routes
+- Cover uncovered branches in user achievements route
+- Add comprehensive tests for usage-helpers functions
+- Update Phase 2 RPC migration progress tracking
+- Expand doc 37 scope to include all getDbRead() consumers
+- Fix doc 37 review findings
+- Fix doc 37 - correct terminology and complete domain list
+- Update doc 37 progress - Phase 1 tests and implementation complete
+- Harden worker-read SQL validation against bypass attacks
+- Add worker-read security hardening plan (doc 37)
+- Update @nocoo/cli-base to 0.2.3
+- Harden directory permissions to 0o700 for sensitive config dirs
+- Rewrite kosmos design doc and update docs index
+
+### Fixed
+- Showcase upvote query uses user_id not visitor_id
+- Wait for session before initializing leaderboard scope
+- Leaderboard stale response and premature fetch issues
+- Leaderboard pagination reset on scope change
+- Sessions.list uses last_message_at instead of ended_at
+- Teams fallback key, limit caps, and nickname in public user query
+- Align RPC handlers with actual D1 schema
+- Align auth RPC contract and gate achievements by is_public
+- Unify Organizations icon to Building2 in sidebar
+- Animate only newly loaded leaderboard entries
+- Cap leaderboard at 100 entries and remove pagination opacity
+- Stabilize leaderboard pagination state management
+- Prevent duplicate entries on leaderboard pagination
+- Use user.id as key for leaderboard rows
+- Prevent empty state flash during leaderboard filter change
+- Batch session stats queries to avoid Worker timeout
+- Use conditional spread for optional RPC params
+- Correct RPC call signatures after API change
+- Expand RPC handlers to include all web-required fields
+- Use fixed data windows for WoW/MoM and align week start to Sunday
+- Standardize RPC response format to { result: ... }
+- Add Globe2 and Building2 to sidebar icon map
+
+### Removed
+- Migrate account/delete to getUserById RPC
+- Cover DELETE /api/devices and null branches in GET/PUT
+- Cover admin org route branches (GET/PATCH/DELETE error handling)
+- Remove OAuth token storage from linkAccount
+
+## v2.13.0
+
+### Added
+- Implement server-side pagination for leaderboard
+- Migrate /api/seasons/[seasonId]/leaderboard to RPC
+- Migrate /api/achievements/[id]/members to RPC
+- Migrate Projects domain to typed RPC methods
+- Migrate Organizations admin routes to typed RPC (Batch 8)
+- Migrate Settings domain to typed RPC methods (Batch 7)
+- Migrate Auth domain to typed RPC methods (Batch 6)
+- Migrate Devices domain to typed RPC methods (Batch 5)
+- Migrate Showcases domain to typed RPC methods (Batch 4)
+- Migrate Teams domain to typed RPC methods (Batch 1)
+- Add unified ChartTooltip component for Recharts
+- Add organizations RPC methods for member count and admin
+- Add Organizations + Showcases + Teams RPC to DbRead interface
+- Add P3 RPC handlers for pricing, admin, live
+- Add P2 RPC handlers for organizations, showcases, settings, auth, sessions, leaderboard
+- Add seasons, usage, achievements, devices RPC handlers
+- Add projects and teams RPC handlers
+- Migrate users domain to typed RPC
+- Add GitHub issue link for org requests on settings page
+- Add week-over-week comparison and disambiguate period labels
+- Add Kosmos / PM Studio as 10th source for token + session tracking
+
+### Changed
+- Consolidate leaderboard pagination state into hook
+- Main into feature/phase2-rpc-handlers
+- Use batch size 20 to match frontend page size
+- Fix test assertions and improve coverage
+- Update worker-read migration progress with Phase 5 tracking
+- Migrate /api/leaderboard to RPC
+- Migrate /api/users/[slug]/achievements to RPC
+- Migrate /api/achievements to RPC
+- Migrate /api/admin/storage to RPC
+- Migrate /api/users/[slug] to RPC
+- Migrate /api/sessions to RPC
+- Migrate /api/usage to RPC
+- Migrate by-device queries to RPC
+- Migrate pricing query to listModelPricing RPC
+- Migrate timeline query to RPC
+- Migrate db.query to db.ping() RPC
+- Migrate pricing and seasons list routes to typed RPC
+- Migrate Users domain routes to typed RPC (Batch 2)
+- Migrate Auth & Seasons remaining routes to typed RPC
+- Migrate Seasons domain to typed RPC (Batch 3)
+- Migrate admin/pricing to typed RPC methods
+- Reorganize Phase 3 migration to batch approach
+- Migrate all chart tooltips to unified ChartTooltip
+- Migrate admin/pricing GET to listModelPricing RPC
+- Migrate auth/cli to getUserApiKey RPC
+- Migrate admin/check to getUserEmail RPC
+- Migrate admin/users to searchUsers RPC
+- Update Radix Tooltip to match chart tooltip style
+- Migrate organizations list to listOrganizationsWithCount RPC
+- Migrate organizations/mine to listUserOrganizations RPC
+- Migrate organizations/leave to RPC methods
+- Migrate organizations/join to RPC methods
+- Update Phase 3 migration progress (M023,M027,M029-M031,M084-M085)
+- Update Phase 3 migration checklist progress
+- M023+M027+M031 migrate membership checks to RPC
+- M030 migrate teams/[teamId] member count to RPC
+- Update supported tools count to 10 (add Pi + Kosmos)
+- Update doc 37 with Phase 3 migration checklist
+- More branch coverage — achievement-helpers, admin-organizations, auto-register cleanup, openclaw parser, admin-members, admin-invites
+- Branch coverage quick wins — coordinator ENOENT, registry non-Error, showcases, settings, invite, parsers, seasons, cost-helpers, auth, profile, by-device
+- Cover error handling branches in admin-invites, verify-invite, and more routes
+- Cover file cursor loss replay path with progress events
+- Cover error handling branches in notifier hooks and handlers
+- Cover error handling branches in showcases, teams, and season registration routes
+- Cover edge case branches in gemini-session and opencode-session
+- Cover undefined cursor field fallback branches in all token drivers
+- Cover Hermes SQLite pre-check and DB driver loop branches
+- Cover uncovered branches in multiple routes
+- Cover uncovered branches in login and other routes
+- Cover uncovered branches in multiple API routes
+- Cover uncovered branches in teams/[teamId] route
+- Cover uncovered branches in routes and notifier
+- Cover vscode-copilot parser uncovered branches
+- Add parser branch coverage for session collectors
+- Cover non-Error instance branches in admin settings and pricing
+- Cover non-Error instance branches in leaderboard, teams, teams-join
+- Cover pi parser branches for non-string timestamp/model, non-object usage
+- Cover non-Error instance branches in usage, settings, teams
+- Cover error handling branches in seasons, invites, and by-device routes
+- Cover pi-session parser branches and admin showcases nulls
+- Cover admin showcases/seasons error & null branches
+- Cover canBypassPublic branches and date validation in public profile
+- Cover error handling branches in org routes
+- Cover uncovered branches in user achievements route
+- Add comprehensive tests for usage-helpers functions
+- Update Phase 2 RPC migration progress tracking
+- Expand doc 37 scope to include all getDbRead() consumers
+- Fix doc 37 review findings
+- Fix doc 37 - correct terminology and complete domain list
+- Update doc 37 progress - Phase 1 tests and implementation complete
+- Harden worker-read SQL validation against bypass attacks
+- Add worker-read security hardening plan (doc 37)
+- Update @nocoo/cli-base to 0.2.3
+- Harden directory permissions to 0o700 for sensitive config dirs
+- Rewrite kosmos design doc and update docs index
+
+### Fixed
+- Showcase upvote query uses user_id not visitor_id
+- Wait for session before initializing leaderboard scope
+- Leaderboard stale response and premature fetch issues
+- Leaderboard pagination reset on scope change
+- Sessions.list uses last_message_at instead of ended_at
+- Teams fallback key, limit caps, and nickname in public user query
+- Align RPC handlers with actual D1 schema
+- Align auth RPC contract and gate achievements by is_public
+- Unify Organizations icon to Building2 in sidebar
+- Animate only newly loaded leaderboard entries
+- Cap leaderboard at 100 entries and remove pagination opacity
+- Stabilize leaderboard pagination state management
+- Prevent duplicate entries on leaderboard pagination
+- Use user.id as key for leaderboard rows
+- Prevent empty state flash during leaderboard filter change
+- Batch session stats queries to avoid Worker timeout
+- Use conditional spread for optional RPC params
+- Correct RPC call signatures after API change
+- Expand RPC handlers to include all web-required fields
+- Use fixed data windows for WoW/MoM and align week start to Sunday
+- Standardize RPC response format to { result: ... }
+- Add Globe2 and Building2 to sidebar icon map
+
+### Removed
+- Migrate account/delete to getUserById RPC
+- Cover DELETE /api/devices and null branches in GET/PUT
+- Cover admin org route branches (GET/PATCH/DELETE error handling)
+- Remove OAuth token storage from linkAccount
+
 ## v2.12.0
 
 ### Added
